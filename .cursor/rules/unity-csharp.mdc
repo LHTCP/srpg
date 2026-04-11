@@ -1,0 +1,13 @@
+---
+description: Unity C# / MonoBehaviour 관례 (이 프로젝트)
+globs: "**/*.cs"
+alwaysApply: false
+---
+
+# Unity C# 관례
+
+- 인스펙터에서 할당할 필드는 `public` 또는 `[SerializeField] private`로 노출하고, 필요 시 `[Header]` / `[Tooltip]`으로 그룹·설명을 단다.
+- `MonoBehaviour`에서는 `Awake` / `Start` / `Update` 등 라이프사이클 역할을 분리하고, 싱글톤이면 `Awake`에서 중복 인스턴스는 `Destroy` 처리한다.
+- 씬 오브젝트 참조는 가능하면 인스펙터 할당을 우선하고, 런타임 폴백은 `FindObjectOfType` 등 기존 패턴과 맞출 것.
+- 에디터 전용 코드는 `#if UNITY_EDITOR` 또는 `Assets/Editor` 어셈블리로 분리한다.
+- 물리/입력/렌더링에 민감한 값은 매직 넘버 대신 필드·상수로 두어 조정 가능하게 한다.
