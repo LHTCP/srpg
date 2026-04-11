@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -15,16 +16,16 @@ public partial class SrpGameController
     const int MaxLogLines = 80;
     readonly List<string> _log = new List<string>();
 
-    Text _txtTurn;
-    Text _txtStatus;
-    Text _txtUnit;
-    Text _txtLog;
+    TextMeshProUGUI _txtTurn;
+    TextMeshProUGUI _txtStatus;
+    TextMeshProUGUI _txtUnit;
+    TextMeshProUGUI _txtLog;
     Button _btnSkipAttack;
     Button _btnEndTurn;
     Button _btnUndo;
     Button _btnLobby;
     Button _btnToggleLog;
-    Text _txtLogToggleLabel;
+    TextMeshProUGUI _txtLogToggleLabel;
     GameObject _logBody;
     ScrollRect _logScrollRect;
     RectTransform _logContent;
@@ -105,7 +106,7 @@ public partial class SrpGameController
         vlg.childForceExpandWidth = true;
 
         _btnToggleLog = MakeButton(panel.transform, "로그 숨기기", OnToggleLog, 52, 22);
-        _txtLogToggleLabel = _btnToggleLog.GetComponentInChildren<Text>();
+        _txtLogToggleLabel = _btnToggleLog.GetComponentInChildren<TextMeshProUGUI>();
 
         // ScrollRect 컨테이너
         _logBody = new GameObject("LogScrollRect", typeof(RectTransform));
@@ -143,14 +144,12 @@ public partial class SrpGameController
         _logScrollRect.content = _logContent;
 
         // LogText — Content와 같은 GameObject에 추가
-        _txtLog = contentGo.AddComponent<Text>();
-        SafeFont(_txtLog);
+        _txtLog = contentGo.AddComponent<TextMeshProUGUI>();
         _txtLog.fontSize = 20;
         _txtLog.color = new Color(0.88f, 0.92f, 0.95f);
-        _txtLog.alignment = TextAnchor.UpperLeft;
-        _txtLog.horizontalOverflow = HorizontalWrapMode.Wrap;
-        _txtLog.verticalOverflow = VerticalWrapMode.Overflow;
-        _txtLog.supportRichText = false;
+        _txtLog.alignment = TextAlignmentOptions.TopLeft;
+        _txtLog.overflowMode = TextOverflowModes.Overflow;
+        _txtLog.richText = false;
 
         // 세로 스크롤바
         var sbGo = new GameObject("LogScrollbar", typeof(RectTransform));
@@ -180,18 +179,16 @@ public partial class SrpGameController
 
     // ── HUD 헬퍼 ─────────────────────────────────────────────────────────────
 
-    static Text MakeLabel(Transform parent, string name, int fontSize, Color color, float minH)
+    static TextMeshProUGUI MakeLabel(Transform parent, string name, int fontSize, Color color, float minH)
     {
         var go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
         go.AddComponent<LayoutElement>().minHeight = minH;
-        var t = go.AddComponent<Text>();
-        SafeFont(t);
+        var t = go.AddComponent<TextMeshProUGUI>();
         t.fontSize = fontSize;
         t.color = color;
-        t.alignment = TextAnchor.UpperLeft;
-        t.horizontalOverflow = HorizontalWrapMode.Wrap;
-        t.verticalOverflow = VerticalWrapMode.Overflow;
+        t.alignment = TextAlignmentOptions.TopLeft;
+        t.overflowMode = TextOverflowModes.Overflow;
         return t;
     }
 
@@ -214,11 +211,10 @@ public partial class SrpGameController
         trt.anchorMin = Vector2.zero;
         trt.anchorMax = Vector2.one;
         trt.offsetMin = trt.offsetMax = Vector2.zero;
-        var tx = textGo.AddComponent<Text>();
-        SafeFont(tx);
+        var tx = textGo.AddComponent<TextMeshProUGUI>();
         tx.fontSize = fontSize;
         tx.color = Color.white;
-        tx.alignment = TextAnchor.MiddleCenter;
+        tx.alignment = TextAlignmentOptions.Center;
         tx.text = label;
         return b;
     }
@@ -229,14 +225,6 @@ public partial class SrpGameController
         go.transform.SetParent(parent, false);
         go.AddComponent<LayoutElement>().minHeight = 2;
         go.AddComponent<Image>().color = new Color(1f, 1f, 1f, 0.14f);
-    }
-
-    static void SafeFont(Text t)
-    {
-        if (t == null) return;
-        var f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        if (f == null) f = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        t.font = f;
     }
 
     void OnToggleLog()

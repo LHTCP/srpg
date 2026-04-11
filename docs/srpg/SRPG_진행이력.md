@@ -246,11 +246,34 @@ Idle → [플레이어 턴 종료] → AdvancePlayerTurn → 다음 플레이어
 
 ---
 
+## 11단계 — TMP(TextMeshPro) 전환
+
+### 배경
+레거시 `UnityEngine.UI.Text`는 비트맵 폰트 기반이라 한글 가독성이 낮고 고해상도에서 흐릿하게 표시됨.
+TMP(`TextMeshProUGUI`)로 전환해 SDF 렌더링 기반의 선명한 한글 출력을 확보.
+
+### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `SrpGameController.Hud.cs` | `Text` → `TextMeshProUGUI` (필드 5개, `MakeLabel`, `MakeButton`, `BuildRightPanel` 내 로그 텍스트). `SafeFont()` 제거. 정렬 enum → `TextAlignmentOptions`. `overflowMode = Overflow` 설정. |
+| `SrpLobbyController.cs` | `Text` → `TextMeshProUGUI`, `InputField` → `TMP_InputField`. 모든 버튼·라벨 헬퍼 전환. `MakeInputField` 내부에 "Text Area" + `RectMask2D` viewport 구조 추가. `SafeFont()` 제거. 특수기호(`⚔`) 제거(폰트 미지원). |
+
+### 주요 설계 결정
+
+| 항목 | 선택 | 이유 |
+|------|------|------|
+| 폰트 에셋 | Pretendard Variable Dynamic SDF | 한글 지원, Variable 폰트로 단일 파일에 다중 굵기 포함 |
+| 아틀라스 방식 | Dynamic | 한글 11,172자를 Static으로 구우면 아틀라스가 거대해지고 빌드 시간이 길어짐 |
+| 기본 폰트 등록 | Project Settings → TextMeshPro → Default Font Asset | 코드 생성 UI 전체에 일괄 적용, 코드 변경 불필요 |
+| `TMP_InputField` viewport | "Text Area" + `RectMask2D` | TMP_InputField는 textViewport 연결이 없으면 입력 커서·클리핑이 동작하지 않음 |
+
+---
+
 ## 현재 미해결/진행 중 사항 (Backlog)
 
 | 우선도 | 항목 | 비고 |
 |--------|------|------|
-| 중간 | TMP(TextMeshPro) 전환 | 한글 가독성 향상 |
 | 낮음 | AI 스텁(무작위 합법 수) | 레벨 밸런스 테스트용 |
 | 낮음 | 2인 원격 세션 | 핫시트 검증 후 |
 

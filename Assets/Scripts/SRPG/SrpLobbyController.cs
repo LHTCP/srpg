@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -23,8 +24,8 @@ public class SrpLobbyController : MonoBehaviour
 
     Button[]  _presetButtons;
     Image[]   _presetImages;
-    Text      _txtLoadStatus;
-    InputField _inputFileName;
+    TextMeshProUGUI _txtLoadStatus;
+    TMP_InputField  _inputFileName;
 
     // ── 생명주기 ──────────────────────────────────────────────────────────────
 
@@ -127,7 +128,7 @@ public class SrpLobbyController : MonoBehaviour
         MakeSeparator(centerGo.transform);
 
         // 전투 시작 버튼
-        MakeButton(centerGo.transform, "⚔  전투 시작", OnStartBattle, 72, 30);
+        MakeButton(centerGo.transform, "전투 시작", OnStartBattle, 72, 30);
     }
 
     // ── 버튼 핸들러 ───────────────────────────────────────────────────────────
@@ -197,19 +198,17 @@ public class SrpLobbyController : MonoBehaviour
         return go.AddComponent<Image>();
     }
 
-    static Text MakeLabel(Transform parent, string text, int fontSize, Color color, float minH)
+    static TextMeshProUGUI MakeLabel(Transform parent, string text, int fontSize, Color color, float minH)
     {
         var go = new GameObject("Lbl", typeof(RectTransform));
         go.transform.SetParent(parent, false);
         go.AddComponent<LayoutElement>().minHeight = minH;
-        var t = go.AddComponent<Text>();
-        SafeFont(t);
-        t.fontSize           = fontSize;
-        t.color              = color;
-        t.alignment          = TextAnchor.MiddleCenter;
-        t.horizontalOverflow = HorizontalWrapMode.Wrap;
-        t.verticalOverflow   = VerticalWrapMode.Overflow;
-        t.text               = text;
+        var t = go.AddComponent<TextMeshProUGUI>();
+        t.fontSize  = fontSize;
+        t.color     = color;
+        t.alignment = TextAlignmentOptions.Center;
+        t.overflowMode = TextOverflowModes.Overflow;
+        t.text      = text;
         return t;
     }
 
@@ -252,11 +251,10 @@ public class SrpLobbyController : MonoBehaviour
         trt.anchorMin = Vector2.zero;
         trt.anchorMax = Vector2.one;
         trt.offsetMin = trt.offsetMax = Vector2.zero;
-        var tx = textGo.AddComponent<Text>();
-        SafeFont(tx);
+        var tx = textGo.AddComponent<TextMeshProUGUI>();
         tx.fontSize  = 22;
         tx.color     = Color.white;
-        tx.alignment = TextAnchor.MiddleCenter;
+        tx.alignment = TextAlignmentOptions.Center;
         tx.text      = label;
         return b;
     }
@@ -280,11 +278,10 @@ public class SrpLobbyController : MonoBehaviour
         trt.anchorMin = Vector2.zero;
         trt.anchorMax = Vector2.one;
         trt.offsetMin = trt.offsetMax = Vector2.zero;
-        var tx = textGo.AddComponent<Text>();
-        SafeFont(tx);
+        var tx = textGo.AddComponent<TextMeshProUGUI>();
         tx.fontSize  = fontSize;
         tx.color     = Color.white;
-        tx.alignment = TextAnchor.MiddleCenter;
+        tx.alignment = TextAlignmentOptions.Center;
         tx.text      = label;
         return b;
     }
@@ -308,39 +305,43 @@ public class SrpLobbyController : MonoBehaviour
         trt.anchorMin = Vector2.zero;
         trt.anchorMax = Vector2.one;
         trt.offsetMin = trt.offsetMax = Vector2.zero;
-        var tx = textGo.AddComponent<Text>();
-        SafeFont(tx);
+        var tx = textGo.AddComponent<TextMeshProUGUI>();
         tx.fontSize  = 22;
         tx.color     = Color.white;
-        tx.alignment = TextAnchor.MiddleCenter;
+        tx.alignment = TextAlignmentOptions.Center;
         tx.text      = label;
     }
 
-    static InputField MakeInputField(Transform parent, string placeholder)
+    static TMP_InputField MakeInputField(Transform parent, string placeholder)
     {
         var go = new GameObject("InputField", typeof(RectTransform));
         go.transform.SetParent(parent, false);
         go.AddComponent<Image>().color = new Color(0.12f, 0.14f, 0.18f, 0.95f);
-        var field = go.AddComponent<InputField>();
+        var field = go.AddComponent<TMP_InputField>();
+
+        // Text Area (viewport — TMP_InputField 필수 구조)
+        var areaGo = new GameObject("Text Area", typeof(RectTransform));
+        areaGo.transform.SetParent(go.transform, false);
+        FillRect(areaGo.GetComponent<RectTransform>(), 6);
+        areaGo.AddComponent<RectMask2D>();
+        field.textViewport = areaGo.GetComponent<RectTransform>();
 
         // Placeholder
         var phGo = new GameObject("Placeholder", typeof(RectTransform));
-        phGo.transform.SetParent(go.transform, false);
-        FillRect(phGo.GetComponent<RectTransform>(), 6);
-        var phTx = phGo.AddComponent<Text>();
-        SafeFont(phTx);
+        phGo.transform.SetParent(areaGo.transform, false);
+        FillRect(phGo.GetComponent<RectTransform>(), 0);
+        var phTx = phGo.AddComponent<TextMeshProUGUI>();
         phTx.fontSize  = 20;
         phTx.color     = new Color(0.5f, 0.5f, 0.55f);
-        phTx.fontStyle = FontStyle.Italic;
+        phTx.fontStyle = FontStyles.Italic;
         phTx.text      = placeholder;
         field.placeholder = phTx;
 
         // Text
         var txGo = new GameObject("Text", typeof(RectTransform));
-        txGo.transform.SetParent(go.transform, false);
-        FillRect(txGo.GetComponent<RectTransform>(), 6);
-        var inputTx = txGo.AddComponent<Text>();
-        SafeFont(inputTx);
+        txGo.transform.SetParent(areaGo.transform, false);
+        FillRect(txGo.GetComponent<RectTransform>(), 0);
+        var inputTx = txGo.AddComponent<TextMeshProUGUI>();
         inputTx.fontSize = 20;
         inputTx.color    = Color.white;
         field.textComponent = inputTx;
@@ -356,11 +357,4 @@ public class SrpLobbyController : MonoBehaviour
         rt.offsetMax = new Vector2(-padding, -padding);
     }
 
-    static void SafeFont(Text t)
-    {
-        if (t == null) return;
-        var f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        if (f == null) f = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        t.font = f;
-    }
 }
