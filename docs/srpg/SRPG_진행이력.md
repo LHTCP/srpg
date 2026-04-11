@@ -223,11 +223,33 @@ Idle → [플레이어 턴 종료] → AdvancePlayerTurn → 다음 플레이어
 
 ---
 
+## 10단계 — 로그 패널 ScrollRect 전환
+
+### 배경
+오른쪽 로그 패널이 최근 22줄만 보이고 이전 로그를 볼 방법이 없었음.
+80줄 전체를 마우스 휠로 스크롤할 수 있도록 `ScrollRect` 기반으로 재구성.
+
+### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `SrpGameController.Hud.cs` | `BuildRightPanel` — `_logBody`를 ScrollRect/Viewport/Content/Scrollbar 계층으로 재구성. `LogLine()` — 전체 로그 렌더링, `ApplyLogScroll()` 코루틴으로 최하단 자동 스크롤 |
+
+### 주요 설계 결정
+
+| 항목 | 선택 | 이유 |
+|------|------|------|
+| Viewport 클리핑 | `RectMask2D` | `Mask`+투명 Image는 코드 생성 시 스텐실 머티리얼 교체 타이밍 문제로 텍스트가 완전히 숨겨질 수 있음 |
+| Content 높이 관리 | `LogLine`에서 `sizeDelta.y` 직접 설정 | `ContentSizeFitter`는 레이아웃 패스 bottom-up 단계에서 width=0 기준으로 preferredHeight를 잘못 읽는 순환 의존 문제 발생 |
+| 스크롤 적용 시점 | `ApplyLogScroll()` 코루틴 (2프레임 지연) | Awake 직후 `Canvas.ForceUpdateCanvases()` 동기 호출 시 VLG 레이아웃 미확정 상태에서 normalizedPosition이 설정되어 Content가 뷰포트 밖으로 밀림 |
+| 스크롤바 Visibility | `Permanent` | `AutoHideAndExpandViewport`는 Viewport offsetMax를 동적으로 재설정해 수동 여백(-14px)과 충돌 |
+
+---
+
 ## 현재 미해결/진행 중 사항 (Backlog)
 
 | 우선도 | 항목 | 비고 |
 |--------|------|------|
-| 중간 | 로그 ScrollRect | 긴 로그 전체 열람 |
 | 중간 | TMP(TextMeshPro) 전환 | 한글 가독성 향상 |
 | 낮음 | AI 스텁(무작위 합법 수) | 레벨 밸런스 테스트용 |
 | 낮음 | 2인 원격 세션 | 핫시트 검증 후 |

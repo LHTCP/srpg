@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -25,7 +26,10 @@ public partial class SrpGameController
     Button _btnToggleLog;
     Text _txtLogToggleLabel;
     GameObject _logBody;
+    ScrollRect _logScrollRect;
+    RectTransform _logContent;
     bool _logVisible = true;
+    bool _logScrollPending;
 
     // ── HUD 생성 ─────────────────────────────────────────────────────────────
 
@@ -103,26 +107,75 @@ public partial class SrpGameController
         _btnToggleLog = MakeButton(panel.transform, "로그 숨기기", OnToggleLog, 52, 22);
         _txtLogToggleLabel = _btnToggleLog.GetComponentInChildren<Text>();
 
-        _logBody = new GameObject("LogBody", typeof(RectTransform));
+        // ScrollRect 컨테이너
+        _logBody = new GameObject("LogScrollRect", typeof(RectTransform));
         _logBody.transform.SetParent(panel.transform, false);
         _logBody.AddComponent<LayoutElement>().flexibleHeight = 1f;
         _logBody.AddComponent<Image>().color = new Color(0.04f, 0.04f, 0.07f, 0.4f);
+        _logScrollRect = _logBody.AddComponent<ScrollRect>();
+        _logScrollRect.horizontal = false;
+        _logScrollRect.vertical = true;
+        _logScrollRect.scrollSensitivity = 30f;
+        _logScrollRect.movementType = ScrollRect.MovementType.Clamped;
 
-        var logTextGo = new GameObject("LogText", typeof(RectTransform));
-        logTextGo.transform.SetParent(_logBody.transform, false);
-        var ltr = logTextGo.GetComponent<RectTransform>();
-        ltr.anchorMin = Vector2.zero;
-        ltr.anchorMax = Vector2.one;
-        ltr.offsetMin = new Vector2(8, 8);
-        ltr.offsetMax = new Vector2(-8, -8);
-        _txtLog = logTextGo.AddComponent<Text>();
+        // Viewport (Mask)
+        var viewportGo = new GameObject("Viewport", typeof(RectTransform));
+        viewportGo.transform.SetParent(_logBody.transform, false);
+        var vrt = viewportGo.GetComponent<RectTransform>();
+        vrt.anchorMin = Vector2.zero;
+        vrt.anchorMax = Vector2.one;
+        vrt.offsetMin = Vector2.zero;
+        vrt.offsetMax = new Vector2(-14f, 0f); // 스크롤바 폭만큼 여백
+        // RectMask2D: Image 없이도 동작하며 스텐실 머티리얼 교체 문제가 없음
+        viewportGo.AddComponent<RectMask2D>();
+        _logScrollRect.viewport = vrt;
+
+        // Content — anchorMin/Max.x 스트레치로 width는 뷰포트에 맞추고,
+        // height는 LogLine()에서 preferredHeight로 직접 설정한다.
+        var contentGo = new GameObject("Content", typeof(RectTransform));
+        contentGo.transform.SetParent(viewportGo.transform, false);
+        _logContent = contentGo.GetComponent<RectTransform>();
+        _logContent.anchorMin = new Vector2(0f, 1f);
+        _logContent.anchorMax = new Vector2(1f, 1f);
+        _logContent.pivot = new Vector2(0f, 1f);
+        _logContent.offsetMin = Vector2.zero;
+        _logContent.offsetMax = Vector2.zero;
+        _logScrollRect.content = _logContent;
+
+        // LogText — Content와 같은 GameObject에 추가
+        _txtLog = contentGo.AddComponent<Text>();
         SafeFont(_txtLog);
         _txtLog.fontSize = 20;
         _txtLog.color = new Color(0.88f, 0.92f, 0.95f);
         _txtLog.alignment = TextAnchor.UpperLeft;
         _txtLog.horizontalOverflow = HorizontalWrapMode.Wrap;
-        _txtLog.verticalOverflow = VerticalWrapMode.Truncate;
+        _txtLog.verticalOverflow = VerticalWrapMode.Overflow;
         _txtLog.supportRichText = false;
+
+        // 세로 스크롤바
+        var sbGo = new GameObject("LogScrollbar", typeof(RectTransform));
+        sbGo.transform.SetParent(_logBody.transform, false);
+        var sbrt = sbGo.GetComponent<RectTransform>();
+        sbrt.anchorMin = new Vector2(1f, 0f);
+        sbrt.anchorMax = new Vector2(1f, 1f);
+        sbrt.pivot = new Vector2(1f, 0.5f);
+        sbrt.sizeDelta = new Vector2(12f, 0f);
+        sbGo.AddComponent<Image>().color = new Color(0.2f, 0.2f, 0.25f, 0.8f);
+        var sb = sbGo.AddComponent<Scrollbar>();
+        sb.direction = Scrollbar.Direction.BottomToTop;
+
+        var sbHandleGo = new GameObject("Handle", typeof(RectTransform));
+        sbHandleGo.transform.SetParent(sbGo.transform, false);
+        var sbhrt = sbHandleGo.GetComponent<RectTransform>();
+        sbhrt.anchorMin = Vector2.zero;
+        sbhrt.anchorMax = Vector2.one;
+        sbhrt.offsetMin = sbhrt.offsetMax = Vector2.zero;
+        sbHandleGo.AddComponent<Image>().color = new Color(0.5f, 0.6f, 0.75f, 0.9f);
+        sb.handleRect = sbhrt;
+        sb.targetGraphic = sbHandleGo.GetComponent<Image>();
+
+        _logScrollRect.verticalScrollbar = sb;
+        _logScrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
     }
 
     // ── HUD 헬퍼 ─────────────────────────────────────────────────────────────
@@ -209,11 +262,29 @@ public partial class SrpGameController
         if (_txtLog != null)
         {
             var sb = new StringBuilder();
-            for (int i = Mathf.Max(0, _log.Count - 22); i < _log.Count; i++)
-                sb.AppendLine(_log[i]);
+            foreach (var line in _log)
+                sb.AppendLine(line);
             _txtLog.text = sb.ToString();
         }
         Debug.Log("[SRPG] " + msg);
+
+        if (_logScrollRect != null && _logContent != null && !_logScrollPending)
+        {
+            _logScrollPending = true;
+            StartCoroutine(ApplyLogScroll());
+        }
+    }
+
+    // Awake에서 곧바로 Canvas 레이아웃을 강제하면 순서 문제가 생기므로
+    // 1프레임 기다려 레이아웃이 확정된 뒤 Content 크기·스크롤 위치를 갱신한다.
+    IEnumerator ApplyLogScroll()
+    {
+        yield return null; // 이전 프레임 레이아웃 완료 대기
+        _logScrollPending = false;
+        if (_logContent == null || _txtLog == null || _logScrollRect == null) yield break;
+        _logContent.sizeDelta = new Vector2(0f, _txtLog.preferredHeight);
+        yield return null; // sizeDelta 반영 레이아웃 완료 대기
+        _logScrollRect.verticalNormalizedPosition = 0f;
     }
 
     void UpdateHud()
