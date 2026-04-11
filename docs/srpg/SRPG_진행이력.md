@@ -270,6 +270,60 @@ TMP(`TextMeshProUGUI`)로 전환해 SDF 렌더링 기반의 선명한 한글 출
 
 ---
 
+## 12단계 — 메이커 시스템 + 스킬 사용
+
+### 배경
+유닛별 스킬 사용, 스킬/유닛/맵을 생성·관리하는 메이커(에디터) 시스템이 필요.
+
+### 추가된 파일
+
+| 파일 | 역할 |
+|------|------|
+| `SrpSkillData.cs` | 스킬 정의 모델(`SrpSkillData`, `SrpSkillRuntime`, enum들, DB 래퍼) |
+| `SrpDataIO.cs` | 스킬/유닛 DB JSON 저장/로드(`persistentDataPath/SrpData/`) |
+| `SrpDefaultSkills.cs` | 기본 스킬 4종 시드(심장관통, 빙결축복, 강타, 치유의빛) |
+| `SrpDefaultUnits.cs` | 기본 유닛 3종 시드(기사, 궁수, 브루트보스) |
+| `SrpSkillMakerController.cs` | 스킬 메이커 씬 — CRUD, 효과 편집, JSON 저장 |
+| `SrpUnitMakerController.cs` | 유닛 메이커 씬 — 스탯 편집, Large 풋프린트, 스킬 할당 |
+| `SrpMapMakerController.cs` | 맵 메이커 씬 — 시각 그리드 편집, 유닛 배치, 카메라 조작 |
+| `SrpFontWarmup.cs` | TMP Dynamic SDF 한글 글리프 사전 로드 |
+
+### 수정된 파일
+
+| 파일 | 변경 |
+|------|------|
+| `SrpGameSettings.cs` | 메이커 씬 상수 3개 추가 |
+| `SrpUnitRuntime.cs` | `skillRuntimes`, `hasUsedSkillThisActivation` 필드 + Clone 확장 |
+| `SrpBattleState.cs` | `SkillLookup` 딕셔너리, 스킬 DB 로드, 풋프린트 자동 생성 |
+| `SrpSkills.cs` | 하드코딩 → 데이터 기반 동적 효과 시스템 전면 리팩터 |
+| `SrpGameController.cs` | `Phase.SelectingSkillTarget`, 스킬 타게팅/취소, 쿨다운 Tick, HUD 630px |
+| `SrpGameController.Hud.cs` | 스킬 사용 버튼, 스킬 목록 팝업, Tooltip(마우스 호버), 패널 너비 확대 |
+| `SrpLobbyController.cs` | 메이커 진입 버튼 3개(스킬/유닛/맵) |
+| `SrpMapFile.cs` | `footprintWidth/Height`, `disabledSkillIds`, `allowedSkillIds` 필드 |
+
+### 주요 설계 결정
+
+| 항목 | 선택 | 이유 |
+|------|------|------|
+| 데이터 저장 | JSON (`persistentDataPath/SrpData/`) | 기존 맵 IO와 일관, 런타임 편집 가능 |
+| 스킬 효과 값 | 고정 피해량 | % 기반은 스킬 메이커에서 직관성 떨어짐 |
+| 스킬 대상 스탯 | 드롭다운 고정 목록 | 수기 입력 오류 방지, 확장 시 배열만 수정 |
+| 맵 스킬 제한 | 유닛별 `disabledSkillIds` | 전역 화이트리스트보다 세밀한 제어 |
+| 풋프린트 설정 | 가로×세로 직사각형 | L자 등 복잡한 형태 불필요 |
+| HUD Tooltip | EventTrigger + 재사용 팝업 | 실전 UI 패턴, Ellipsis로 패널 넘침 방지 |
+
+### 씬 구조
+
+| 씬 | 상수(`SrpGameSettings`) |
+|----|------------------------|
+| 로비 | `LobbyScene = "SrpgLobby"` |
+| 전투 | `BattleScene = "SrpgBattle"` |
+| 스킬 메이커 | `SkillMakerScene = "SrpgSkillMaker"` |
+| 유닛 메이커 | `UnitMakerScene = "SrpgUnitMaker"` |
+| 맵 메이커 | `MapMakerScene = "SrpgMapMaker"` |
+
+---
+
 ## 현재 미해결/진행 중 사항 (Backlog)
 
 | 우선도 | 항목 | 비고 |
@@ -283,21 +337,29 @@ TMP(`TextMeshProUGUI`)로 전환해 SDF 렌더링 기반의 선명한 한글 출
 
 ```
 Assets/Scripts/SRPG/
-├── SrpBattleState.cs              — 시뮬레이션 상태(그리드·유닛·점유·ZOC)
+├── SrpBattleState.cs              — 시뮬레이션 상태(그리드·유닛·점유·ZOC·스킬DB)
 ├── SrpCombatResolver.cs           — 전투 해석(AP·HP·PG·처단)
+├── SrpDataIO.cs                   — 스킬/유닛 DB JSON IO
 ├── SrpDefaultMaps.cs              — 내장 맵 3종 코드 생성
+├── SrpDefaultSkills.cs            — 기본 스킬 4종 시드
+├── SrpDefaultUnits.cs             — 기본 유닛 3종 시드
 ├── SrpDevTools.cs                 — 개발자 F3 패널
+├── SrpFontWarmup.cs               — TMP 한글 글리프 사전 로드
 ├── SrpGameController.cs           — 핵심 필드·Awake·입력·게임 흐름 (partial)
 ├── SrpGameController.Rendering.cs — 그리드·유닛 뷰·타일 색상 (partial)
-├── SrpGameController.Hud.cs       — HUD 생성·로그·상태 갱신 (partial)
-├── SrpGameSettings.cs             — 씬 간 설정 전달(로비↔전투)
+├── SrpGameController.Hud.cs       — HUD·로그·스킬 UI·Tooltip (partial)
+├── SrpGameSettings.cs             — 씬 간 설정 전달(로비↔전투↔메이커)
 ├── SrpLobbyController.cs          — 로비 씬 MonoBehaviour
-├── SrpMapFile.cs                  — JSON 스키마 v1
+├── SrpMapFile.cs                  — JSON 스키마 v1 (풋프린트·스킬제한 포함)
 ├── SrpMapIO.cs                    — 맵 저장/로드
+├── SrpMapMakerController.cs       — 맵 메이커 씬 (그리드 편집·유닛 배치·카메라)
 ├── SrpMapPreset.cs                — 프리셋 enum
 ├── SrpPathfinder.cs               — 이동 탐색(다익스트라 + ZOC)
-├── SrpSkills.cs                   — 스킬 효과 스텁
+├── SrpSkillData.cs                — 스킬 정의 모델 + enum + 런타임
+├── SrpSkillMakerController.cs     — 스킬 메이커 씬 (CRUD·효과 편집)
+├── SrpSkills.cs                   — 데이터 기반 스킬 효과 해석
 ├── SrpTileView.cs                 — 타일 클릭 위임
-├── SrpUnitRuntime.cs              — 유닛 인스턴스
+├── SrpUnitMakerController.cs      — 유닛 메이커 씬 (스탯·스킬·풋프린트)
+├── SrpUnitRuntime.cs              — 유닛 인스턴스 (스킬 런타임 포함)
 └── SrpUnitTags.cs                 — Boss/Large 비트마스크
 ```

@@ -26,6 +26,8 @@ public class SrpUnitTemplateData
     public int maxSkills = 4;
     public int frozenHeart;
     public int tags;
+    public int footprintWidth = 1;
+    public int footprintHeight = 1;
 }
 
 [Serializable]
@@ -36,6 +38,7 @@ public class SrpPlacementData
     public int x;
     public int y;
     public SrpOffset[] footprint = Array.Empty<SrpOffset>();
+    public string[] disabledSkillIds = Array.Empty<string>();
 }
 
 [Serializable]
@@ -49,4 +52,5 @@ public class SrpMapFileV1
     public int[] playerOrder = new[] { 0, 1 };
     public SrpUnitTemplateData[] templates = Array.Empty<SrpUnitTemplateData>();
     public SrpPlacementData[] placements = Array.Empty<SrpPlacementData>();
+    public string[] allowedSkillIds = Array.Empty<string>();
 }

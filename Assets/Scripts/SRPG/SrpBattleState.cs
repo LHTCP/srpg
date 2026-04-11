@@ -14,6 +14,7 @@ public class SrpBattleState
     public int[] PlayerOrder { get; private set; }
     public int CurrentPlayerIndex { get; set; }
     public Dictionary<string, SrpUnitTemplateData> TemplateLookup { get; private set; } = new Dictionary<string, SrpUnitTemplateData>();
+    public Dictionary<string, SrpSkillData> SkillLookup { get; private set; } = new Dictionary<string, SrpSkillData>();
 
     int _nextUnitId = 1;
 
@@ -28,6 +29,7 @@ public class SrpBattleState
             CurrentPlayerIndex = CurrentPlayerIndex,
             _nextUnitId = _nextUnitId,
             TemplateLookup = new Dictionary<string, SrpUnitTemplateData>(TemplateLookup),
+            SkillLookup = new Dictionary<string, SrpSkillData>(SkillLookup),
         };
         foreach (var u in Units)
             s.Units.Add(u.Clone());
@@ -54,6 +56,12 @@ public class SrpBattleState
                     st.TemplateLookup[t.id] = t;
             }
         }
+        var skills = SrpDataIO.LoadSkillsOrDefault();
+        if (skills != null)
+            foreach (var sk in skills)
+                if (!string.IsNullOrEmpty(sk.id))
+                    st.SkillLookup[sk.id] = sk;
+
         st.SpawnFromPlacements(map.placements);
         return st;
     }
@@ -119,6 +127,12 @@ public class SrpBattleState
             foreach (var o in footprint)
                 u.footprintOffsets.Add(new Vector2Int(o.dx, o.dy));
         }
+        else if (t.footprintWidth > 1 || t.footprintHeight > 1)
+        {
+            for (int fy = 0; fy < t.footprintHeight; fy++)
+            for (int fx = 0; fx < t.footprintWidth; fx++)
+                u.footprintOffsets.Add(new Vector2Int(fx, fy));
+        }
         else
         {
             u.footprintOffsets.Add(Vector2Int.zero);
@@ -126,8 +140,13 @@ public class SrpBattleState
         if (t.skillIds != null)
         {
             foreach (var s in t.skillIds)
+            {
                 if (!string.IsNullOrEmpty(s))
+                {
                     u.skillIds.Add(s);
+                    u.skillRuntimes.Add(new SrpSkillRuntime(s));
+                }
+            }
         }
         return u;
     }

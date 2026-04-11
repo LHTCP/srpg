@@ -28,12 +28,14 @@ public class SrpUnitRuntime
     public int frozenHeart;
     public int tags;
     public List<string> skillIds = new List<string>();
+    public List<SrpSkillRuntime> skillRuntimes = new List<SrpSkillRuntime>();
 
     public bool groggy;
     public bool eliminated;
 
     public bool hasMovedThisActivation;
     public bool hasAttackedThisActivation;
+    public bool hasUsedSkillThisActivation;
     public bool passiveAppliedThisTurn;
 
     public SrpUnitRuntime Clone()
@@ -63,8 +65,11 @@ public class SrpUnitRuntime
             eliminated = eliminated,
             hasMovedThisActivation = hasMovedThisActivation,
             hasAttackedThisActivation = hasAttackedThisActivation,
+            hasUsedSkillThisActivation = hasUsedSkillThisActivation,
             passiveAppliedThisTurn = passiveAppliedThisTurn,
         };
+        foreach (var sr in skillRuntimes)
+            u.skillRuntimes.Add(sr.Clone());
         return u;
     }
 

@@ -12,8 +12,11 @@ public static class SrpGameSettings
     /// <summary>로비에서 JSON으로 불러온 맵. null이면 SelectedPreset 사용.</summary>
     public static SrpMapFileV1 CustomMap = null;
 
-    public const string LobbyScene  = "SrpgLobby";
-    public const string BattleScene = "SrpgBattle";
+    public const string LobbyScene      = "SrpgLobby";
+    public const string BattleScene     = "SrpgBattle";
+    public const string SkillMakerScene = "SrpgSkillMaker";
+    public const string UnitMakerScene  = "SrpgUnitMaker";
+    public const string MapMakerScene   = "SrpgMapMaker";
 
     /// <summary>내장 프리셋으로 전투 씬 전환.</summary>
     public static void StartBattle(SrpMapPreset preset)

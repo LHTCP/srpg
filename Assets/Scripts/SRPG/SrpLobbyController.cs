@@ -32,6 +32,7 @@ public class SrpLobbyController : MonoBehaviour
     void Awake()
     {
         EnsureEventSystem();
+        SrpFontWarmup.Warmup();
         BuildUi();
         RefreshPresetButtons();
     }
@@ -73,7 +74,7 @@ public class SrpLobbyController : MonoBehaviour
         crt.anchorMin = new Vector2(0.5f, 0.5f);
         crt.anchorMax = new Vector2(0.5f, 0.5f);
         crt.pivot     = new Vector2(0.5f, 0.5f);
-        crt.sizeDelta = new Vector2(640f, 680f);
+        crt.sizeDelta = new Vector2(640f, 820f);
 
         centerGo.AddComponent<Image>().color = new Color(0.08f, 0.10f, 0.14f, 0.92f);
 
@@ -129,6 +130,18 @@ public class SrpLobbyController : MonoBehaviour
 
         // 전투 시작 버튼
         MakeButton(centerGo.transform, "전투 시작", OnStartBattle, 72, 30);
+
+        MakeSeparator(centerGo.transform);
+
+        // 메이커 섹션
+        MakeLabel(centerGo.transform, "데이터 관리", 24, new Color(0.85f, 0.95f, 1f), 32);
+        var makerRow = MakeHorizontalRow(centerGo.transform, 60);
+        MakeMakerButton(makerRow.transform, "스킬 메이커",
+            () => UnityEngine.SceneManagement.SceneManager.LoadScene(SrpGameSettings.SkillMakerScene));
+        MakeMakerButton(makerRow.transform, "유닛 메이커",
+            () => UnityEngine.SceneManagement.SceneManager.LoadScene(SrpGameSettings.UnitMakerScene));
+        MakeMakerButton(makerRow.transform, "맵 메이커",
+            () => UnityEngine.SceneManagement.SceneManager.LoadScene(SrpGameSettings.MapMakerScene));
     }
 
     // ── 버튼 핸들러 ───────────────────────────────────────────────────────────
@@ -347,6 +360,28 @@ public class SrpLobbyController : MonoBehaviour
         field.textComponent = inputTx;
 
         return field;
+    }
+
+    static void MakeMakerButton(Transform parent, string label,
+        UnityEngine.Events.UnityAction onClick)
+    {
+        var go = new GameObject("Btn_" + label, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        go.AddComponent<Image>().color = new Color(0.28f, 0.38f, 0.55f, 0.92f);
+        var b = go.AddComponent<Button>();
+        b.onClick.AddListener(onClick);
+
+        var textGo = new GameObject("Label", typeof(RectTransform));
+        textGo.transform.SetParent(go.transform, false);
+        var trt = textGo.GetComponent<RectTransform>();
+        trt.anchorMin = Vector2.zero;
+        trt.anchorMax = Vector2.one;
+        trt.offsetMin = trt.offsetMax = Vector2.zero;
+        var tx = textGo.AddComponent<TextMeshProUGUI>();
+        tx.fontSize = 22;
+        tx.color = Color.white;
+        tx.alignment = TextAlignmentOptions.Center;
+        tx.text = label;
     }
 
     static void FillRect(RectTransform rt, float padding)

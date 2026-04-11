@@ -26,10 +26,10 @@ public partial class SrpGameController : MonoBehaviour
 
     [Header("HUD")]
     [Tooltip("왼쪽 컨트롤 패널 폭(캔버스 단위).")]
-    public float leftPanelWidth = 420f;
+    public float leftPanelWidth = 630f;
 
     [Tooltip("오른쪽 로그 패널 폭(캔버스 단위).")]
-    public float rightPanelWidth = 420f;
+    public float rightPanelWidth = 630f;
 
     [Tooltip("시작 시 오른쪽 로그 패널 표시 여부.")]
     public bool startWithLogVisible = true;
@@ -41,7 +41,7 @@ public partial class SrpGameController : MonoBehaviour
 
     // ── 입력·페이즈 상태 ─────────────────────────────────────────────────────
 
-    enum Phase { Idle, UnitActive }
+    enum Phase { Idle, UnitActive, SelectingSkillTarget }
 
     Phase _phase;
     int? _selectedId;
@@ -51,6 +51,10 @@ public partial class SrpGameController : MonoBehaviour
     readonly List<int> _attackIds = new List<int>();
     readonly HashSet<int> _actedUnitsThisTurn = new HashSet<int>();
 
+    SrpSkillData _pendingSkillData;
+    SrpSkillRuntime _pendingSkillRuntime;
+    readonly List<Vector2Int> _skillTargetTiles = new List<Vector2Int>();
+
     bool _gameOver;
 
     // ── 생명주기 ─────────────────────────────────────────────────────────────
@@ -58,6 +62,9 @@ public partial class SrpGameController : MonoBehaviour
     void Awake()
     {
         EnsureEventSystem();
+        SrpFontWarmup.Warmup();
+        leftPanelWidth  = 370f;
+        rightPanelWidth = 370f;
 
         // 로비에서 전달한 맵 또는 프리셋 우선 적용
         if (SrpGameSettings.CustomMap != null)
@@ -137,6 +144,39 @@ public partial class SrpGameController : MonoBehaviour
         var occ = _state.GetOccupant(x, y);
         int pid = _state.GetCurrentPlayerId();
 
+        if (_phase == Phase.SelectingSkillTarget && _selectedId.HasValue)
+        {
+            var cell = new Vector2Int(x, y);
+            if (_skillTargetTiles.Contains(cell))
+            {
+                PushUndo();
+                var u = GetUnit(_selectedId.Value);
+                SrpSkills.ResolveActiveSkill(_pendingSkillData, _pendingSkillRuntime,
+                    u, x, y, _state, LogLine);
+                u.hasUsedSkillThisActivation = true;
+                RefreshUnitViews();
+
+                if (_pendingSkillData.endsActivation)
+                {
+                    FinishActivation();
+                }
+                else
+                {
+                    _phase = Phase.UnitActive;
+                    _pendingSkillData = null;
+                    _pendingSkillRuntime = null;
+                    _skillTargetTiles.Clear();
+                    RefreshActiveHighlights(u);
+                    UpdateHud();
+                }
+            }
+            else
+            {
+                CancelSkillTargeting();
+            }
+            return;
+        }
+
         if (_phase == Phase.Idle)
         {
             if (occ != null && !occ.eliminated && occ.owner == pid)
@@ -149,14 +189,12 @@ public partial class SrpGameController : MonoBehaviour
             var u = GetUnit(_selectedId.Value);
             if (u == null) return;
 
-            // 다른 아군 클릭 시 현재 유닛 완료 후 전환 불가 — 먼저 완료 버튼 필요
             if (occ != null && !occ.eliminated && occ.owner == pid && occ.id != u.id)
             {
                 LogLine($"{u.displayName} 행동을 먼저 완료하세요.");
                 return;
             }
 
-            // 이동 타일
             var cell = new Vector2Int(x, y);
             if (_moveCostMap.TryGetValue(cell, out int moveCost))
             {
@@ -171,7 +209,6 @@ public partial class SrpGameController : MonoBehaviour
                 return;
             }
 
-            // 공격 타일
             if (!_hasAttackedThisTurn && occ != null && !occ.eliminated
                 && occ.owner != u.owner && _attackIds.Contains(occ.id))
             {
@@ -195,6 +232,7 @@ public partial class SrpGameController : MonoBehaviour
         _selectedId = u.id;
         _remainingMove = u.moveRange;
         _hasAttackedThisTurn = false;
+        u.hasUsedSkillThisActivation = false;
         _phase = Phase.UnitActive;
         RefreshActiveHighlights(u);
         UpdateHud();
@@ -239,6 +277,56 @@ public partial class SrpGameController : MonoBehaviour
         FinishActivation();
     }
 
+    void BeginSkillTargeting(SrpSkillData data, SrpSkillRuntime runtime)
+    {
+        if (_selectedId == null) return;
+        var u = GetUnit(_selectedId.Value);
+        if (u == null) return;
+
+        _pendingSkillData = data;
+        _pendingSkillRuntime = runtime;
+        _skillTargetTiles.Clear();
+
+        if (data.targetType == SrpTargetType.Self)
+        {
+            PushUndo();
+            SrpSkills.ResolveActiveSkill(data, runtime, u, u.anchorX, u.anchorY, _state, LogLine);
+            u.hasUsedSkillThisActivation = true;
+            RefreshUnitViews();
+            if (data.endsActivation)
+            {
+                FinishActivation();
+            }
+            else
+            {
+                _pendingSkillData = null;
+                _pendingSkillRuntime = null;
+                RefreshActiveHighlights(u);
+                UpdateHud();
+            }
+            return;
+        }
+
+        _skillTargetTiles.AddRange(SrpSkills.GetSkillTargetTiles(data, u, _state));
+        _phase = Phase.SelectingSkillTarget;
+        ResetTileColors();
+        foreach (var tile in _skillTargetTiles)
+            TintTile(tile.x, tile.y, new Color(0.7f, 0.3f, 0.9f));
+        UpdateHud();
+    }
+
+    void CancelSkillTargeting()
+    {
+        if (_phase != Phase.SelectingSkillTarget) return;
+        _phase = Phase.UnitActive;
+        _pendingSkillData = null;
+        _pendingSkillRuntime = null;
+        _skillTargetTiles.Clear();
+        var u = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+        if (u != null) RefreshActiveHighlights(u);
+        UpdateHud();
+    }
+
     void OnEndTurnSoft()
     {
         if (_gameOver || _phase != Phase.Idle) return;
@@ -255,6 +343,9 @@ public partial class SrpGameController : MonoBehaviour
         _moveCostMap.Clear();
         _attackIds.Clear();
         _actedUnitsThisTurn.Clear();
+        _pendingSkillData = null;
+        _pendingSkillRuntime = null;
+        _skillTargetTiles.Clear();
         ResetTileColors();
         RefreshUnitViews();
         LogLine("— 되감기 —");
@@ -270,7 +361,7 @@ public partial class SrpGameController : MonoBehaviour
     {
         PushUndo();
         var outcome = SrpCombatResolver.ApplyAttack(atk, def);
-        SrpSkills.OnAttackResolved(atk, def, outcome, LogLine);
+        SrpSkills.OnAttackResolved(atk, def, outcome, _state, LogLine);
         atk.hasAttackedThisActivation = true;
         _hasAttackedThisTurn = true;
         LogLine(
@@ -295,6 +386,9 @@ public partial class SrpGameController : MonoBehaviour
         _phase = Phase.Idle;
         _moveCostMap.Clear();
         _attackIds.Clear();
+        _pendingSkillData = null;
+        _pendingSkillRuntime = null;
+        _skillTargetTiles.Clear();
         UpdateHud();
     }
 
@@ -302,6 +396,8 @@ public partial class SrpGameController : MonoBehaviour
     {
         _actedUnitsThisTurn.Clear();
         _state.AdvanceToNextLivingPlayer();
+        int pid = _state.GetCurrentPlayerId();
+        SrpSkills.TickCooldownsForPlayer(_state, pid);
         ResetPassivesForCurrentPlayer();
         CheckWin();
         UpdateHud();
