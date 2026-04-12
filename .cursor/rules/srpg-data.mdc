@@ -1,0 +1,53 @@
+---
+description: "SRPG 데이터/IO 하위 에이전트 — JSON·저장·로드·스킬데이터·유닛데이터·맵파일·SkillData·MapFile·MapIO·DataIO·Default·UnitRuntime·UnitTags"
+globs: "**/SrpMapFile.cs, **/SrpMapIO.cs, **/SrpDataIO.cs, **/SrpDefault*.cs, **/SrpSkillData.cs, **/SrpSkills.cs, **/SrpUnitRuntime.cs, **/SrpUnitTags.cs, **/SrpMapPreset.cs, **/SrpGameSettings.cs"
+alwaysApply: false
+---
+
+# 데이터/IO 에이전트
+
+## 담당 파일
+
+| 파일 | 역할 |
+|------|------|
+| `SrpSkillData.cs` | enum(SkillType, Trigger, TargetType, EffectType) + SkillData/SkillRuntime/SkillEffect 클래스, SkillDatabase, UnitDatabase |
+| `SrpUnitRuntime.cs` | 유닛 인스턴스 (hp, ap, posture, skills…). Clone() 지원 |
+| `SrpUnitTags.cs` | Boss=1, Large=2 비트마스크 |
+| `SrpMapFile.cs` | `SrpMapFileV1` JSON 스키마 (version, width, height, walkable, templates, placements) |
+| `SrpMapPreset.cs` | 프리셋 enum |
+| `SrpMapIO.cs` | 맵 JSON 저장/로드 (`persistentDataPath/SrpMaps/`) |
+| `SrpDataIO.cs` | 스킬/유닛 DB JSON 저장/로드 (`persistentDataPath/`) |
+| `SrpDefaultMaps.cs` | 내장 맵 3종 (Skirmish, Corridor, OpenField) |
+| `SrpDefaultUnits.cs` | 기본 유닛 템플릿 |
+| `SrpDefaultSkills.cs` | 기본 스킬 정의 |
+| `SrpSkills.cs` | 스킬 효과 실행 (`ExecuteActiveSkill`, 패시브 처리) |
+| `SrpGameSettings.cs` | static — 씬 간 설정 전달 (SelectedPreset, CustomMap) |
+
+## JSON 직렬화
+
+- `JsonUtility` 사용 (Unity 내장). `[Serializable]` 필수.
+- 스키마 버전 필드(`version`)로 하위 호환.
+- 배열/리스트는 `null` 방어 코드 필수.
+
+## 핵심 타입 관계
+
+```
+SrpSkillDatabase ─── SrpSkillData[] ─── SrpSkillEffect[]
+SrpUnitDatabase ──── SrpUnitTemplateData[] (skillIds: string[])
+SrpMapFileV1 ─────── SrpUnitTemplateData[] (templates)
+                  └── SrpPlacementData[] (placements)
+SrpBattleState.FromMap(SrpMapFileV1) → 런타임 변환
+```
+
+## 저장 경로
+
+| 대상 | 경로 |
+|------|------|
+| 맵 | `persistentDataPath/SrpMaps/{name}.json` |
+| 스킬 DB | `persistentDataPath/SrpSkillDatabase.json` |
+| 유닛 DB | `persistentDataPath/SrpUnitDatabase.json` |
+
+## 제약
+
+- `SrpUnitRuntime`, `SrpSkillData` 등 시뮬레이션 자료형에 MonoBehaviour/ScriptableObject 상속 금지.
+- 새 필드 추가 시 기존 JSON 호환성 유지 (기본값 설정).

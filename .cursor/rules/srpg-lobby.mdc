@@ -1,0 +1,38 @@
+---
+description: "SRPG 로비 하위 에이전트 — 로비씬·맵선택·씬전환·프리셋·LobbyController·GameSettings"
+globs: "**/SrpLobbyController.cs"
+alwaysApply: false
+---
+
+# 로비 에이전트
+
+## 담당 파일
+
+| 파일 | 역할 |
+|------|------|
+| `SrpLobbyController.cs` | 로비 씬 MonoBehaviour — 프리셋/커스텀 맵 선택, 메이커 씬 이동, 전투 시작 |
+
+## 씬 전환 흐름
+
+```
+SrpgLobby
+  ├─ 내장 프리셋 선택 → SrpGameSettings.StartBattle(preset) → SrpgBattle
+  ├─ JSON 맵 로드    → SrpGameSettings.StartBattleWithMap(map) → SrpgBattle
+  ├─ 스킬 메이커     → SceneManager.LoadScene("SrpgSkillMaker")
+  ├─ 유닛 메이커     → SceneManager.LoadScene("SrpgUnitMaker")
+  └─ 맵 메이커       → SceneManager.LoadScene("SrpgMapMaker")
+```
+
+## 의존
+
+- `SrpGameSettings` (static): `SelectedPreset`, `CustomMap`, `StartBattle()`, `StartBattleWithMap()`, `LobbyScene`, `BattleScene`.
+- `SrpMapIO.LoadMap(name)`: JSON 맵 로드.
+
+## Build Settings 필수
+
+두 씬(`SrpgLobby`, `SrpgBattle`) + 메이커 씬 3개가 Build Settings에 등록돼야 함.
+
+## 건드리지 말 것
+
+- `SrpGameController*` (전투 씬 런타임).
+- 메이커 컨트롤러 내부 로직.

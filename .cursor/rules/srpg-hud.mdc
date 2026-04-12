@@ -1,0 +1,39 @@
+---
+description: "SRPG HUD/UI 하위 에이전트 — 패널·버튼·로그·스킬슬롯·텍스트·Canvas·uGUI·TMP·GameController.Hud·FontWarmup"
+globs: "**/SrpGameController.Hud.cs, **/SrpFontWarmup.cs"
+alwaysApply: false
+---
+
+# HUD 에이전트
+
+## 담당 파일
+
+| 파일 | 역할 |
+|------|------|
+| `SrpGameController.Hud.cs` | partial — Canvas·좌패널(컨트롤)·우패널(로그)·버튼·텍스트 전부 코드 생성 |
+| `SrpFontWarmup.cs` | TMP 한글 글리프 사전 로드 |
+
+## 아키텍처
+
+- **Canvas**: `CanvasScaler` 1920×1080, matchWidthOrHeight 0.5.
+- **좌패널**: 앵커 좌측 전체 높이, 폭 `leftPanelWidth`(인스펙터). 유닛 정보·버튼·스킬 슬롯.
+- **우패널**: 앵커 우측 전체 높이, 폭 `rightPanelWidth`. ScrollRect 로그.
+- **모든 UI 요소**: `AddComponent<TMP_Text/Button/Image>` — 프리팹/씬 오브젝트 아님.
+
+## 주요 메서드
+
+- `BuildHud()`: Awake에서 호출. Canvas·패널·버튼·텍스트 전체 생성.
+- `UpdateHud()`: Phase·선택 유닛에 따라 버튼 활성/비활성, 정보 텍스트 갱신.
+- `LogLine(string)`: 로그 추가 (최대 80줄, 오래된 항목 제거).
+- `BuildSkillSlots()`: 유닛 활성화 시 스킬 버튼 생성.
+
+## 컨벤션
+
+- UI 요소 참조는 `_btn*`, `_txt*`, `_panel*` 접두사 private 필드.
+- 색상 상수는 파일 상단 static readonly.
+- TMP 폰트 에셋: `Pretendard-Regular SDF` (Resources 또는 직접 참조).
+
+## 건드리지 말 것
+
+- `SrpGameController.cs`의 Phase·입력 로직.
+- `SrpGameController.Rendering.cs`의 3D 타일/유닛 뷰.

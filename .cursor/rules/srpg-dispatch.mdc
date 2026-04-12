@@ -1,0 +1,105 @@
+---
+
+description: SRPG 하위 에이전트 디스패처 — 도메인 식별 후 Task 위임
+
+alwaysApply: true
+
+---
+
+
+
+# SRPG 하위 에이전트 디스패치
+
+
+
+도메인별 규칙과 파일 맵의 **상세 목록**은 [`Assets/Scripts/SRPG/AGENTS.md`](Assets/Scripts/SRPG/AGENTS.md)를 기준으로 한다. 아래 표는 빠른 라우팅용 요약이다.
+
+
+
+**Task 도구**로 도메인별 하위 에이전트를 분리 실행한다. **직접 처리 기준**에 해당할 때만 Task 없이 처리한다.
+
+
+
+## Task 위임 트리거
+
+
+
+다음 **어느 하나라도** 해당하면 도메인별 **Task**를 쓴다 (도메인마다 1회, 병렬·순차는 아래 위임 절차).
+
+
+
+1. 요청에 **서로 다른 도메인이 2개 이상** 섞여 있다.
+
+2. **`SrpGameController`의 서로 다른 partial**을 같은 작업에서 건드릴 가능성이 있다 (예: `.cs` + `.Hud.cs`, `.cs` + `.Rendering.cs`).
+
+3. **3개 이상의 스크립트 파일**을 수정하거나 추가하는 작업으로 보인다.
+
+4. **한 파일이라도** 구조 변경·대량 수정 수준으로 예상된다 (애매하면 Task로 쪼갠다).
+
+
+
+도메인이 2개 이상인데도 직접 한 번에 고치려 하지 않는다. 단, 아래 **직접 처리 기준**을 만족하면 예외.
+
+
+
+## 도메인 라우팅
+
+
+
+| 키워드 | 도메인 | 규칙 경로 | 핵심 파일 |
+
+|--------|--------|-----------|-----------|
+
+| 전투, Phase, 턴, Undo, 이동, 공격, ZOC, 전투해석 | 전투 | `.cursor/rules/srpg-battle.mdc` | `SrpGameController.cs`, `SrpBattleState.cs`, `SrpCombatResolver.cs`, `SrpPathfinder.cs` |
+
+| HUD, 패널, 버튼, 로그, UI, 텍스트, 스킬슬롯 | HUD | `.cursor/rules/srpg-hud.mdc` | `SrpGameController.Hud.cs`, `SrpFontWarmup.cs` |
+
+| 타일, 색상, 카메라, 렌더, 뷰, 3D, 그리드 | 렌더링 | `.cursor/rules/srpg-rendering.mdc` | `SrpGameController.Rendering.cs`, `SrpTileView.cs` |
+
+| 메이커, 에디터, 스킬만들기, 유닛만들기, 맵만들기 | 메이커 | `.cursor/rules/srpg-makers.mdc` | `SrpSkillMakerController.cs`, `SrpUnitMakerController.cs`, `SrpMapMakerController.cs` |
+
+| JSON, 저장, 로드, 스킬데이터, 유닛데이터, 맵파일 | 데이터 | `.cursor/rules/srpg-data.mdc` | `SrpSkillData.cs`, `SrpMapFile.cs`, `SrpMapIO.cs`, `SrpDataIO.cs`, `SrpDefault*.cs` |
+
+| 로비, 씬전환, 프리셋 | 로비 | `.cursor/rules/srpg-lobby.mdc` | `SrpLobbyController.cs`, `SrpGameSettings.cs` |
+
+
+
+## 위임 절차
+
+
+
+1. 요청에서 도메인을 식별한다 (복수 도메인이면 각각 분리).
+
+2. 해당 `.cursor/rules/srpg-{도메인}.mdc` 파일을 **Read**한다.
+
+3. **Task 도구**로 하위 에이전트를 실행한다. 프롬프트에 아래를 포함한다:
+
+   - 읽어온 도메인 규칙 전문
+
+   - 수정 대상 파일 경로
+
+   - 사용자 요청 원문
+
+   - "건드리지 말 것" 영역
+
+4. 복수 도메인이 **독립적**이면 Task를 **병렬** 실행한다. **단**, **동일 파일**(같은 `SrpGameController` partial 포함)을 두 Task가 동시에 수정할 여지가 있으면 **병렬하지 않고** 순차 실행하거나, 충돌 범위를 **한 Task**에 묶는다.
+
+5. 하위 에이전트 결과를 종합해 사용자에게 보고한다.
+
+
+
+## 직접 처리 기준
+
+
+
+다음은 Task 위임 없이 직접 처리한다:
+
+
+
+- 단일 파일 수정 (5줄 이하)
+
+- 단순 질문·코드 리뷰
+
+- 문서만 수정하는 작업
+
+

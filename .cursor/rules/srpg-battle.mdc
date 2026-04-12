@@ -1,0 +1,44 @@
+---
+description: "SRPG 전투 시스템 하위 에이전트 — Phase·턴·이동·공격·ZOC·Undo·전투해석·GameController·BattleState·CombatResolver·Pathfinder"
+globs: "**/SrpGameController.cs, **/SrpBattleState.cs, **/SrpCombatResolver.cs, **/SrpPathfinder.cs"
+alwaysApply: false
+---
+
+# 전투 시스템 에이전트
+
+## 담당 파일
+
+| 파일 | 역할 |
+|------|------|
+| `SrpGameController.cs` | partial 핵심: 필드, Awake, 입력(`OnTileClicked`), Phase 전환, 턴 종료, Undo |
+| `SrpBattleState.cs` | Unity 비의존 시뮬레이션 상태 (그리드, 유닛 목록, 턴, Clone) |
+| `SrpCombatResolver.cs` | AP→HP→PG→그로기→처단 해석 |
+| `SrpPathfinder.cs` | Dijkstra BFS (ZOC 가중치, `GetReachableWithCosts`) |
+
+## 핵심 자료형
+
+- `SrpBattleState`: `Width`, `Height`, `Walkable[]`, `Units`, `PlayerOrder`, `CurrentPlayerIndex`, `TemplateLookup`, `SkillLookup`
+- `SrpUnitRuntime`: id, owner, anchor(X,Y), hp/ap/posture, moveRange, attackRange, attackPower, groggy, eliminated, skillRuntimes
+- `Phase { Idle, UnitActive, SelectingSkillTarget }`
+
+## 흐름 요약
+
+```
+OnTileClicked(x,y) → Phase별 분기
+  Idle: 아군 유닛 선택 → Phase = UnitActive
+  UnitActive: 이동(moveCostMap) / 공격(attackIds) / 스킬 타게팅
+  SelectingSkillTarget: 스킬 대상 확정 → SrpSkills.ExecuteActiveSkill
+턴 종료: OnEndTurnSoft → AdvancePlayerTurn → ResetPassives → CheckWin
+```
+
+## 인접 도메인 (건드리지 말 것)
+
+- **렌더링**: `SrpGameController.Rendering.cs` — `RefreshGrid()`, `RefreshUnitViews()` 호출만
+- **HUD**: `SrpGameController.Hud.cs` — `UpdateHud()`, `LogLine()` 호출만
+- **스킬 효과**: `SrpSkills.cs` — `ExecuteActiveSkill`, `TryApplyPassiveTurnStart` 호출만
+
+## 제약
+
+- `SrpBattleState`에 `UnityEngine` 타입 참조 추가 금지 (테스트·되감기 호환).
+- Phase 전환 시 반드시 `UpdateHud()` 호출.
+- Undo 스택은 `PushUndo()` → `_state.Clone()`. 상태 변경 전에 push.

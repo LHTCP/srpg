@@ -1,0 +1,49 @@
+---
+description: "SRPG 렌더링/뷰 하위 에이전트 — 타일·그리드·유닛뷰·색상·카메라·3D·Cube·Cylinder·GameController.Rendering·TileView"
+globs: "**/SrpGameController.Rendering.cs, **/SrpTileView.cs"
+alwaysApply: false
+---
+
+# 렌더링 에이전트
+
+## 담당 파일
+
+| 파일 | 역할 |
+|------|------|
+| `SrpGameController.Rendering.cs` | partial — Cube 타일·Cylinder 유닛 생성, 색상 갱신, 카메라 프레이밍 |
+| `SrpTileView.cs` | 타일 콜라이더 → `OnMouseDown` → `SrpGameController.OnTileClicked(x,y)` 위임 |
+
+## 핵심 필드 (Rendering.cs)
+
+- `_tiles[x,y]`: 타일 GameObject 배열.
+- `_unitObjs[unitId]`: 유닛 ID → Cylinder GameObject.
+- `cellSize`: 타일 간격 (인스펙터).
+
+## 주요 메서드
+
+- `BuildGrid()`: `_state` 기반으로 Cube Primitive 생성.
+- `RefreshGrid()`: 타일 색상 갱신 (이동 가능=파랑, 공격 대상=빨강, 스킬 대상=노랑 등).
+- `RefreshUnitViews()`: 유닛 위치·색상·스케일 동기화, 사망 유닛 제거.
+- `FrameCamera()`: 직교 카메라 자동 프레이밍.
+
+## 색상 규칙
+
+| 상태 | 타일 색 |
+|------|---------|
+| walkable | 밝은 회색 |
+| blocked | 어두운 회색 |
+| 이동 가능 | 파랑 계열 |
+| 공격 대상 | 빨강 계열 |
+| 스킬 타게팅 | 노랑 계열 |
+| 유닛(P0) | 파랑 | 
+| 유닛(P1) | 빨강 |
+| 보스 | 노랑 보정 |
+
+## 입력 파이프라인
+
+`SrpTileView.OnMouseDown` → `SrpGameController.OnTileClicked(x,y)`. 유닛 메시에는 콜라이더 없음 — 타일만 입력 수신.
+
+## 건드리지 말 것
+
+- `SrpGameController.cs`의 Phase·전투 로직.
+- `SrpGameController.Hud.cs`의 UI 패널.

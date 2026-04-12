@@ -1,0 +1,49 @@
+---
+description: "SRPG 메이커 하위 에이전트 — 스킬에디터·유닛에디터·맵에디터·SkillMaker·UnitMaker·MapMaker·만들기·배치"
+globs: "**/Srp*MakerController.cs"
+alwaysApply: false
+---
+
+# 메이커 에이전트
+
+## 담당 파일
+
+| 파일 | 역할 |
+|------|------|
+| `SrpSkillMakerController.cs` | 스킬 에디터 씬 — JSON 기반 스킬 CRUD |
+| `SrpUnitMakerController.cs` | 유닛 템플릿 에디터 씬 — 스탯·스킬 할당 |
+| `SrpMapMakerController.cs` | 맵 에디터 씬 — 지형·유닛 배치·카메라·저장/로드 |
+
+## 공통 패턴
+
+- 각 메이커는 독립 씬 + 독립 MonoBehaviour.
+- UI: 전부 코드 생성 uGUI (TMP). 프리팹 없음.
+- 데이터 저장: `SrpDataIO.SaveSkillDatabase()`, `SrpDataIO.SaveUnitDatabase()`, `SrpMapIO.SaveMap()` 사용.
+- 데이터 로드: `SrpDataIO.LoadSkillDatabase()`, `SrpDataIO.LoadUnitDatabase()`, `SrpMapIO.LoadMap()`.
+- 저장 경로: `Application.persistentDataPath` 하위.
+
+## 씬 목록
+
+| 씬 | 컨트롤러 |
+|----|-----------|
+| SrpgSkillMaker | `SrpSkillMakerController` |
+| SrpgUnitMaker | `SrpUnitMakerController` |
+| SrpgMapMaker | `SrpMapMakerController` |
+
+## 핵심 자료형 (참조만)
+
+- `SrpSkillData`, `SrpSkillDatabase` — 스킬 정의
+- `SrpUnitTemplateData`, `SrpUnitDatabase` — 유닛 템플릿
+- `SrpMapFileV1` — 맵 스키마
+
+## 맵 메이커 특이사항
+
+- `EditMode { Terrain, PlaceUnit, RemoveUnit }` 전환.
+- 카메라 확대/축소/패닝 자체 구현.
+- 유닛 배치 시 footprint(가로×세로) 설정.
+- 유닛별 스킬 비활성화(`disabledSkillIds`) 토글.
+
+## 건드리지 말 것
+
+- `SrpGameController*` (전투 씬).
+- `SrpBattleState`, `SrpCombatResolver`, `SrpPathfinder`.
