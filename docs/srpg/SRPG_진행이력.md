@@ -324,6 +324,24 @@ TMP(`TextMeshProUGUI`)로 전환해 SDF 렌더링 기반의 선명한 한글 출
 
 ---
 
+## 13단계 — 맵 편의성 개선 (저장/불러오기 UX)
+
+### 변경 내용
+
+| 파일 | 변경 |
+|------|------|
+| `SrpMapIO.cs` | `ListMaps()` 정적 메서드 추가 — `SrpMaps/*.json` 파일명 배열 반환 |
+| `SrpMapMakerController.cs` | 불러오기 UI를 파일명 직접 입력(`TMP_InputField`) → 드롭다운(`TMP_Dropdown`)으로 교체; 저장 완료 후 목록 자동 갱신 |
+| `SrpLobbyController.cs` | JSON 맵 로드 영역의 파일명 직접 입력 → 드롭다운으로 교체; 씬 진입 시 `SrpMapIO.ListMaps()`로 자동 초기화 |
+
+### 설계 결정
+
+- `SrpMapFileV1` 스키마 변경 없음 (v1 호환 유지).
+- 드롭다운은 기존 `TMP_Dropdown` 코드 생성 방식 (프리팹 없음).
+- 맵 파일이 없을 때 `(맵 없음)` 표시 후 불러오기 차단.
+
+---
+
 ## 현재 미해결/진행 중 사항 (Backlog)
 
 | 우선도 | 항목 | 비고 |

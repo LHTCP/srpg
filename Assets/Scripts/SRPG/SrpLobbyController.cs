@@ -25,7 +25,7 @@ public class SrpLobbyController : MonoBehaviour
     Button[]  _presetButtons;
     Image[]   _presetImages;
     TextMeshProUGUI _txtLoadStatus;
-    TMP_InputField  _inputFileName;
+    TMP_Dropdown    _ddMapSelect;
 
     // ── 생명주기 ──────────────────────────────────────────────────────────────
 
@@ -34,6 +34,7 @@ public class SrpLobbyController : MonoBehaviour
         EnsureEventSystem();
         SrpFontWarmup.Warmup();
         BuildUi();
+        RefreshMapDropdown();
         RefreshPresetButtons();
     }
 
@@ -120,8 +121,8 @@ public class SrpLobbyController : MonoBehaviour
         // JSON 로드 섹션
         MakeLabel(centerGo.transform, "JSON 맵 로드 (선택사항)", 22, new Color(0.75f, 0.85f, 0.95f), 30);
 
-        var jsonRow = MakeHorizontalRow(centerGo.transform, 56);
-        _inputFileName = MakeInputField(jsonRow.transform, "파일명 (확장자 제외)");
+        _ddMapSelect = MakeDropdown(centerGo.transform, new string[]{ "(맵 없음)" }, 56);
+        var jsonRow = MakeHorizontalRow(centerGo.transform, 48);
         MakeSmallButton(jsonRow.transform, "불러오기", OnLoadJson, 140f);
 
         _txtLoadStatus = MakeLabel(centerGo.transform, "", 20, new Color(0.7f, 1f, 0.7f), 28);
@@ -157,10 +158,16 @@ public class SrpLobbyController : MonoBehaviour
 
     void OnLoadJson()
     {
-        string fileName = _inputFileName != null ? _inputFileName.text.Trim() : "";
-        if (string.IsNullOrEmpty(fileName))
+        if (_ddMapSelect == null || _ddMapSelect.options.Count == 0)
         {
-            _txtLoadStatus.text = "파일명을 입력하세요.";
+            _txtLoadStatus.text = "불러올 맵이 없습니다.";
+            _txtLoadStatus.color = new Color(1f, 0.6f, 0.4f);
+            return;
+        }
+        string fileName = _ddMapSelect.options[_ddMapSelect.value].text;
+        if (fileName == "(맵 없음)" || string.IsNullOrEmpty(fileName))
+        {
+            _txtLoadStatus.text = "맵을 선택하세요.";
             _txtLoadStatus.color = new Color(1f, 0.6f, 0.4f);
             return;
         }
@@ -195,6 +202,16 @@ public class SrpLobbyController : MonoBehaviour
             _presetImages[i].color = (presets[i] == _selectedPreset && _loadedMap == null)
                 ? selectedColor
                 : unselectedColor;
+    }
+
+    void RefreshMapDropdown()
+    {
+        if (_ddMapSelect == null) return;
+        string[] maps = SrpMapIO.ListMaps();
+        string[] options = maps.Length > 0 ? maps : new[] { "(맵 없음)" };
+        SetDropdownOptions(_ddMapSelect, options);
+        _ddMapSelect.value = 0;
+        _ddMapSelect.RefreshShownValue();
     }
 
     // ── UI 헬퍼 ───────────────────────────────────────────────────────────────
@@ -323,6 +340,103 @@ public class SrpLobbyController : MonoBehaviour
         tx.color     = Color.white;
         tx.alignment = TextAlignmentOptions.Center;
         tx.text      = label;
+    }
+
+    TMP_Dropdown MakeDropdown(Transform parent, string[] options, float height)
+    {
+        var go = new GameObject("Dropdown", typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        var le = go.AddComponent<LayoutElement>();
+        le.minHeight = height;
+        le.preferredHeight = height;
+        le.flexibleWidth = 1;
+        go.AddComponent<Image>().color = new Color(0.12f, 0.14f, 0.18f, 0.95f);
+        var dd = go.AddComponent<TMP_Dropdown>();
+
+        // Caption text
+        var captionGo = new GameObject("Label", typeof(RectTransform));
+        captionGo.transform.SetParent(go.transform, false);
+        var crt = captionGo.GetComponent<RectTransform>();
+        crt.anchorMin = new Vector2(0f, 0f);
+        crt.anchorMax = new Vector2(1f, 1f);
+        crt.offsetMin = new Vector2(8f, 0f);
+        crt.offsetMax = new Vector2(-8f, 0f);
+        var captionTx = captionGo.AddComponent<TextMeshProUGUI>();
+        captionTx.fontSize = 20;
+        captionTx.color = Color.white;
+        captionTx.alignment = TextAlignmentOptions.Left;
+        dd.captionText = captionTx;
+
+        // Template
+        var templateGo = new GameObject("Template", typeof(RectTransform));
+        templateGo.transform.SetParent(go.transform, false);
+        templateGo.SetActive(false);
+        var trt = templateGo.GetComponent<RectTransform>();
+        trt.anchorMin = new Vector2(0f, 0f);
+        trt.anchorMax = new Vector2(1f, 0f);
+        trt.pivot     = new Vector2(0.5f, 1f);
+        trt.sizeDelta = new Vector2(0f, 150f);
+        templateGo.AddComponent<Image>().color = new Color(0.12f, 0.14f, 0.18f, 0.95f);
+        var scrollRect = templateGo.AddComponent<ScrollRect>();
+        dd.template = trt;
+
+        // Viewport
+        var viewportGo = new GameObject("Viewport", typeof(RectTransform));
+        viewportGo.transform.SetParent(templateGo.transform, false);
+        var vrt = viewportGo.GetComponent<RectTransform>();
+        vrt.anchorMin = Vector2.zero;
+        vrt.anchorMax = Vector2.one;
+        vrt.offsetMin = vrt.offsetMax = Vector2.zero;
+        viewportGo.AddComponent<RectMask2D>();
+        scrollRect.viewport = vrt;
+
+        // Content
+        var contentGo = new GameObject("Content", typeof(RectTransform));
+        contentGo.transform.SetParent(viewportGo.transform, false);
+        var contentRt = contentGo.GetComponent<RectTransform>();
+        contentRt.anchorMin = new Vector2(0f, 1f);
+        contentRt.anchorMax = new Vector2(1f, 1f);
+        contentRt.pivot     = new Vector2(0.5f, 1f);
+        contentRt.sizeDelta = new Vector2(0f, 28f);
+        scrollRect.content = contentRt;
+
+        // Item
+        var itemGo = new GameObject("Item", typeof(RectTransform));
+        itemGo.transform.SetParent(contentGo.transform, false);
+        var irt = itemGo.GetComponent<RectTransform>();
+        irt.anchorMin = new Vector2(0f, 0.5f);
+        irt.anchorMax = new Vector2(1f, 0.5f);
+        irt.sizeDelta = new Vector2(0f, 28f);
+        itemGo.AddComponent<Image>().color = new Color(0.18f, 0.22f, 0.30f);
+        var toggle = itemGo.AddComponent<Toggle>();
+        dd.itemText = null;
+
+        var itemLabelGo = new GameObject("Item Label", typeof(RectTransform));
+        itemLabelGo.transform.SetParent(itemGo.transform, false);
+        var ilrt = itemLabelGo.GetComponent<RectTransform>();
+        ilrt.anchorMin = Vector2.zero;
+        ilrt.anchorMax = Vector2.one;
+        ilrt.offsetMin = new Vector2(8f, 0f);
+        ilrt.offsetMax = Vector2.zero;
+        var itemLabelTx = itemLabelGo.AddComponent<TextMeshProUGUI>();
+        itemLabelTx.fontSize = 18;
+        itemLabelTx.color = Color.white;
+        itemLabelTx.alignment = TextAlignmentOptions.Left;
+        dd.itemText = itemLabelTx;
+        toggle.graphic = itemGo.GetComponent<Image>();
+        dd.itemImage = null;
+
+        SetDropdownOptions(dd, options);
+        return dd;
+    }
+
+    static void SetDropdownOptions(TMP_Dropdown dd, string[] options)
+    {
+        dd.ClearOptions();
+        var list = new System.Collections.Generic.List<TMP_Dropdown.OptionData>();
+        foreach (var o in options)
+            list.Add(new TMP_Dropdown.OptionData(o));
+        dd.AddOptions(list);
     }
 
     static TMP_InputField MakeInputField(Transform parent, string placeholder)

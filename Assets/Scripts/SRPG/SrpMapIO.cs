@@ -40,4 +40,14 @@ public static class SrpMapIO
         map = JsonUtility.FromJson<SrpMapFileV1>(json);
         return map != null && map.version >= 1;
     }
+
+    public static string[] ListMaps()
+    {
+        var dir = MapsDirectory;
+        var files = Directory.GetFiles(dir, "*.json");
+        var names = new string[files.Length];
+        for (int i = 0; i < files.Length; i++)
+            names[i] = Path.GetFileNameWithoutExtension(files[i]);
+        return names;
+    }
 }

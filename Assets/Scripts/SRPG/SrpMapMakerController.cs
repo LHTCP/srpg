@@ -43,7 +43,7 @@ public class SrpMapMakerController : MonoBehaviour
     TMP_InputField _fldMapName;
     TMP_InputField _fldWidth;
     TMP_InputField _fldHeight;
-    TMP_InputField _fldLoadName;
+    TMP_Dropdown _ddLoadMap;
     TMP_Dropdown _ddUnitSelect;
     TMP_Dropdown _ddOwner;
     TextMeshProUGUI _txtStatus;
@@ -80,6 +80,7 @@ public class SrpMapMakerController : MonoBehaviour
         _allSkills = SrpDataIO.LoadSkillsOrDefault();
         InitMap(_mapWidth, _mapHeight);
         BuildUi();
+        RefreshMapDropdown();
         BuildGrid();
         FrameCamera();
     }
@@ -414,7 +415,7 @@ public class SrpMapMakerController : MonoBehaviour
         // 저장/로드
         MakeLabelInLayout(form, "저장 / 불러오기", 22, new Color(0.8f, 0.9f, 1f), 28);
         MakeButton(form, "JSON 저장", OnSave, BtnGreen, 48);
-        _fldLoadName = MakeFieldRow(form, "파일명", "my_map");
+        _ddLoadMap = MakeDropdown(form, new string[]{ "(맵 없음)" }, 0);
         MakeButton(form, "JSON 불러오기", OnLoad, BtnNormal, 48);
 
         _txtStatus = MakeLabelInLayout(form, "", 18, new Color(0.5f, 1f, 0.5f), 24);
@@ -625,14 +626,20 @@ public class SrpMapMakerController : MonoBehaviour
         map.name = name;
         string path = SrpMapIO.Save(map, name);
         SetStatus($"저장: {path}");
+        RefreshMapDropdown();
     }
 
     void OnLoad()
     {
-        string fileName = _fldLoadName != null ? _fldLoadName.text.Trim() : "";
-        if (string.IsNullOrEmpty(fileName))
+        if (_ddLoadMap == null || _ddLoadMap.options.Count == 0)
         {
-            SetStatus("파일명을 입력하세요.", false);
+            SetStatus("불러올 맵이 없습니다.", false);
+            return;
+        }
+        string fileName = _ddLoadMap.options[_ddLoadMap.value].text;
+        if (fileName == "(맵 없음)" || string.IsNullOrEmpty(fileName))
+        {
+            SetStatus("파일명을 선택하세요.", false);
             return;
         }
         if (!SrpMapIO.TryLoad(fileName, out var map))
@@ -892,7 +899,29 @@ public class SrpMapMakerController : MonoBehaviour
         inputTx.fontSize = 18;
         inputTx.color = Color.white;
         field.textComponent = inputTx;
+        field.selectionColor = new Color(0.3f, 0.5f, 0.9f, 0.5f);
+        field.enabled = false;
+        field.enabled = true;
         return field;
+    }
+
+    static void SetOptions(TMP_Dropdown dd, string[] options)
+    {
+        dd.ClearOptions();
+        var list = new System.Collections.Generic.List<TMP_Dropdown.OptionData>();
+        foreach (var o in options)
+            list.Add(new TMP_Dropdown.OptionData(o));
+        dd.AddOptions(list);
+    }
+
+    void RefreshMapDropdown()
+    {
+        if (_ddLoadMap == null) return;
+        string[] maps = SrpMapIO.ListMaps();
+        string[] options = maps.Length > 0 ? maps : new[] { "(맵 없음)" };
+        SetOptions(_ddLoadMap, options);
+        _ddLoadMap.value = 0;
+        _ddLoadMap.RefreshShownValue();
     }
 
     static TMP_Dropdown MakeDropdown(Transform parent, string[] options, int value)
