@@ -34,5 +34,6 @@
 | [SRPG_진행이력.md](srpg/SRPG_진행이력.md) | 구현 단계별 이력·변경 요약 |
 | [SRPG_FUTURE_NETWORK.md](srpg/SRPG_FUTURE_NETWORK.md) | 향후 멀티·AI·슬롯 기획 메모 |
 | [SRPG_BACKLOG.md](srpg/SRPG_BACKLOG.md) | 후속 과제(우선순위 포함) |
+| [SRPG_점검_및_로드맵.md](srpg/SRPG_점검_및_로드맵.md) | 프로젝트 점검 보고서 + 추천 로드맵 |
 
 새 범주를 추가하면 `docs/<이름>/`를 만들고 이 표에 행을 추가한다.
