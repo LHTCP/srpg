@@ -899,6 +899,9 @@ public class SrpMapMakerController : MonoBehaviour
         inputTx.fontSize = 18;
         inputTx.color = Color.white;
         field.textComponent = inputTx;
+        field.caretWidth = 2;
+        field.customCaretColor = true;
+        field.caretColor = Color.white;
         field.selectionColor = new Color(0.3f, 0.5f, 0.9f, 0.5f);
         field.enabled = false;
         field.enabled = true;

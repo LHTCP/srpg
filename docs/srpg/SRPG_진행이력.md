@@ -342,6 +342,28 @@ TMP(`TextMeshProUGUI`)로 전환해 SDF 렌더링 기반의 선명한 한글 출
 
 ---
 
+## 9단계 — 메이커 UI 입력 커서 표시 수정
+
+### 문제
+스킬·유닛·맵 메이커 씬에서 `TMP_InputField`를 클릭해도 입력 커서(caret)가 표시되지 않아 현재 포커스 위치를 알 수 없었음.
+
+### 원인
+`TMP_InputField`를 코드로 생성하면 `OnEnable`이 `textComponent`·`textViewport` 등 하위 컴포넌트 연결 전에 실행되어 caret 렌더러 초기화에 실패함.
+
+### 변경 내용
+
+| 파일 | 변경 |
+|------|------|
+| `SrpSkillMakerController.cs` | `MakeInputFieldInParent`에 `caretWidth = 2`, `customCaretColor = true`, `caretColor = Color.white`, `selectionColor` 설정 및 `enabled = false → true` 재활성화 추가 |
+| `SrpUnitMakerController.cs` | 동일 |
+| `SrpMapMakerController.cs` | 동일 |
+
+### 설계 결정
+- `enabled = false → true` 재활성화는 모든 속성 설정 완료 후 마지막에 실행하여 caret 렌더러가 올바르게 초기화되도록 함.
+- `selectionColor`를 파란 계열 반투명으로 설정해 텍스트 선택 시 가시성도 함께 개선.
+
+---
+
 ## 현재 미해결/진행 중 사항 (Backlog)
 
 | 우선도 | 항목 | 비고 |
