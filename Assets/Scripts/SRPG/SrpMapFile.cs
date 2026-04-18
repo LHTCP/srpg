@@ -20,6 +20,15 @@ public class SrpUnitTemplateData
     public int attackRange = 1;
     public int attackPower = 10;
     public int maxHp = 30;
+    public int maxPg = 18;
+    public int maxActionPoints = 2;
+    public int maxReactionPoints = 1;
+    public int speed = 10;
+    public SrpWeaponClass weaponClass = SrpWeaponClass.Melee;
+    public SrpStance stance = SrpStance.Aggressive;
+    public SrpFacing facing = SrpFacing.South;
+
+    // legacy fields (v0/v1 초기 스키마 호환)
     public int maxAp = 10;
     public int maxPosture = 100;
     public string[] skillIds = Array.Empty<string>();
@@ -44,7 +53,7 @@ public class SrpPlacementData
 [Serializable]
 public class SrpMapFileV1
 {
-    public int version = 1;
+    public int version = 2;
     public string name = "map";
     public int width = 8;
     public int height = 8;

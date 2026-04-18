@@ -122,11 +122,11 @@ public static class SrpSkills
                     if (target == null) break;
                     int dmg = eff.value;
                     if (dmg <= 0) break;
-                    int apBlock = Mathf.Min(dmg, target.ap);
-                    target.ap -= apBlock;
-                    int hpDmg = dmg - apBlock;
+                    int pgDmg = Mathf.Max(1, dmg / 2);
+                    target.pg = Mathf.Max(0, target.pg - pgDmg);
+                    int hpDmg = dmg;
                     target.hp -= hpDmg;
-                    log?.Invoke($"  피해: AP-{apBlock} HP-{hpDmg} (총 {dmg})");
+                    log?.Invoke($"  피해: PG-{pgDmg} HP-{hpDmg} (총 {dmg})");
                     if (target.hp <= 0)
                     {
                         state.RemoveUnit(target);
@@ -181,7 +181,9 @@ public static class SrpSkills
         switch (stat)
         {
             case "hp":          u.hp = Mathf.Clamp(u.hp + delta, 0, u.maxHp); break;
-            case "ap":          u.ap = Mathf.Clamp(u.ap + delta, 0, u.maxAp); break;
+            case "pg":          u.pg = Mathf.Clamp(u.pg + delta, 0, u.maxPg); break;
+            case "actionPoints": u.actionPoints = Mathf.Clamp(u.actionPoints + delta, 0, u.maxActionPoints); break;
+            case "reactionPoints": u.reactionPoints = Mathf.Clamp(u.reactionPoints + delta, 0, u.maxReactionPoints); break;
             case "attackPower": u.attackPower = Mathf.Max(0, u.attackPower + delta); break;
             case "moveRange":   u.moveRange = Mathf.Max(0, u.moveRange + delta); break;
             case "attackRange": u.attackRange = Mathf.Max(0, u.attackRange + delta); break;

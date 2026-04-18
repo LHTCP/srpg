@@ -8,10 +8,37 @@ public partial class SrpGameController
 {
     // ── 렌더링 전용 필드 ─────────────────────────────────────────────────────
 
+    const int OverlayMove = 10;
+    const int OverlayAttack = 20;
+    const int OverlaySkill = 30;
+    const int OverlayDangerAttack = 40;
+    const int OverlayDangerZoc = 50;
+    const int OverlayDangerBlocked = 60;
+    const int OverlayUnitHoverRange = 70;
+    const int OverlayUnitHoverZoc = 80;
+    const int OverlayIntentPath = 90;
+    const int OverlayIntentTarget = 100;
+    const int OverlayHover = 110;
+    static readonly int[] OverlayComposeOrder =
+    {
+        OverlayMove,
+        OverlayAttack,
+        OverlaySkill,
+        OverlayDangerAttack,
+        OverlayDangerZoc,
+        OverlayDangerBlocked,
+        OverlayUnitHoverRange,
+        OverlayUnitHoverZoc,
+        OverlayIntentPath,
+        OverlayIntentTarget,
+        OverlayHover,
+    };
+
     GameObject[,] _tiles;
     readonly Dictionary<int, GameObject> _unitObjs = new Dictionary<int, GameObject>();
     Renderer[,] _tileRenderers;
     Color[,] _baseTileColors;
+    readonly Dictionary<int, Dictionary<int, Color>> _tileOverlayLayers = new Dictionary<int, Dictionary<int, Color>>();
 
     // ── 그리드 ───────────────────────────────────────────────────────────────
 
@@ -44,32 +71,92 @@ public partial class SrpGameController
             var tv = cube.AddComponent<SrpTileView>();
             tv.x = x; tv.y = y; tv.game = this;
         }
+        ClearAllOverlayLayers();
+        RebuildAllTileColors();
     }
 
     // ── 타일 색상 ────────────────────────────────────────────────────────────
 
     void TintTile(int x, int y, Color tint)
     {
-        if (x < 0 || y < 0 || x >= _state.Width || y >= _state.Height) return;
-        ApplyColor(_tileRenderers[x, y], Color.Lerp(_baseTileColors[x, y], tint, 0.55f));
+        SetOverlayTile(OverlayMove, x, y, tint);
     }
 
     void ResetTileColors()
     {
+        ClearOverlayLayer(OverlayMove);
+        ClearOverlayLayer(OverlayAttack);
+        ClearOverlayLayer(OverlaySkill);
+        ClearOverlayLayer(OverlayHover);
+        ClearOverlayLayer(OverlayUnitHoverRange);
+        ClearOverlayLayer(OverlayUnitHoverZoc);
+        ClearOverlayLayer(OverlayDangerBlocked);
+        ClearOverlayLayer(OverlayIntentPath);
+        ClearOverlayLayer(OverlayIntentTarget);
+        RebuildDangerAndIntentOverlays();
+    }
+
+    void RebuildAllTileColors()
+    {
         for (int y = 0; y < _state.Height; y++)
         for (int x = 0; x < _state.Width; x++)
-            ApplyColor(_tileRenderers[x, y], _baseTileColors[x, y]);
+            RebuildTileColor(x, y);
     }
 
     void HighlightAttackTiles()
     {
+        ClearOverlayLayer(OverlayAttack);
         foreach (var id in _attackIds)
         {
             var d = GetUnit(id);
             if (d == null) continue;
             foreach (var off in d.footprintOffsets)
-                TintTile(d.anchorX + off.x, d.anchorY + off.y, new Color(0.95f, 0.35f, 0.25f));
+                SetOverlayTile(OverlayAttack, d.anchorX + off.x, d.anchorY + off.y, new Color(0.95f, 0.35f, 0.25f));
         }
+    }
+
+    void ClearAllOverlayLayers()
+    {
+        _tileOverlayLayers.Clear();
+    }
+
+    void ClearOverlayLayer(int layer)
+    {
+        if (_tileOverlayLayers.TryGetValue(layer, out var map) && map.Count > 0)
+        {
+            map.Clear();
+            RebuildAllTileColors();
+        }
+    }
+
+    void SetOverlayTile(int layer, int x, int y, Color tint)
+    {
+        if (x < 0 || y < 0 || x >= _state.Width || y >= _state.Height)
+            return;
+        if (!_tileOverlayLayers.TryGetValue(layer, out var map))
+        {
+            map = new Dictionary<int, Color>();
+            _tileOverlayLayers[layer] = map;
+        }
+        int idx = _state.Index(x, y);
+        map[idx] = tint;
+        RebuildTileColor(x, y);
+    }
+
+    void RebuildTileColor(int x, int y)
+    {
+        if (x < 0 || y < 0 || x >= _state.Width || y >= _state.Height)
+            return;
+
+        var final = _baseTileColors[x, y];
+        int idx = _state.Index(x, y);
+        for (int i = 0; i < OverlayComposeOrder.Length; i++)
+        {
+            int layer = OverlayComposeOrder[i];
+            if (_tileOverlayLayers.TryGetValue(layer, out var map) && map.TryGetValue(idx, out var tint))
+                final = Color.Lerp(final, tint, 0.62f);
+        }
+        ApplyColor(_tileRenderers[x, y], final);
     }
 
     static void ApplyColor(Renderer r, Color c)
@@ -95,20 +182,27 @@ public partial class SrpGameController
             {
                 go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
                 go.name = $"unit_{u.id}";
-                Destroy(go.GetComponent<Collider>());
                 _unitObjs[u.id] = go;
             }
 
             go.transform.position = GetUnitWorldCenter(u) + Vector3.up * 0.13f;
             float sc = u.HasTag(SrpUnitTags.Large) ? 0.88f : 0.72f;
             go.transform.localScale = new Vector3(sc, 0.12f, sc);
+            var collider = go.GetComponent<Collider>();
+            if (collider != null)
+                collider.isTrigger = true;
+            var unitView = go.GetComponent<SrpUnitView>();
+            if (unitView == null)
+                unitView = go.AddComponent<SrpUnitView>();
+            unitView.game = this;
+            unitView.unitId = u.id;
 
-            Color col = u.owner == 0
+            Color unitColor = u.owner == 0
                 ? new Color(0.25f, 0.6f, 1f)
                 : new Color(1f, 0.3f, 0.25f);
             if (u.HasTag(SrpUnitTags.Boss))
-                col = Color.Lerp(col, Color.yellow, 0.45f);
-            ApplyColor(go.GetComponent<Renderer>(), col);
+                unitColor = Color.Lerp(unitColor, Color.yellow, 0.45f);
+            ApplyColor(go.GetComponent<Renderer>(), unitColor);
         }
 
         var remove = new List<int>();

@@ -16,7 +16,7 @@ public partial class SrpGameController : MonoBehaviour
     public SrpMapFileV1 initialMap;
 
     [Tooltip("initialMap이 비어 있을 때 로드할 내장 프리셋.")]
-    public SrpMapPreset startPreset = SrpMapPreset.Skirmish;
+    public SrpMapPreset startPreset = SrpMapPreset.M1QaIntegrated;
 
     [Header("Camera")]
     public bool frameCameraOnStart = true;
@@ -36,6 +36,7 @@ public partial class SrpGameController : MonoBehaviour
 
     // ── 시뮬레이션 상태 ──────────────────────────────────────────────────────
 
+    const float DefaultHudPanelWidth = 370f;
     SrpBattleState _state;
     readonly Stack<SrpBattleState> _undo = new Stack<SrpBattleState>();
 
@@ -49,11 +50,13 @@ public partial class SrpGameController : MonoBehaviour
     bool _hasAttackedThisTurn;
     readonly Dictionary<Vector2Int, int> _moveCostMap = new Dictionary<Vector2Int, int>();
     readonly List<int> _attackIds = new List<int>();
-    readonly HashSet<int> _actedUnitsThisTurn = new HashSet<int>();
 
     SrpSkillData _pendingSkillData;
     SrpSkillRuntime _pendingSkillRuntime;
     readonly List<Vector2Int> _skillTargetTiles = new List<Vector2Int>();
+    bool _dangerAreaVisible;
+    string _hoverStatusHint = string.Empty;
+    int _hoverUnitId = -1;
 
     bool _gameOver;
 
@@ -63,8 +66,10 @@ public partial class SrpGameController : MonoBehaviour
     {
         EnsureEventSystem();
         SrpFontWarmup.Warmup();
-        leftPanelWidth  = 370f;
-        rightPanelWidth = 370f;
+        if (leftPanelWidth <= 0f)
+            leftPanelWidth = DefaultHudPanelWidth;
+        if (rightPanelWidth <= 0f)
+            rightPanelWidth = DefaultHudPanelWidth;
 
         // 로비에서 전달한 맵 또는 프리셋 우선 적용
         if (SrpGameSettings.CustomMap != null)
@@ -90,8 +95,8 @@ public partial class SrpGameController : MonoBehaviour
         if (frameCameraOnStart) FrameBoardCamera();
         BuildHud();
         RefreshUnitViews();
-        LogLine("SRPG 프로토타입 — 아군 유닛을 클릭해 이동/공격하세요.");
-        ResetPassivesForCurrentPlayer();
+        LogLine("SRPG 프로토타입 — 속도 기반 라운드 턴 시작.");
+        StartRound();
         UpdateHud();
     }
 
@@ -118,11 +123,16 @@ public partial class SrpGameController : MonoBehaviour
 
     // ── 초기화 헬퍼 ──────────────────────────────────────────────────────────
 
-    void ResetPassivesForCurrentPlayer()
+    void ResetRoundFlagsAndResources()
     {
-        int pid = _state.GetCurrentPlayerId();
         foreach (var u in _state.Units)
-            if (u.owner == pid) u.passiveAppliedThisTurn = false;
+        {
+            if (u.eliminated)
+                continue;
+            u.passiveAppliedThisTurn = false;
+            u.actionPoints = u.maxActionPoints;
+            u.reactionPoints = u.maxReactionPoints;
+        }
     }
 
     static void EnsureEventSystem()
@@ -142,18 +152,24 @@ public partial class SrpGameController : MonoBehaviour
         if (_gameOver) return;
 
         var occ = _state.GetOccupant(x, y);
-        int pid = _state.GetCurrentPlayerId();
 
         if (_phase == Phase.SelectingSkillTarget && _selectedId.HasValue)
         {
             var cell = new Vector2Int(x, y);
             if (_skillTargetTiles.Contains(cell))
             {
-                PushUndo();
                 var u = GetUnit(_selectedId.Value);
+                if (u == null || u.actionPoints <= 0)
+                {
+                    LogLine("AP 부족으로 스킬 사용 불가");
+                    CancelSkillTargeting();
+                    return;
+                }
+                PushUndo();
                 SrpSkills.ResolveActiveSkill(_pendingSkillData, _pendingSkillRuntime,
                     u, x, y, _state, LogLine);
                 u.hasUsedSkillThisActivation = true;
+                u.actionPoints = Mathf.Max(0, u.actionPoints - 1);
                 RefreshUnitViews();
 
                 if (_pendingSkillData.endsActivation)
@@ -179,7 +195,7 @@ public partial class SrpGameController : MonoBehaviour
 
         if (_phase == Phase.Idle)
         {
-            if (occ != null && !occ.eliminated && occ.owner == pid)
+            if (occ != null && !occ.eliminated && _state.CurrentUnitId == occ.id)
                 BeginSelectUnit(occ);
             return;
         }
@@ -189,7 +205,7 @@ public partial class SrpGameController : MonoBehaviour
             var u = GetUnit(_selectedId.Value);
             if (u == null) return;
 
-            if (occ != null && !occ.eliminated && occ.owner == pid && occ.id != u.id)
+            if (occ != null && !occ.eliminated && occ.owner == u.owner && occ.id != u.id)
             {
                 LogLine($"{u.displayName} 행동을 먼저 완료하세요.");
                 return;
@@ -198,10 +214,17 @@ public partial class SrpGameController : MonoBehaviour
             var cell = new Vector2Int(x, y);
             if (_moveCostMap.TryGetValue(cell, out int moveCost))
             {
+                if (u.actionPoints <= 0)
+                {
+                    LogLine($"{u.displayName} AP 부족");
+                    return;
+                }
                 PushUndo();
                 u.anchorX = x;
                 u.anchorY = y;
                 _remainingMove -= moveCost;
+                u.actionPoints = Mathf.Max(0, u.actionPoints - 1);
+                u.hasMovedThisActivation = true;
                 LogLine($"이동: {u.displayName}({u.id}) → ({x},{y}), 잔여 이동력 {_remainingMove}");
                 RefreshUnitViews();
                 RefreshActiveHighlights(u);
@@ -212,18 +235,115 @@ public partial class SrpGameController : MonoBehaviour
             if (!_hasAttackedThisTurn && occ != null && !occ.eliminated
                 && occ.owner != u.owner && _attackIds.Contains(occ.id))
             {
+                if (u.actionPoints <= 0)
+                {
+                    LogLine($"{u.displayName} AP 부족");
+                    return;
+                }
                 DoAttack(u, occ);
+                return;
+            }
+
+            LogLine("이동/공격 가능한 타일을 선택하세요.");
+        }
+    }
+
+    public void OnTileHoverEnter(int x, int y)
+    {
+        if (_gameOver)
+            return;
+        if (_phase != Phase.UnitActive || !_selectedId.HasValue)
+            return;
+
+        ClearOverlayLayer(OverlayHover);
+        ClearOverlayLayer(OverlayDangerBlocked);
+
+        var u = GetUnit(_selectedId.Value);
+        if (u == null)
+            return;
+
+        var cell = new Vector2Int(x, y);
+        if (_moveCostMap.TryGetValue(cell, out int moveCost))
+        {
+            int threatCount = CountEnemyAttackersForTile(x, y, u.owner);
+            bool inZoc = _state.IsEnemyAdjacentToTile(x, y, u.owner);
+            if (threatCount > 0)
+            {
+                SetOverlayTile(OverlayHover, x, y, new Color(0.95f, 0.2f, 0.2f));
+                _hoverStatusHint = $"위험도 높음: 해당 칸은 {threatCount}명에게 공격 노출";
+            }
+            else if (inZoc)
+            {
+                SetOverlayTile(OverlayHover, x, y, new Color(1.0f, 0.6f, 0.25f));
+                _hoverStatusHint = "주의: 해당 칸은 ZOC 인접(다음 이동 부담 증가)";
+            }
+            else
+            {
+                SetOverlayTile(OverlayHover, x, y, new Color(0.25f, 0.95f, 0.95f));
+                _hoverStatusHint = $"안전 칸: 이동 비용 {moveCost}, 직접 위협 없음";
             }
         }
+        else
+        {
+            if (!_state.CanStandAt(u, x, y, u.id))
+            {
+                SetOverlayTile(OverlayDangerBlocked, x, y, new Color(0.25f, 0.25f, 0.25f));
+                _hoverStatusHint = "진입 불가: 장애물 또는 점유 중";
+            }
+            else
+            {
+                _hoverStatusHint = "이동 가능 범위 밖";
+            }
+        }
+        UpdateHud();
+    }
+
+    public void OnTileHoverExit(int x, int y)
+    {
+        if (_gameOver)
+            return;
+        ClearOverlayLayer(OverlayHover);
+        ClearOverlayLayer(OverlayDangerBlocked);
+        _hoverStatusHint = string.Empty;
+        UpdateHud();
+    }
+
+    public void OnUnitHoverEnter(int unitId)
+    {
+        if (_gameOver)
+            return;
+        var unit = GetUnit(unitId);
+        if (unit == null)
+            return;
+
+        _hoverUnitId = unitId;
+        RenderUnitHoverOverlays(unit);
+        _hoverStatusHint = $"유닛 미리보기: {unit.displayName} 공격범위/ZOC 표시";
+        UpdateHud();
+    }
+
+    public void OnUnitHoverExit(int unitId)
+    {
+        if (_hoverUnitId != unitId)
+            return;
+        _hoverUnitId = -1;
+        ClearOverlayLayer(OverlayUnitHoverRange);
+        ClearOverlayLayer(OverlayUnitHoverZoc);
+        _hoverStatusHint = string.Empty;
+        UpdateHud();
+    }
+
+    public void OnUnitClicked(int unitId)
+    {
+        var unit = GetUnit(unitId);
+        if (unit == null)
+            return;
+        OnTileClicked(unit.anchorX, unit.anchorY);
     }
 
     void BeginSelectUnit(SrpUnitRuntime u)
     {
-        if (_actedUnitsThisTurn.Contains(u.id))
-        {
-            LogLine($"{u.displayName}({u.id}) 은(는) 이번 턴에 이미 행동 완료.");
-            return;
-        }
+        _postUndoHint = false;
         if (!u.passiveAppliedThisTurn)
         {
             SrpSkills.TryApplyPassiveTurnStart(u, _state, LogLine);
@@ -232,6 +352,8 @@ public partial class SrpGameController : MonoBehaviour
         _selectedId = u.id;
         _remainingMove = u.moveRange;
         _hasAttackedThisTurn = false;
+        u.hasMovedThisActivation = false;
+        u.hasAttackedThisActivation = false;
         u.hasUsedSkillThisActivation = false;
         _phase = Phase.UnitActive;
         RefreshActiveHighlights(u);
@@ -242,17 +364,18 @@ public partial class SrpGameController : MonoBehaviour
     {
         ResetTileColors();
         _moveCostMap.Clear();
-        if (_remainingMove > 0)
+        if (_remainingMove > 0 && u.actionPoints > 0)
         {
             var costs = SrpPathfinder.GetReachableWithCosts(_state, u, _remainingMove);
             foreach (var kv in costs)
             {
                 _moveCostMap[kv.Key] = kv.Value;
-                TintTile(kv.Key.x, kv.Key.y, new Color(0.3f, 0.9f, 0.4f));
+                SetOverlayTile(OverlayMove, kv.Key.x, kv.Key.y, new Color(0.3f, 0.9f, 0.4f));
             }
         }
         RefreshAttackTargets(u);
         if (!_hasAttackedThisTurn) HighlightAttackTiles();
+        RebuildDangerAndIntentOverlays();
     }
 
     // ── 전투 ─────────────────────────────────────────────────────────────────
@@ -260,6 +383,8 @@ public partial class SrpGameController : MonoBehaviour
     void RefreshAttackTargets(SrpUnitRuntime atk)
     {
         _attackIds.Clear();
+        if (atk.actionPoints <= 0)
+            return;
         foreach (var o in _state.Units)
         {
             if (o.eliminated || o.owner == atk.owner) continue;
@@ -272,7 +397,7 @@ public partial class SrpGameController : MonoBehaviour
 
     void OnSkipAttack()
     {
-        if (_gameOver || _phase != Phase.UnitActive) return;
+        if (_gameOver || _phase != Phase.UnitActive || !_selectedId.HasValue) return;
         LogLine($"유닛 완료 — {GetUnit(_selectedId.Value)?.displayName}({_selectedId})");
         FinishActivation();
     }
@@ -283,6 +408,19 @@ public partial class SrpGameController : MonoBehaviour
         var u = GetUnit(_selectedId.Value);
         if (u == null) return;
 
+        if (u.actionPoints <= 0)
+        {
+            LogLine($"{u.displayName} AP 부족");
+            _pendingSkillData = null;
+            _pendingSkillRuntime = null;
+            _skillTargetTiles.Clear();
+            if (_phase == Phase.SelectingSkillTarget)
+                CancelSkillTargeting();
+            else
+                UpdateHud();
+            return;
+        }
+
         _pendingSkillData = data;
         _pendingSkillRuntime = runtime;
         _skillTargetTiles.Clear();
@@ -292,6 +430,7 @@ public partial class SrpGameController : MonoBehaviour
             PushUndo();
             SrpSkills.ResolveActiveSkill(data, runtime, u, u.anchorX, u.anchorY, _state, LogLine);
             u.hasUsedSkillThisActivation = true;
+            u.actionPoints = Mathf.Max(0, u.actionPoints - 1);
             RefreshUnitViews();
             if (data.endsActivation)
             {
@@ -308,10 +447,20 @@ public partial class SrpGameController : MonoBehaviour
         }
 
         _skillTargetTiles.AddRange(SrpSkills.GetSkillTargetTiles(data, u, _state));
+        if (_skillTargetTiles.Count == 0)
+        {
+            LogLine("선택 가능한 스킬 대상이 없습니다.");
+            _pendingSkillData = null;
+            _pendingSkillRuntime = null;
+            _phase = Phase.UnitActive;
+            RefreshActiveHighlights(u);
+            UpdateHud();
+            return;
+        }
         _phase = Phase.SelectingSkillTarget;
         ResetTileColors();
         foreach (var tile in _skillTargetTiles)
-            TintTile(tile.x, tile.y, new Color(0.7f, 0.3f, 0.9f));
+            SetOverlayTile(OverlaySkill, tile.x, tile.y, new Color(0.7f, 0.3f, 0.9f));
         UpdateHud();
     }
 
@@ -329,9 +478,20 @@ public partial class SrpGameController : MonoBehaviour
 
     void OnEndTurnSoft()
     {
-        if (_gameOver || _phase != Phase.Idle) return;
-        LogLine($"플레이어 {_state.GetCurrentPlayerId()} 턴 종료");
-        AdvancePlayerTurn();
+        if (_gameOver || !_selectedId.HasValue)
+            return;
+        if (_phase == Phase.SelectingSkillTarget)
+        {
+            LogLine("스킬 선택을 취소하고 현재 유닛 턴을 강제 종료합니다.");
+            CancelSkillTargeting();
+            FinishActivation();
+            return;
+        }
+        if (_phase != Phase.UnitActive)
+            return;
+
+        LogLine("현재 유닛 턴 강제 종료");
+        FinishActivation();
     }
 
     void OnUndo()
@@ -342,13 +502,13 @@ public partial class SrpGameController : MonoBehaviour
         _phase = Phase.Idle;
         _moveCostMap.Clear();
         _attackIds.Clear();
-        _actedUnitsThisTurn.Clear();
         _pendingSkillData = null;
         _pendingSkillRuntime = null;
         _skillTargetTiles.Clear();
         ResetTileColors();
         RefreshUnitViews();
         LogLine("— 되감기 —");
+        _postUndoHint = true;
         _gameOver = false;
         UpdateHud();
     }
@@ -364,9 +524,10 @@ public partial class SrpGameController : MonoBehaviour
         SrpSkills.OnAttackResolved(atk, def, outcome, _state, LogLine);
         atk.hasAttackedThisActivation = true;
         _hasAttackedThisTurn = true;
+        atk.actionPoints = Mathf.Max(0, atk.actionPoints - 1);
         LogLine(
             $"공격: {atk.displayName}({atk.id}) → {def.displayName}({def.id}) | " +
-            $"AP-{outcome.damageToAp} HP-{outcome.damageToHp} " +
+            $"PG-{outcome.damageToPg} HP-{outcome.damageToHp} " +
             $"처단:{outcome.wasExecution} 그로기:{outcome.becameGroggy}");
         if (outcome.defenderDied)
         {
@@ -379,8 +540,6 @@ public partial class SrpGameController : MonoBehaviour
 
     void FinishActivation()
     {
-        if (_selectedId.HasValue)
-            _actedUnitsThisTurn.Add(_selectedId.Value);
         ResetTileColors();
         _selectedId = null;
         _phase = Phase.Idle;
@@ -389,16 +548,55 @@ public partial class SrpGameController : MonoBehaviour
         _pendingSkillData = null;
         _pendingSkillRuntime = null;
         _skillTargetTiles.Clear();
-        UpdateHud();
+        AdvanceToNextActivation();
     }
 
-    void AdvancePlayerTurn()
+    void StartRound()
     {
-        _actedUnitsThisTurn.Clear();
-        _state.AdvanceToNextLivingPlayer();
-        int pid = _state.GetCurrentPlayerId();
-        SrpSkills.TickCooldownsForPlayer(_state, pid);
-        ResetPassivesForCurrentPlayer();
+        _state.RoundQueue.Clear();
+        _state.RoundQueue.AddRange(SrpTurnOrder.BuildRoundQueue(_state));
+        foreach (var u in _state.Units)
+        {
+            if (u.eliminated)
+                continue;
+            foreach (var sr in u.skillRuntimes)
+                if (sr.cooldownRemaining > 0)
+                    sr.cooldownRemaining--;
+        }
+        ResetRoundFlagsAndResources();
+        LogLine($"라운드 {_state.RoundNumber} 시작 (유닛 {_state.RoundQueue.Count}명)");
+        AdvanceToNextActivation();
+    }
+
+    void AdvanceToNextActivation()
+    {
+        if (_gameOver)
+            return;
+
+        CheckWin();
+        if (_gameOver)
+        {
+            UpdateHud();
+            return;
+        }
+
+        if (!SrpTurnOrder.HasRemainingUnitInRound(_state))
+        {
+            _state.RoundNumber++;
+            StartRound();
+            return;
+        }
+
+        int nextId = SrpTurnOrder.AdvanceToNextUnit(_state);
+        var next = GetUnit(nextId);
+        if (next == null || next.eliminated)
+        {
+            AdvanceToNextActivation();
+            return;
+        }
+
+        BeginSelectUnit(next);
+        LogLine($"행동 시작: {next.displayName}({next.id}) [SPD {next.speed}]");
         CheckWin();
         UpdateHud();
     }
@@ -419,13 +617,12 @@ public partial class SrpGameController : MonoBehaviour
         _selectedId = null;
         _phase = Phase.Idle;
         _gameOver = false;
-        _actedUnitsThisTurn.Clear();
 
         _state = SrpBattleState.FromMap(map);
         BuildGrid();
         if (frameCameraOnStart) FrameBoardCamera();
         RefreshUnitViews();
-        ResetPassivesForCurrentPlayer();
+        StartRound();
         LogLine("맵 적용: " + map.name);
         UpdateHud();
     }
@@ -453,4 +650,162 @@ public partial class SrpGameController : MonoBehaviour
             if (u.id == id) return u;
         return null;
     }
+
+    public void ToggleDangerArea()
+    {
+        _dangerAreaVisible = !_dangerAreaVisible;
+        RebuildDangerAndIntentOverlays();
+        UpdateHud();
+    }
+
+    public bool IsDangerAreaVisible => _dangerAreaVisible;
+
+    int GetFocusedOwner()
+    {
+        if (_selectedId.HasValue)
+        {
+            var selected = GetUnit(_selectedId.Value);
+            if (selected != null)
+                return selected.owner;
+        }
+        if (_state != null && _state.CurrentUnitId > 0)
+        {
+            var current = GetUnit(_state.CurrentUnitId);
+            if (current != null)
+                return current.owner;
+        }
+        return 0;
+    }
+
+    int CountEnemyAttackersForTile(int x, int y, int friendlyOwner)
+    {
+        int count = 0;
+        foreach (var enemy in _state.Units)
+        {
+            if (enemy.eliminated || enemy.owner == friendlyOwner)
+                continue;
+            int dist = Mathf.Max(Mathf.Abs(enemy.anchorX - x), Mathf.Abs(enemy.anchorY - y));
+            if (dist <= enemy.attackRange)
+                count++;
+        }
+        return count;
+    }
+
+    void RenderUnitHoverOverlays(SrpUnitRuntime unit)
+    {
+        ClearOverlayLayer(OverlayUnitHoverRange);
+        ClearOverlayLayer(OverlayUnitHoverZoc);
+
+        for (int y = 0; y < _state.Height; y++)
+        {
+            for (int x = 0; x < _state.Width; x++)
+            {
+                int dist = Mathf.Max(Mathf.Abs(unit.anchorX - x), Mathf.Abs(unit.anchorY - y));
+                if (dist > 0 && dist <= unit.attackRange)
+                    SetOverlayTile(OverlayUnitHoverRange, x, y, new Color(0.35f, 0.55f, 1f));
+            }
+        }
+
+        int[] dx = { 1, -1, 0, 0 };
+        int[] dy = { 0, 0, 1, -1 };
+        for (int i = 0; i < 4; i++)
+            SetOverlayTile(OverlayUnitHoverZoc, unit.anchorX + dx[i], unit.anchorY + dy[i], new Color(1f, 0.85f, 0.2f));
+    }
+
+    void RebuildDangerAndIntentOverlays()
+    {
+        ClearOverlayLayer(OverlayDangerAttack);
+        ClearOverlayLayer(OverlayDangerZoc);
+        ClearOverlayLayer(OverlayIntentPath);
+        ClearOverlayLayer(OverlayIntentTarget);
+
+        if (!_dangerAreaVisible || _state == null)
+            return;
+
+        int focusedOwner = GetFocusedOwner();
+        foreach (var enemy in _state.Units)
+        {
+            if (enemy.eliminated || enemy.owner == focusedOwner)
+                continue;
+
+            for (int y = 0; y < _state.Height; y++)
+            {
+                for (int x = 0; x < _state.Width; x++)
+                {
+                    int dist = Mathf.Max(Mathf.Abs(enemy.anchorX - x), Mathf.Abs(enemy.anchorY - y));
+                    if (dist > 0 && dist <= enemy.attackRange)
+                        SetOverlayTile(OverlayDangerAttack, x, y, new Color(0.95f, 0.22f, 0.22f));
+                }
+            }
+
+            int[] dx = { 1, -1, 0, 0 };
+            int[] dy = { 0, 0, 1, -1 };
+            for (int i = 0; i < 4; i++)
+                SetOverlayTile(OverlayDangerZoc, enemy.anchorX + dx[i], enemy.anchorY + dy[i], new Color(1f, 0.7f, 0.2f));
+
+            var target = FindNearestEnemyTarget(enemy, focusedOwner);
+            if (target == null)
+                continue;
+
+            int px = enemy.anchorX;
+            int py = enemy.anchorY;
+            int maxStep = Mathf.Max(1, enemy.moveRange);
+            for (int step = 0; step < maxStep; step++)
+            {
+                if (px == target.anchorX && py == target.anchorY)
+                    break;
+                px += target.anchorX > px ? 1 : (target.anchorX < px ? -1 : 0);
+                py += target.anchorY > py ? 1 : (target.anchorY < py ? -1 : 0);
+                SetOverlayTile(OverlayIntentPath, px, py, new Color(0.25f, 0.55f, 1f));
+            }
+            SetOverlayTile(OverlayIntentTarget, target.anchorX, target.anchorY, new Color(0.95f, 0.1f, 0.95f));
+        }
+    }
+
+    SrpUnitRuntime FindNearestEnemyTarget(SrpUnitRuntime source, int focusedOwner)
+    {
+        SrpUnitRuntime best = null;
+        int bestDist = int.MaxValue;
+        foreach (var unit in _state.Units)
+        {
+            if (unit.eliminated || unit.owner != focusedOwner)
+                continue;
+            int dist = Mathf.Abs(source.anchorX - unit.anchorX) + Mathf.Abs(source.anchorY - unit.anchorY);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                best = unit;
+            }
+        }
+        return best;
+    }
+
+#if UNITY_INCLUDE_TESTS
+    public int TestRoundNumber => _state != null ? _state.RoundNumber : -1;
+    public int TestCurrentUnitId => _state != null ? _state.CurrentUnitId : -1;
+    public int TestRoundQueueCount => _state != null && _state.RoundQueue != null ? _state.RoundQueue.Count : -1;
+    public bool TestDangerAreaVisible => _dangerAreaVisible;
+    public int TestHoveredUnitId => _hoverUnitId;
+
+    public int TestAliveUnitCount()
+    {
+        if (_state == null || _state.Units == null)
+            return 0;
+        int count = 0;
+        foreach (var u in _state.Units)
+            if (!u.eliminated)
+                count++;
+        return count;
+    }
+
+    public bool TestTryHoverFirstMoveTile()
+    {
+        foreach (var kv in _moveCostMap)
+        {
+            OnTileHoverEnter(kv.Key.x, kv.Key.y);
+            return true;
+        }
+        return false;
+    }
+#endif
 }

@@ -2,6 +2,27 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+public enum SrpWeaponClass
+{
+    Firearm,
+    Melee,
+    Magic,
+}
+
+public enum SrpStance
+{
+    Aggressive,
+    Defensive,
+}
+
+public enum SrpFacing
+{
+    North,
+    East,
+    South,
+    West,
+}
+
 /// <summary>
 /// 전장 위 유닛 인스턴스 (시뮬레이션).
 /// </summary>
@@ -18,6 +39,18 @@ public class SrpUnitRuntime
 
     public int hp;
     public int maxHp;
+    public int pg;
+    public int maxPg;
+    public int actionPoints;
+    public int maxActionPoints;
+    public int reactionPoints;
+    public int maxReactionPoints;
+    public int speed;
+    public SrpWeaponClass weaponClass;
+    public SrpStance stance;
+    public SrpFacing facing;
+
+    // legacy fields (기존 데이터/메이커 호환)
     public int ap;
     public int maxAp;
     public int posture;
@@ -51,6 +84,16 @@ public class SrpUnitRuntime
             footprintOffsets = new List<Vector2Int>(footprintOffsets),
             hp = hp,
             maxHp = maxHp,
+            pg = pg,
+            maxPg = maxPg,
+            actionPoints = actionPoints,
+            maxActionPoints = maxActionPoints,
+            reactionPoints = reactionPoints,
+            maxReactionPoints = maxReactionPoints,
+            speed = speed,
+            weaponClass = weaponClass,
+            stance = stance,
+            facing = facing,
             ap = ap,
             maxAp = maxAp,
             posture = posture,

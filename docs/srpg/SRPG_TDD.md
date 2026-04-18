@@ -130,3 +130,16 @@ SrpGameController
 4. 반응/경계태세/LOS 도입
 5. 스킬/메이커 동기화
 6. 테스트와 튜닝
+
+## 11. 구현 반영 상태 (2026-04-18)
+
+- 완료
+  - `SrpTurnOrder` 도입 및 속도 기반 라운드 큐 전환
+  - `SrpUnitRuntime` / `SrpMapFile` v2 필드(AP/RP, speed, weaponClass, stance, facing) 반영
+  - `SrpCombatResolver` 총기/근접/마법 분기 + HP/PG 이원화 반영
+  - HUD에 라운드/현재 유닛/대기 큐/AP/RP/PG 노출
+  - EditMode 테스트 `Assets/Tests/EditMode/Editor/SrpM1CoreTests.cs` 추가
+- 진행 필요
+  - `SrpReaction`, `SrpOverwatch`, `SrpLineOfSight` 구현
+  - 태세/방향의 실전 판정 보정(전후방 보너스/패널티) 강화
+  - 교전 고정 및 강제 이탈 기회공격 규칙 구현

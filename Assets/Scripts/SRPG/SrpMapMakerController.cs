@@ -738,7 +738,7 @@ public class SrpMapMakerController : MonoBehaviour
 
         return new SrpMapFileV1
         {
-            version = 1,
+            version = 2,
             name = _mapName,
             width = _mapWidth,
             height = _mapHeight,

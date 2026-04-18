@@ -19,7 +19,7 @@ public class SrpLobbyController : MonoBehaviour
 
     // ── 상태 ──────────────────────────────────────────────────────────────────
 
-    SrpMapPreset   _selectedPreset = SrpMapPreset.Skirmish;
+    SrpMapPreset   _selectedPreset = SrpMapPreset.M1QaIntegrated;
     SrpMapFileV1   _loadedMap;
 
     Button[]  _presetButtons;
@@ -99,9 +99,7 @@ public class SrpLobbyController : MonoBehaviour
         var presetRow = MakeHorizontalRow(centerGo.transform, 72);
         var presets = new[]
         {
-            (SrpMapPreset.TinyDuel, "TinyDuel\n6×4 1vs1"),
-            (SrpMapPreset.Corridor, "Corridor\n8×10 통로"),
-            (SrpMapPreset.Skirmish, "Skirmish\n10×8 혼전"),
+            (SrpMapPreset.M1QaIntegrated, "M1 QA\n통합 검증"),
         };
 
         _presetButtons = new Button[presets.Length];
@@ -149,7 +147,7 @@ public class SrpLobbyController : MonoBehaviour
 
     void OnSelectPreset(int index)
     {
-        var presets = new[] { SrpMapPreset.TinyDuel, SrpMapPreset.Corridor, SrpMapPreset.Skirmish };
+        var presets = new[] { SrpMapPreset.M1QaIntegrated };
         _selectedPreset = presets[index];
         _loadedMap      = null;
         _txtLoadStatus.text = "";
@@ -197,7 +195,7 @@ public class SrpLobbyController : MonoBehaviour
 
     void RefreshPresetButtons()
     {
-        var presets = new[] { SrpMapPreset.TinyDuel, SrpMapPreset.Corridor, SrpMapPreset.Skirmish };
+        var presets = new[] { SrpMapPreset.M1QaIntegrated };
         for (int i = 0; i < _presetImages.Length; i++)
             _presetImages[i].color = (presets[i] == _selectedPreset && _loadedMap == null)
                 ? selectedColor

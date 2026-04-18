@@ -29,6 +29,8 @@
 | [SRPG_다음미팅_논의사항.md](srpg/SRPG_다음미팅_논의사항.md) | 다음 미팅 필수 의사결정 항목 |
 | [SRPG_BACKLOG.md](srpg/SRPG_BACKLOG.md) | v1 후속 과제 목록 |
 | [SRPG_CHANGELOG.md](srpg/SRPG_CHANGELOG.md) | v1 전환 이력 |
+| [SRPG_AI_SIMULATION_GUIDE.md](srpg/SRPG_AI_SIMULATION_GUIDE.md) | AI 스텁 하이브리드 시뮬레이션 실행/판정 가이드 |
+| [SRPG_GDD_TEST_TRACEABILITY.md](srpg/SRPG_GDD_TEST_TRACEABILITY.md) | GDD 항목별 자동화 테스트 커버 매핑 |
 | [SRPG_FUTURE_NETWORK.md](srpg/SRPG_FUTURE_NETWORK.md) | 향후 네트워크·AI 메모 |
 | [SRPG_V0_ARCHIVE.md](srpg/SRPG_V0_ARCHIVE.md) | v0 문서 아카이브 안내 |
 

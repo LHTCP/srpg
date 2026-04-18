@@ -12,6 +12,69 @@
   - `SRPG_BACKLOG.md`
   - `SRPG_레거시_코드_분류.md`
   - `SRPG_다음미팅_논의사항.md`
+- M0 완료 기준 최종 점검
+  - 체스 코드/문서 트리 제거 상태 재확인 (`Assets/Scripts/Chess`, `docs/chess`)
+  - README/GDD/TDD/BACKLOG/마스터플랜 교차 정합성 보강
+- M1 전투 코어 전환 착수
+  - 속도 기반 턴 큐, AP/RP, HP/PG, 무기 분기 구현 시작
+- M1 1차 구현/검증
+  - `SrpTurnOrder` 도입 및 `SrpGameController` 라운드 큐 흐름 전환
+  - `SrpCombatResolver` 총기/근접/마법 분기 + HP/PG 이원화 반영
+  - EditMode 테스트 `Assets/Tests/EditMode/Editor/SrpM1CoreTests.cs` 추가
+- M1 통합 프리셋 전면 재구성
+  - 내장 프리셋을 `M1 QA 통합 검증` 중심 단일 체계로 전환
+  - 로비 프리셋 선택 UI 및 QA 체크리스트 문구 동기화
+- M1 자동화 테스트 구축
+  - 테스트 관측 API 추가 (`TestHudReady`, `TestTurnHudText`, 라운드/유닛 상태 getter)
+  - PlayMode 자동 테스트 `Assets/Tests/PlayMode/Editor/SrpM1PlayModeTests.cs` 추가
+  - 단일 엔트리 `SrpM1AllTestsEntry` + 카테고리 `SrpM1All` 구성
+  - 메뉴 실행 엔트리 `SRPG > Run M1 Automated QA (Edit+Play)` 추가
+- AI 스텁 하이브리드 시뮬레이션 구축
+  - 정책 인터페이스/기본 정책(랜덤/휴리스틱) 추가
+    - `Assets/Tests/Simulation/SrpAiPolicy.cs`
+    - `Assets/Tests/Simulation/SrpAiPolicies.Basic.cs`
+  - 대량 전투 루프/시드 재현 러너 추가
+    - `Assets/Tests/Simulation/SrpBattleSimRunner.cs`
+  - 지표/임계치/JSON 리포트 파이프라인 추가
+    - `Assets/Tests/Simulation/SrpSimMetrics.cs`
+    - `Assets/Tests/Simulation/SrpSimThresholds.cs`
+    - `Assets/Tests/Simulation/SrpSimReportWriter.cs`
+  - 하이브리드 검증 테스트 및 실행 메뉴 추가
+    - `Assets/Tests/EditMode/Editor/SrpM1AiSimAllEntry.cs`
+    - `Assets/Tests/PlayMode/Editor/SrpM1AiPlaySampleTests.cs`
+    - `Assets/Tests/Editor/SrpAiSimMenu.cs`
+  - 문서 가이드 신규 추가: `docs/srpg/SRPG_AI_SIMULATION_GUIDE.md`
+- AI 정책 매트릭스 자동 비교 추가
+  - EditMode에서 정책 4조합(`HvsR`, `RvsH`, `HvsH`, `RvsR`)을 일괄 실행
+  - 케이스별 리포트 + 통합 요약 리포트(`srpg_ai_sim_matrix_*.json`) 생성
+  - 비교 엔트리: `SrpM1AiSimAllEntry.Run_M1_Ai_Policy_Matrix_Comparison`
+- M1 규칙 단위 테스트 보강
+  - 신규 테스트 `Assets/Tests/EditMode/Editor/SrpM1RuleSpecTests.cs` 추가
+  - ZOC 이동 비용, 태세(공격/수비), 처단 조건을 고정 입력 assert로 검증
+  - `SrpM1AllTestsEntry`에 규칙 테스트 실행 연결
+- GDD-테스트 추적 매핑 문서 추가
+  - `docs/srpg/SRPG_GDD_TEST_TRACEABILITY.md`
+  - GDD 항목별 자동화 커버 상태(완전/부분/미커버)와 후속 액션 명시
+- M1 전투 화면 UI 개선 (코드 기반 HUD 유지 리팩터)
+  - `UpdateHud()`를 텍스트 빌더 분리 구조로 정리해 가독성 개선
+  - 대기 큐 프리뷰 확대 및 유닛 패널(태세/방향/그로기) 가시성 강화
+  - 행동 단계 안내 문구 고도화 + `공격 후 턴 종료` 안내 명시
+  - 무효 클릭 피드백 로그 추가로 입력 실수 교정성 개선
+  - 스킬 목록 항목 재사용/로그 증분 갱신으로 UI 반응성 개선
+  - PlayMode 테스트에 태세/방향 표시 assert 추가
+- M1 기능 안정화/품질 보강
+  - AP 부족 상태에서 스킬 진입/타깃 선택 시 pending 상태를 정리해 입력 잠김을 방지
+  - 스킬 버튼 usable 판정에 AP 조건 반영, 이동 성공 시 `hasMovedThisActivation` 갱신
+  - `Awake()`에서 HUD 패널 폭 하드코딩 제거(인스펙터 값 우선, 0 이하만 안전 기본값 보정)
+  - 테스트 보강: 동일 속도 tie-break(owner/id), 상태 HUD 핵심 문구/상태 일치, ZOC 고정 비용값 assert
+  - 테스트 러너 메뉴 보강: EditMode 실패 시 PlayMode 연쇄 실행 차단 가드 추가
+- M1 전투 UX 확장 (위험도/범위/intent 가시화)
+  - 타일 오버레이를 레이어 재합성 구조로 전환(이동/공격/스킬/위험/의도/hover 분리)
+  - HUD에 `위험영역 보기/숨기기` 토글 추가, 적 공격 범위와 ZOC를 상시 시각화 가능
+  - 이동 타일 hover 시 위험도/진입불가 상태를 즉시 상태 패널에 표시
+  - 유닛 hover 시 해당 유닛의 공격범위/ZOC 미리보기 표시
+  - 적 예상 intent(경량 휴리스틱) 경로/타깃 타일 표시 추가
+  - PlayMode 테스트에 위험영역 토글/hover 상태 문구 검증 추가
 
 ## 기록 원칙
 

@@ -15,6 +15,7 @@ public partial class SrpGameController
     // ── HUD 전용 필드 ────────────────────────────────────────────────────────
 
     const int MaxLogLines = 80;
+    const int QueuePreviewCount = 5;
     readonly List<string> _log = new List<string>();
 
     TextMeshProUGUI _txtTurn;
@@ -28,8 +29,9 @@ public partial class SrpGameController
     Button _btnToggleLog;
     Button _btnUseSkill;
     Button _btnCancelSkill;
+    Button _btnDangerArea;
     GameObject _skillListPanel;
-    readonly List<GameObject> _skillListButtons = new List<GameObject>();
+    readonly List<SkillListEntry> _skillListButtons = new List<SkillListEntry>();
     TextMeshProUGUI _txtLogToggleLabel;
     GameObject _logBody;
     ScrollRect _logScrollRect;
@@ -39,6 +41,15 @@ public partial class SrpGameController
     GameObject _tooltipGo;
     TextMeshProUGUI _tooltipText;
     Canvas _hudCanvas;
+    bool _postUndoHint;
+
+    class SkillListEntry
+    {
+        public GameObject root;
+        public Button button;
+        public TextMeshProUGUI label;
+        public EventTrigger trigger;
+    }
 
     // ── HUD 생성 ─────────────────────────────────────────────────────────────
 
@@ -82,16 +93,18 @@ public partial class SrpGameController
         vlg.childForceExpandHeight = false;
         vlg.childForceExpandWidth = true;
 
-        _txtTurn = MakeLabel(panel.transform, "TurnInfo", 28, new Color(1f, 0.9f, 0.5f), 40);
+        _txtTurn = MakeLabel(panel.transform, "TurnInfo", 22, new Color(1f, 0.9f, 0.5f), 40);
         MakeSeparator(panel.transform);
-        _txtStatus = MakeLabel(panel.transform, "Status", 22, new Color(0.75f, 0.9f, 1f), 64);
+        _txtStatus = MakeLabel(panel.transform, "Status", 18, new Color(0.75f, 0.9f, 1f), 64);
         MakeSeparator(panel.transform);
-        _txtUnit = MakeLabel(panel.transform, "UnitInfo", 20, Color.white, 120);
+        _txtUnit = MakeLabel(panel.transform, "UnitInfo", 16, Color.white, 120);
         MakeSeparator(panel.transform);
         _btnUseSkill = MakeButton(panel.transform, "스킬 사용", OnShowSkillList, 60);
         _btnUseSkill.GetComponent<Image>().color = new Color(0.40f, 0.22f, 0.55f, 0.9f);
-        _btnCancelSkill = MakeButton(panel.transform, "스킬 취소", () => CancelSkillTargeting(), 48, 20);
+        _btnCancelSkill = MakeButton(panel.transform, "스킬 취소", OnCancelSkillUi, 48, 20);
         _btnCancelSkill.GetComponent<Image>().color = new Color(0.55f, 0.25f, 0.20f, 0.9f);
+        _btnDangerArea = MakeButton(panel.transform, "위험영역 보기", OnToggleDangerAreaUi, 48, 20);
+        _btnDangerArea.GetComponent<Image>().color = new Color(0.25f, 0.22f, 0.15f, 0.9f);
 
         // 스킬 목록 패널 (숨김 시작)
         _skillListPanel = new GameObject("SkillListPanel", typeof(RectTransform));
@@ -108,8 +121,8 @@ public partial class SrpGameController
         _skillListPanel.SetActive(false);
 
         MakeSeparator(panel.transform);
-        _btnSkipAttack = MakeButton(panel.transform, "유닛 완료", OnSkipAttack, 60);
-        _btnEndTurn = MakeButton(panel.transform, "플레이어 턴 종료", OnEndTurnSoft, 60);
+        _btnSkipAttack = MakeButton(panel.transform, "행동 종료", OnSkipAttack, 60);
+        _btnEndTurn = MakeButton(panel.transform, "강제 턴 종료", OnEndTurnSoft, 60);
         _btnUndo = MakeButton(panel.transform, "되감기", OnUndo, 60);
         MakeSeparator(panel.transform);
         _btnLobby = MakeButton(panel.transform, "◀ 로비로 돌아가기",
@@ -263,11 +276,10 @@ public partial class SrpGameController
         var u = GetUnit(_selectedId.Value);
         if (u == null) return;
 
-        foreach (var go in _skillListButtons)
-            if (go != null) Destroy(go);
-        _skillListButtons.Clear();
+        HideAllSkillEntries();
 
         bool anySkill = false;
+        int visibleIndex = 0;
         for (int i = 0; i < u.skillRuntimes.Count; i++)
         {
             var sr = u.skillRuntimes[i];
@@ -275,24 +287,87 @@ public partial class SrpGameController
             if (data.skillType != SrpSkillType.Active) continue;
 
             anySkill = true;
-            bool usable = SrpSkills.CanUseActiveSkill(data, sr) && !u.hasUsedSkillThisActivation;
+            bool usable = u.actionPoints > 0
+                && SrpSkills.CanUseActiveSkill(data, sr)
+                && !u.hasUsedSkillThisActivation;
             var capturedData = data;
             var capturedRuntime = sr;
 
-            var btnGo = new GameObject("SkillBtn_" + data.id, typeof(RectTransform));
-            btnGo.transform.SetParent(_skillListPanel.transform, false);
-            btnGo.AddComponent<LayoutElement>().minHeight = 48f;
-            btnGo.AddComponent<Image>().color = usable
+            var entry = GetOrCreateSkillEntry(visibleIndex++);
+            entry.root.name = "SkillBtn_" + data.id;
+            entry.root.GetComponent<Image>().color = usable
                 ? new Color(0.30f, 0.18f, 0.50f, 0.9f)
                 : new Color(0.20f, 0.20f, 0.25f, 0.6f);
-            var btn = btnGo.AddComponent<Button>();
-            btn.interactable = usable;
-            btn.onClick.AddListener(() =>
+            entry.button.interactable = usable;
+            entry.button.onClick.RemoveAllListeners();
+            entry.button.onClick.AddListener(() =>
             {
                 HideTooltip();
                 _skillListPanel.SetActive(false);
                 BeginSkillTargeting(capturedData, capturedRuntime);
             });
+
+            entry.label.fontSize = 18;
+            entry.label.color = usable ? Color.white : new Color(0.6f, 0.6f, 0.6f);
+            string cdText = sr.cooldownRemaining > 0 ? $" (CD:{sr.cooldownRemaining})" : "";
+            entry.label.text = $"{data.displayName}{cdText}";
+            entry.label.alignment = TextAlignmentOptions.MidlineLeft;
+            entry.label.overflowMode = TextOverflowModes.Ellipsis;
+            entry.label.textWrappingMode = TextWrappingModes.Normal;
+
+            string fullTooltip = $"<b>{data.displayName}</b>{cdText}\n{data.description}";
+            if (data.endsActivation) fullTooltip += "\n(사용 후 활성화 종료)";
+            SetTooltipTrigger(entry.trigger, fullTooltip);
+            entry.root.SetActive(true);
+        }
+
+        if (!anySkill)
+        {
+            var entry = GetOrCreateSkillEntry(0);
+            entry.root.name = "NoSkill";
+            entry.root.GetComponent<Image>().color = new Color(0.12f, 0.12f, 0.15f, 0.7f);
+            entry.button.interactable = false;
+            entry.button.onClick.RemoveAllListeners();
+            entry.label.text = "사용 가능한 액티브 스킬 없음";
+            entry.label.fontSize = 18;
+            entry.label.color = new Color(0.6f, 0.6f, 0.6f);
+            entry.label.alignment = TextAlignmentOptions.Center;
+            entry.label.textWrappingMode = TextWrappingModes.Normal;
+            SetTooltipTrigger(entry.trigger, string.Empty);
+            entry.root.SetActive(true);
+        }
+
+        _skillListPanel.SetActive(true);
+        UpdateHud();
+    }
+
+    void OnCancelSkillUi()
+    {
+        if (_skillListPanel != null && _skillListPanel.activeSelf && _phase == Phase.UnitActive)
+        {
+            HideTooltip();
+            _skillListPanel.SetActive(false);
+            UpdateHud();
+            return;
+        }
+        CancelSkillTargeting();
+    }
+
+    void OnToggleDangerAreaUi()
+    {
+        ToggleDangerArea();
+    }
+
+    SkillListEntry GetOrCreateSkillEntry(int index)
+    {
+        while (_skillListButtons.Count <= index)
+        {
+            var btnGo = new GameObject("SkillBtn", typeof(RectTransform));
+            btnGo.transform.SetParent(_skillListPanel.transform, false);
+            btnGo.AddComponent<LayoutElement>().minHeight = 48f;
+            btnGo.AddComponent<Image>().color = new Color(0.30f, 0.18f, 0.50f, 0.9f);
+            var btn = btnGo.AddComponent<Button>();
+            var trigger = btnGo.AddComponent<EventTrigger>();
 
             var lblGo = new GameObject("Lbl", typeof(RectTransform));
             lblGo.transform.SetParent(btnGo.transform, false);
@@ -303,34 +378,32 @@ public partial class SrpGameController
             lrt.offsetMax = new Vector2(-8, 0);
             var tx = lblGo.AddComponent<TextMeshProUGUI>();
             tx.fontSize = 18;
-            tx.color = usable ? Color.white : new Color(0.6f, 0.6f, 0.6f);
-            string cdText = sr.cooldownRemaining > 0 ? $" (CD:{sr.cooldownRemaining})" : "";
-            tx.text = $"{data.displayName}{cdText}";
+            tx.color = Color.white;
             tx.alignment = TextAlignmentOptions.MidlineLeft;
             tx.overflowMode = TextOverflowModes.Ellipsis;
-            tx.enableWordWrapping = true;
+            tx.textWrappingMode = TextWrappingModes.Normal;
 
-            string fullTooltip = $"<b>{data.displayName}</b>{cdText}\n{data.description}";
-            if (data.endsActivation) fullTooltip += "\n(사용 후 활성화 종료)";
-            AddTooltipTrigger(btnGo, fullTooltip);
-
-            _skillListButtons.Add(btnGo);
+            _skillListButtons.Add(new SkillListEntry
+            {
+                root = btnGo,
+                button = btn,
+                label = tx,
+                trigger = trigger,
+            });
         }
+        return _skillListButtons[index];
+    }
 
-        if (!anySkill)
+    void HideAllSkillEntries()
+    {
+        foreach (var entry in _skillListButtons)
         {
-            var noSkill = new GameObject("NoSkill", typeof(RectTransform));
-            noSkill.transform.SetParent(_skillListPanel.transform, false);
-            noSkill.AddComponent<LayoutElement>().minHeight = 36f;
-            var nst = noSkill.AddComponent<TextMeshProUGUI>();
-            nst.text = "사용 가능한 액티브 스킬 없음";
-            nst.fontSize = 18;
-            nst.color = new Color(0.6f, 0.6f, 0.6f);
-            nst.alignment = TextAlignmentOptions.Center;
-            _skillListButtons.Add(noSkill);
+            if (entry == null || entry.root == null)
+                continue;
+            entry.root.SetActive(false);
+            entry.button.onClick.RemoveAllListeners();
+            SetTooltipTrigger(entry.trigger, string.Empty);
         }
-
-        _skillListPanel.SetActive(true);
     }
 
     void BuildTooltip(Transform canvasRoot)
@@ -353,7 +426,7 @@ public partial class SrpGameController
         _tooltipText.fontSize = 18;
         _tooltipText.color = new Color(0.92f, 0.95f, 1f);
         _tooltipText.alignment = TextAlignmentOptions.TopLeft;
-        _tooltipText.enableWordWrapping = true;
+        _tooltipText.textWrappingMode = TextWrappingModes.Normal;
         _tooltipText.richText = true;
         _tooltipText.overflowMode = TextOverflowModes.Overflow;
 
@@ -364,6 +437,16 @@ public partial class SrpGameController
     void AddTooltipTrigger(GameObject target, string text)
     {
         var et = target.AddComponent<EventTrigger>();
+        SetTooltipTrigger(et, text);
+    }
+
+    void SetTooltipTrigger(EventTrigger et, string text)
+    {
+        if (et == null)
+            return;
+        et.triggers.Clear();
+        if (string.IsNullOrEmpty(text))
+            return;
 
         var enterEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
         string capturedText = text;
@@ -418,15 +501,28 @@ public partial class SrpGameController
 
     void LogLine(string msg)
     {
-        _log.Add($"[{DateTime.Now:HH:mm:ss}] {msg}");
-        while (_log.Count > MaxLogLines) _log.RemoveAt(0);
+        string formatted = $"[{DateTime.Now:HH:mm:ss}] {msg}";
+        _log.Add(formatted);
+        bool trimmed = false;
+        while (_log.Count > MaxLogLines)
+        {
+            _log.RemoveAt(0);
+            trimmed = true;
+        }
 
         if (_txtLog != null)
         {
-            var sb = new StringBuilder();
-            foreach (var line in _log)
-                sb.AppendLine(line);
-            _txtLog.text = sb.ToString();
+            if (trimmed || string.IsNullOrEmpty(_txtLog.text))
+            {
+                var sb = new StringBuilder();
+                foreach (var line in _log)
+                    sb.AppendLine(line);
+                _txtLog.text = sb.ToString();
+            }
+            else
+            {
+                _txtLog.text += formatted + "\n";
+            }
         }
         Debug.Log("[SRPG] " + msg);
 
@@ -452,71 +548,128 @@ public partial class SrpGameController
     void UpdateHud()
     {
         if (_txtTurn == null) return;
-        int pid = _state.GetCurrentPlayerId();
-        string mapName = initialMap != null ? initialMap.name : "?";
-
-        _txtTurn.text = _gameOver
-            ? "게임 종료"
-            : $"플레이어 {pid} 차례\n맵: {mapName}";
-
-        string st;
-        if (_phase == Phase.Idle)
-        {
-            st = "아군 유닛을 클릭해 선택";
-        }
-        else if (_phase == Phase.SelectingSkillTarget)
-        {
-            string skillName = _pendingSkillData != null ? _pendingSkillData.displayName : "?";
-            st = $"스킬 대상 선택: {skillName}\n보라색 타일을 클릭 (다른 곳 = 취소)";
-        }
-        else
-        {
-            string moveInfo = _remainingMove > 0 ? $"이동력: {_remainingMove}" : "이동 불가";
-            string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능";
-            st = $"{moveInfo} | {atkInfo}\n이동(녹) 또는 공격(적) 선택";
-        }
-        _txtStatus.text = st;
-
-        if (_selectedId.HasValue)
-        {
-            var u = GetUnit(_selectedId.Value);
-            if (u != null)
-            {
-                var sb2 = new System.Text.StringBuilder();
-                sb2.AppendLine($"{u.displayName} (P{u.owner})");
-                sb2.AppendLine($"HP {u.hp}/{u.maxHp}  AP {u.ap}/{u.maxAp}");
-                sb2.AppendLine($"PG {u.posture}/{u.maxPosture}");
-                sb2.Append($"그로기:{u.groggy}  FH:{u.frozenHeart}");
-                if (u.skillIds.Count > 0)
-                {
-                    sb2.Append("\n스킬:");
-                    foreach (var sid in u.skillIds)
-                    {
-                        if (_state.SkillLookup.TryGetValue(sid, out var sd))
-                            sb2.Append($" {sd.displayName}");
-                        else
-                            sb2.Append($" {sid}");
-                    }
-                }
-                _txtUnit.text = sb2.ToString();
-            }
-        }
-        else
-            _txtUnit.text = "— 미선택 —";
+        _txtTurn.text = BuildTurnHudText();
+        _txtStatus.text = BuildStatusHudText();
+        _txtUnit.text = BuildUnitHudText();
 
         bool unitActive = !_gameOver && _phase == Phase.UnitActive;
         if (_btnSkipAttack != null)
             _btnSkipAttack.interactable = unitActive;
         if (_btnEndTurn != null)
-            _btnEndTurn.interactable = !_gameOver && _phase == Phase.Idle;
+            _btnEndTurn.interactable = !_gameOver
+                && (_phase == Phase.UnitActive || (_phase == Phase.SelectingSkillTarget && _selectedId.HasValue));
         if (_btnUndo != null)
-            _btnUndo.interactable = _undo.Count > 0 && !_gameOver;
+            _btnUndo.interactable = _undo.Count > 0;
         if (_btnUseSkill != null)
             _btnUseSkill.interactable = unitActive;
         if (_btnCancelSkill != null)
-            _btnCancelSkill.interactable = !_gameOver && _phase == Phase.SelectingSkillTarget;
+            _btnCancelSkill.interactable = !_gameOver
+                && (_phase == Phase.SelectingSkillTarget
+                    || (_phase == Phase.UnitActive && _skillListPanel != null && _skillListPanel.activeSelf));
+        if (_btnDangerArea != null)
+        {
+            _btnDangerArea.interactable = !_gameOver;
+            var label = _btnDangerArea.GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null)
+                label.text = IsDangerAreaVisible ? "위험영역 숨기기" : "위험영역 보기";
+        }
 
         if (_skillListPanel != null && _phase != Phase.UnitActive && _phase != Phase.SelectingSkillTarget)
             _skillListPanel.SetActive(false);
     }
+
+    string BuildTurnHudText()
+    {
+        string mapName = initialMap != null ? initialMap.name : "?";
+        var current = _state.CurrentUnitId > 0 ? GetUnit(_state.CurrentUnitId) : null;
+        string currentText = current != null
+            ? $"{current.displayName}({current.id}) SPD:{current.speed}"
+            : "없음";
+        string queueText = BuildQueuePreviewText();
+        return _gameOver
+            ? "게임 종료"
+            : $"라운드 {_state.RoundNumber}\n현재: {currentText}\n대기: {queueText}\n맵: {mapName}";
+    }
+
+    string BuildQueuePreviewText()
+    {
+        if (_state.RoundQueue == null || _state.RoundQueue.Count == 0)
+            return "-";
+
+        var queueSb = new StringBuilder();
+        int shown = Mathf.Min(QueuePreviewCount, _state.RoundQueue.Count);
+        for (int i = 0; i < shown; i++)
+        {
+            var qUnit = GetUnit(_state.RoundQueue[i]);
+            if (qUnit == null) continue;
+            if (queueSb.Length > 0)
+                queueSb.Append(" > ");
+            queueSb.Append($"{qUnit.displayName}({qUnit.id})");
+        }
+        if (_state.RoundQueue.Count > shown)
+            queueSb.Append($" ...+{_state.RoundQueue.Count - shown}");
+        return queueSb.ToString();
+    }
+
+    string BuildStatusHudText()
+    {
+        if (_phase == Phase.Idle)
+        {
+            if (_postUndoHint)
+                return "되감기 후 상태\n현재 행동 유닛 타일을 다시 클릭하세요";
+            return "다음 행동 유닛 자동 선택 대기";
+        }
+
+        if (_phase == Phase.SelectingSkillTarget)
+        {
+            string skillName = _pendingSkillData != null ? _pendingSkillData.displayName : "?";
+            return $"스킬 대상 선택: {skillName}\n보라색 타일 클릭 / 잘못 선택 시 스킬 취소";
+        }
+
+        if (!string.IsNullOrEmpty(_hoverStatusHint))
+            return $"행동 단계\n{_hoverStatusHint}";
+
+        string moveInfo = _remainingMove > 0 ? $"이동력 {_remainingMove}" : "이동력 없음";
+        string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능 (공격 후 턴 종료)";
+        string dangerInfo = IsDangerAreaVisible ? "위험영역 ON" : "위험영역 OFF";
+        string undoInfo = _undo.Count > 0 ? "되감기 가능" : "되감기 없음(행동 확정 후 생성)";
+        return $"행동 단계\n{moveInfo} | {atkInfo}\n{dangerInfo} | {undoInfo}\n행동 종료=정상 종료 / 강제 턴 종료=선택 중단 후 종료";
+    }
+
+    string BuildUnitHudText()
+    {
+        SrpUnitRuntime unit = null;
+        if (_selectedId.HasValue)
+            unit = GetUnit(_selectedId.Value);
+        if (unit == null && _state.CurrentUnitId > 0)
+            unit = GetUnit(_state.CurrentUnitId);
+        if (unit == null)
+            return "— 유닛 정보 없음 —";
+
+        var sb = new StringBuilder();
+        bool isCurrent = _state.CurrentUnitId == unit.id;
+        sb.AppendLine($"{(isCurrent ? "▶ " : string.Empty)}{unit.displayName} (P{unit.owner}) [{unit.weaponClass}]");
+        sb.AppendLine($"HP {unit.hp}/{unit.maxHp}  PG {unit.pg}/{unit.maxPg}");
+        sb.AppendLine($"AP {unit.actionPoints}/{unit.maxActionPoints}  RP {unit.reactionPoints}/{unit.maxReactionPoints}");
+        sb.AppendLine($"태세: {unit.stance}  방향: {unit.facing}  그로기: {unit.groggy}");
+        if (unit.skillIds.Count > 0)
+        {
+            sb.Append("스킬:");
+            foreach (var sid in unit.skillIds)
+            {
+                if (_state.SkillLookup.TryGetValue(sid, out var sd))
+                    sb.Append($" {sd.displayName}");
+                else
+                    sb.Append($" {sid}");
+            }
+        }
+        return sb.ToString();
+    }
+
+#if UNITY_INCLUDE_TESTS
+    public bool TestHudReady => _txtTurn != null && _txtStatus != null && _txtUnit != null;
+    public string TestTurnHudText => _txtTurn != null ? _txtTurn.text : string.Empty;
+    public string TestStatusHudText => _txtStatus != null ? _txtStatus.text : string.Empty;
+    public string TestUnitHudText => _txtUnit != null ? _txtUnit.text : string.Empty;
+#endif
 }

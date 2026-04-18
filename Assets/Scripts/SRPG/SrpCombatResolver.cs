@@ -5,15 +5,13 @@ using UnityEngine;
 /// </summary>
 public static class SrpCombatResolver
 {
-    const float PostureFromHpDamageRatio = 0.5f;
-
     public struct AttackOutcome
     {
+        public int damageToPg;
         public int damageToAp;
         public int damageToHp;
         public bool wasExecution;
         public bool defenderDied;
-        public int postureGained;
         public bool becameGroggy;
     }
 
@@ -30,36 +28,63 @@ public static class SrpCombatResolver
     public static AttackOutcome ApplyAttack(SrpUnitRuntime attacker, SrpUnitRuntime defender)
     {
         var o = new AttackOutcome();
-        int raw = attacker.attackPower;
+        int raw = Mathf.Max(1, attacker.attackPower);
+        int hpDamage;
+        int pgDamage;
 
-        if (defender.groggy)
+        if (defender.pg <= 0 || defender.groggy)
         {
             o.wasExecution = true;
-            o.damageToAp = 0;
-            o.damageToHp = raw;
-            defender.hp -= raw;
-            defender.groggy = false;
-            defender.posture = 0;
+            hpDamage = raw + 6;
+            pgDamage = 0;
         }
         else
         {
-            int apBlock = Mathf.Min(raw, defender.ap);
-            o.damageToAp = apBlock;
-            defender.ap -= apBlock;
-            int remain = raw - apBlock;
-            o.damageToHp = remain;
-            defender.hp -= remain;
-            if (remain > 0)
+            switch (attacker.weaponClass)
             {
-                o.postureGained = Mathf.Max(1, Mathf.RoundToInt(remain * PostureFromHpDamageRatio));
-                defender.posture += o.postureGained;
-                if (defender.posture >= defender.maxPosture)
-                {
-                    defender.groggy = true;
-                    o.becameGroggy = true;
-                    defender.posture = defender.maxPosture;
-                }
+                case SrpWeaponClass.Firearm:
+                    hpDamage = raw;
+                    pgDamage = Mathf.Max(1, raw / 3);
+                    break;
+                case SrpWeaponClass.Magic:
+                    hpDamage = Mathf.Max(1, raw / 2);
+                    pgDamage = Mathf.Max(1, raw / 2);
+                    break;
+                case SrpWeaponClass.Melee:
+                default:
+                    hpDamage = Mathf.Max(1, raw / 3);
+                    pgDamage = raw + 2;
+                    break;
             }
+
+            if (attacker.stance == SrpStance.Aggressive)
+                pgDamage += 1;
+            if (defender.stance == SrpStance.Defensive)
+            {
+                hpDamage = Mathf.Max(0, hpDamage - 1);
+                pgDamage = Mathf.Max(0, pgDamage - 1);
+            }
+        }
+
+        defender.hp -= hpDamage;
+        o.damageToHp = hpDamage;
+        o.damageToPg = pgDamage;
+        o.damageToAp = 0;
+
+        if (!o.wasExecution)
+        {
+            int prevPg = defender.pg;
+            defender.pg = Mathf.Max(0, defender.pg - pgDamage);
+            if (prevPg > 0 && defender.pg <= 0)
+            {
+                defender.groggy = true;
+                o.becameGroggy = true;
+            }
+        }
+        else
+        {
+            defender.pg = 0;
+            defender.groggy = false;
         }
 
         if (defender.hp <= 0)

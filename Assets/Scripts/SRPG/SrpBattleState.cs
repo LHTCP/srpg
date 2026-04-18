@@ -13,6 +13,9 @@ public class SrpBattleState
     public List<SrpUnitRuntime> Units { get; private set; } = new List<SrpUnitRuntime>();
     public int[] PlayerOrder { get; private set; }
     public int CurrentPlayerIndex { get; set; }
+    public int RoundNumber { get; set; }
+    public int CurrentUnitId { get; set; }
+    public List<int> RoundQueue { get; private set; } = new List<int>();
     public Dictionary<string, SrpUnitTemplateData> TemplateLookup { get; private set; } = new Dictionary<string, SrpUnitTemplateData>();
     public Dictionary<string, SrpSkillData> SkillLookup { get; private set; } = new Dictionary<string, SrpSkillData>();
 
@@ -27,6 +30,9 @@ public class SrpBattleState
             Walkable = (bool[])Walkable.Clone(),
             PlayerOrder = (int[])PlayerOrder.Clone(),
             CurrentPlayerIndex = CurrentPlayerIndex,
+            RoundNumber = RoundNumber,
+            CurrentUnitId = CurrentUnitId,
+            RoundQueue = new List<int>(RoundQueue),
             _nextUnitId = _nextUnitId,
             TemplateLookup = new Dictionary<string, SrpUnitTemplateData>(TemplateLookup),
             SkillLookup = new Dictionary<string, SrpSkillData>(SkillLookup),
@@ -47,6 +53,8 @@ public class SrpBattleState
                 ? (int[])map.playerOrder.Clone()
                 : new[] { 0, 1 },
             CurrentPlayerIndex = 0,
+            RoundNumber = 1,
+            CurrentUnitId = -1,
         };
         if (map.templates != null)
         {
@@ -109,6 +117,16 @@ public class SrpBattleState
             anchorY = ay,
             maxHp = t.maxHp,
             hp = t.maxHp,
+            maxPg = t.maxPg > 0 ? t.maxPg : Mathf.Max(1, t.maxPosture),
+            pg = t.maxPg > 0 ? t.maxPg : Mathf.Max(1, t.maxPosture),
+            maxActionPoints = t.maxActionPoints > 0 ? t.maxActionPoints : 2,
+            actionPoints = t.maxActionPoints > 0 ? t.maxActionPoints : 2,
+            maxReactionPoints = t.maxReactionPoints > 0 ? t.maxReactionPoints : 1,
+            reactionPoints = t.maxReactionPoints > 0 ? t.maxReactionPoints : 1,
+            speed = t.speed > 0 ? t.speed : 10,
+            weaponClass = ResolveWeaponClass(t),
+            stance = t.stance,
+            facing = t.facing,
             maxAp = t.maxAp,
             ap = t.maxAp,
             maxPosture = t.maxPosture,
@@ -149,6 +167,15 @@ public class SrpBattleState
             }
         }
         return u;
+    }
+
+    static SrpWeaponClass ResolveWeaponClass(SrpUnitTemplateData t)
+    {
+        if (t.weaponClass == SrpWeaponClass.Magic || t.weaponClass == SrpWeaponClass.Melee)
+            return t.weaponClass;
+
+        // legacy 템플릿은 사거리 기반으로 1차 분류한다.
+        return t.attackRange > 1 ? SrpWeaponClass.Firearm : SrpWeaponClass.Melee;
     }
 
     public bool InBounds(int x, int y)
