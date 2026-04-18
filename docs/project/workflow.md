@@ -2,7 +2,7 @@
 
 ## 브랜치 이름
 
-- 기능: `feature/짧은-설명` (예: `feature/chess-undo`)
+- 기능: `feature/짧은-설명` (예: `feature/prototype-v1`)
 - 수정: `fix/이슈-요약`
 - 문서만: `docs/요약` 허용
 
@@ -14,7 +14,7 @@
 예:
 
 ```
-Add pawn promotion check in ChessGameManager
+Implement speed-based round order for SRPG v1
 
 - 인스펙터에 새 필드 추가 시 씬에서 재할당 필요
 ```

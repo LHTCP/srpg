@@ -17,23 +17,19 @@
 | [workflow.md](project/workflow.md) | Git 워크플로 |
 | [documentation-standards.md](project/documentation-standards.md) | 문서 전용 폴더 구조·작성 규칙 |
 
-## 체스 (`docs/chess/`)
-
-| 문서 | 설명 |
-|------|------|
-| [Unity_설정가이드.md](chess/Unity_설정가이드.md) | 씬·오브젝트 빠른 설정 |
-| [체스게임_완전가이드.md](chess/체스게임_완전가이드.md) | 게임·구조 상세 |
-
 ## SRPG (`docs/srpg/`)
 
 | 문서 | 설명 |
 |------|------|
-| [SRPG_README.md](srpg/SRPG_README.md) | 씬 구성·실행 방법·조작 안내 |
-| [SRPG_GDD.md](srpg/SRPG_GDD.md) | 게임 디자인(턴 구조·이동·전투·스킬) v0.2 |
-| [SRPG_TDD.md](srpg/SRPG_TDD.md) | 기술 설계·스키마·코드 구조 v0.2 |
-| [SRPG_진행이력.md](srpg/SRPG_진행이력.md) | 구현 단계별 이력·변경 요약 |
-| [SRPG_FUTURE_NETWORK.md](srpg/SRPG_FUTURE_NETWORK.md) | 향후 멀티·AI·슬롯 기획 메모 |
-| [SRPG_BACKLOG.md](srpg/SRPG_BACKLOG.md) | 후속 과제(우선순위 포함) |
-| [SRPG_점검_및_로드맵.md](srpg/SRPG_점검_및_로드맵.md) | 프로젝트 점검 보고서 + 추천 로드맵 |
+| [SRPG_README.md](srpg/SRPG_README.md) | v1 프로토타입 실행/검증 가이드 |
+| [SRPG_프로토타입_마스터플랜.md](srpg/SRPG_프로토타입_마스터플랜.md) | M0~M4 단계별 실행 기준 문서 |
+| [SRPG_GDD.md](srpg/SRPG_GDD.md) | v1 게임 디자인 문서 |
+| [SRPG_TDD.md](srpg/SRPG_TDD.md) | v1 기술 설계 문서 |
+| [SRPG_레거시_코드_분류.md](srpg/SRPG_레거시_코드_분류.md) | 기존 SRPG 코드 분류(Discard/Rework/Keep/New) |
+| [SRPG_다음미팅_논의사항.md](srpg/SRPG_다음미팅_논의사항.md) | 다음 미팅 필수 의사결정 항목 |
+| [SRPG_BACKLOG.md](srpg/SRPG_BACKLOG.md) | v1 후속 과제 목록 |
+| [SRPG_CHANGELOG.md](srpg/SRPG_CHANGELOG.md) | v1 전환 이력 |
+| [SRPG_FUTURE_NETWORK.md](srpg/SRPG_FUTURE_NETWORK.md) | 향후 네트워크·AI 메모 |
+| [SRPG_V0_ARCHIVE.md](srpg/SRPG_V0_ARCHIVE.md) | v0 문서 아카이브 안내 |
 
 새 범주를 추가하면 `docs/<이름>/`를 만들고 이 표에 행을 추가한다.
