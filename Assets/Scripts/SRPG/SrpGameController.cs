@@ -147,6 +147,59 @@ public partial class SrpGameController : MonoBehaviour
 
     // ── 입력 ─────────────────────────────────────────────────────────────────
 
+    bool EnsureApAvailable(SrpUnitRuntime unit, string actionLabel)
+    {
+        if (unit == null)
+            return false;
+        if (unit.actionPoints > 0)
+            return true;
+        LogLine($"{unit.displayName} AP 부족: {actionLabel} 불가");
+        return false;
+    }
+
+    void LogInvalidMoveReason(SrpUnitRuntime unit, int x, int y, SrpUnitRuntime occupant)
+    {
+        if (unit == null || _state == null)
+            return;
+
+        if (!_state.InBounds(x, y))
+        {
+            LogLine($"이동 불가: ({x},{y})는 전장 범위를 벗어났습니다.");
+            return;
+        }
+
+        if (!EnsureApAvailable(unit, "이동"))
+            return;
+
+        if (!_state.IsWalkableTile(x, y))
+        {
+            LogLine($"이동 불가: ({x},{y})는 지형 장애물입니다.");
+            return;
+        }
+
+        if (occupant != null && !occupant.eliminated && occupant.id != unit.id)
+        {
+            string side = occupant.owner == unit.owner ? "아군" : "적";
+            LogLine($"이동 불가: ({x},{y})는 {side} 유닛 {occupant.displayName}({occupant.id})이 점유 중입니다.");
+            return;
+        }
+
+        if (!_state.CanStandAt(unit, x, y, unit.id))
+        {
+            LogLine($"이동 불가: ({x},{y})에 풋프린트를 온전히 둘 수 없습니다.");
+            return;
+        }
+
+        int manhattan = Mathf.Abs(unit.anchorX - x) + Mathf.Abs(unit.anchorY - y);
+        if (manhattan > _remainingMove)
+        {
+            LogLine($"이동 불가: 필요 이동력 {manhattan}, 현재 잔여 {_remainingMove}.");
+            return;
+        }
+
+        LogLine($"이동 불가: ({x},{y})까지 경로를 찾지 못했습니다. (ZOC/우회 경로 비용 초과 가능)");
+    }
+
     public void OnTileClicked(int x, int y)
     {
         if (_gameOver) return;
@@ -159,9 +212,8 @@ public partial class SrpGameController : MonoBehaviour
             if (_skillTargetTiles.Contains(cell))
             {
                 var u = GetUnit(_selectedId.Value);
-                if (u == null || u.actionPoints <= 0)
+                if (u == null || !EnsureApAvailable(u, "스킬 사용"))
                 {
-                    LogLine("AP 부족으로 스킬 사용 불가");
                     CancelSkillTargeting();
                     return;
                 }
@@ -214,11 +266,8 @@ public partial class SrpGameController : MonoBehaviour
             var cell = new Vector2Int(x, y);
             if (_moveCostMap.TryGetValue(cell, out int moveCost))
             {
-                if (u.actionPoints <= 0)
-                {
-                    LogLine($"{u.displayName} AP 부족");
+                if (!EnsureApAvailable(u, "이동"))
                     return;
-                }
                 PushUndo();
                 u.anchorX = x;
                 u.anchorY = y;
@@ -235,16 +284,27 @@ public partial class SrpGameController : MonoBehaviour
             if (!_hasAttackedThisTurn && occ != null && !occ.eliminated
                 && occ.owner != u.owner && _attackIds.Contains(occ.id))
             {
-                if (u.actionPoints <= 0)
-                {
-                    LogLine($"{u.displayName} AP 부족");
+                if (!EnsureApAvailable(u, "공격"))
                     return;
-                }
                 DoAttack(u, occ);
                 return;
             }
 
-            LogLine("이동/공격 가능한 타일을 선택하세요.");
+            if (occ != null && !occ.eliminated && occ.owner != u.owner)
+            {
+                int dist = _state.ChebyshevAnchor(u, occ);
+                if (_hasAttackedThisTurn)
+                    LogLine($"공격 불가: {u.displayName}은 이번 활성화에서 이미 공격을 사용했습니다.");
+                else if (dist > u.attackRange)
+                    LogLine($"공격 불가: 사거리 밖 대상입니다. (거리 {dist}, 사거리 {u.attackRange})");
+                else if (!EnsureApAvailable(u, "공격"))
+                    return;
+                else
+                    LogLine("공격 불가: 현재 상태에서 해당 대상을 타격할 수 없습니다.");
+                return;
+            }
+
+            LogInvalidMoveReason(u, x, y, occ);
         }
     }
 
@@ -408,9 +468,8 @@ public partial class SrpGameController : MonoBehaviour
         var u = GetUnit(_selectedId.Value);
         if (u == null) return;
 
-        if (u.actionPoints <= 0)
+        if (!EnsureApAvailable(u, "스킬 준비"))
         {
-            LogLine($"{u.displayName} AP 부족");
             _pendingSkillData = null;
             _pendingSkillRuntime = null;
             _skillTargetTiles.Clear();
@@ -529,6 +588,10 @@ public partial class SrpGameController : MonoBehaviour
             $"공격: {atk.displayName}({atk.id}) → {def.displayName}({def.id}) | " +
             $"PG-{outcome.damageToPg} HP-{outcome.damageToHp} " +
             $"처단:{outcome.wasExecution} 그로기:{outcome.becameGroggy}");
+        if (outcome.becameGroggy)
+            LogLine($"PG 붕괴: {def.displayName}({def.id}) 처단 위험 상태");
+        if (outcome.wasExecution)
+            LogLine($"처단 타격: {def.displayName}({def.id})");
         if (outcome.defenderDied)
         {
             _state.RemoveUnit(def);
@@ -646,6 +709,8 @@ public partial class SrpGameController : MonoBehaviour
 
     SrpUnitRuntime GetUnit(int id)
     {
+        if (_state == null || _state.Units == null)
+            return null;
         foreach (var u in _state.Units)
             if (u.id == id) return u;
         return null;

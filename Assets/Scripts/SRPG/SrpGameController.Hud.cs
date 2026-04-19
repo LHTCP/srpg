@@ -548,6 +548,13 @@ public partial class SrpGameController
     void UpdateHud()
     {
         if (_txtTurn == null) return;
+        if (_state == null)
+        {
+            _txtTurn.text = "초기화 중...";
+            _txtStatus.text = "전투 상태를 준비 중입니다.";
+            _txtUnit.text = "— 유닛 정보 없음 —";
+            return;
+        }
         _txtTurn.text = BuildTurnHudText();
         _txtStatus.text = BuildStatusHudText();
         _txtUnit.text = BuildUnitHudText();
@@ -580,6 +587,8 @@ public partial class SrpGameController
 
     string BuildTurnHudText()
     {
+        if (_state == null)
+            return "초기화 중...";
         string mapName = initialMap != null ? initialMap.name : "?";
         var current = _state.CurrentUnitId > 0 ? GetUnit(_state.CurrentUnitId) : null;
         string currentText = current != null
@@ -593,6 +602,8 @@ public partial class SrpGameController
 
     string BuildQueuePreviewText()
     {
+        if (_state == null)
+            return "-";
         if (_state.RoundQueue == null || _state.RoundQueue.Count == 0)
             return "-";
 
@@ -613,31 +624,43 @@ public partial class SrpGameController
 
     string BuildStatusHudText()
     {
+        if (_state == null)
+            return "전투 상태를 준비 중입니다.";
+        const string OverlayLegend = "범례: 노랑=ZOC | 빨강=적 공격범위 | 보라=스킬범위";
         if (_phase == Phase.Idle)
         {
             if (_postUndoHint)
-                return "되감기 후 상태\n현재 행동 유닛 타일을 다시 클릭하세요";
-            return "다음 행동 유닛 자동 선택 대기";
+                return $"되감기 후 상태\n현재 행동 유닛 타일을 다시 클릭하세요\n{OverlayLegend}";
+            return $"다음 행동 유닛 자동 선택 대기\n{OverlayLegend}";
         }
 
         if (_phase == Phase.SelectingSkillTarget)
         {
             string skillName = _pendingSkillData != null ? _pendingSkillData.displayName : "?";
-            return $"스킬 대상 선택: {skillName}\n보라색 타일 클릭 / 잘못 선택 시 스킬 취소";
+            return $"스킬 대상 선택: {skillName}\n보라색 타일 클릭 / 잘못 선택 시 스킬 취소\n{OverlayLegend}";
         }
 
         if (!string.IsNullOrEmpty(_hoverStatusHint))
-            return $"행동 단계\n{_hoverStatusHint}";
+            return $"행동 단계\n{_hoverStatusHint}\n{OverlayLegend}";
+
+        if (_selectedId.HasValue)
+        {
+            var selected = GetUnit(_selectedId.Value);
+            if (selected != null && selected.actionPoints <= 0)
+                return $"행동 단계\nAP 0: 이동/공격/스킬 사용 불가\n행동 종료 또는 강제 턴 종료를 선택하세요\n{OverlayLegend}";
+        }
 
         string moveInfo = _remainingMove > 0 ? $"이동력 {_remainingMove}" : "이동력 없음";
         string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능 (공격 후 턴 종료)";
         string dangerInfo = IsDangerAreaVisible ? "위험영역 ON" : "위험영역 OFF";
         string undoInfo = _undo.Count > 0 ? "되감기 가능" : "되감기 없음(행동 확정 후 생성)";
-        return $"행동 단계\n{moveInfo} | {atkInfo}\n{dangerInfo} | {undoInfo}\n행동 종료=정상 종료 / 강제 턴 종료=선택 중단 후 종료";
+        return $"행동 단계\n{moveInfo} | {atkInfo}\n{dangerInfo} | {undoInfo}\n행동 종료=정상 종료 / 강제 턴 종료=선택 중단 후 종료\n{OverlayLegend}";
     }
 
     string BuildUnitHudText()
     {
+        if (_state == null)
+            return "— 유닛 정보 없음 —";
         SrpUnitRuntime unit = null;
         if (_selectedId.HasValue)
             unit = GetUnit(_selectedId.Value);
@@ -651,6 +674,8 @@ public partial class SrpGameController
         sb.AppendLine($"{(isCurrent ? "▶ " : string.Empty)}{unit.displayName} (P{unit.owner}) [{unit.weaponClass}]");
         sb.AppendLine($"HP {unit.hp}/{unit.maxHp}  PG {unit.pg}/{unit.maxPg}");
         sb.AppendLine($"AP {unit.actionPoints}/{unit.maxActionPoints}  RP {unit.reactionPoints}/{unit.maxReactionPoints}");
+        if (isCurrent && unit.actionPoints <= 0)
+            sb.AppendLine("상태: AP 소진 (행동 종료 필요)");
         sb.AppendLine($"태세: {unit.stance}  방향: {unit.facing}  그로기: {unit.groggy}");
         if (unit.skillIds.Count > 0)
         {

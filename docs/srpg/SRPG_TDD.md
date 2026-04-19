@@ -34,6 +34,7 @@ SrpGameController
 - `stance` (`Aggressive`, `Defensive`)
 - `facing` (`North`, `East`, `South`, `West`)
 - `weaponClass` (`Firearm`, `Melee`, `Magic`)
+- M1부터 `ap/maxAp/posture/maxPosture` 런타임 의존은 제거한다.
 
 ### 3.2 SrpBattleState
 
@@ -56,14 +57,15 @@ SrpGameController
 
 ### 4.1 무기 분기
 
-- `Firearm`: HP 중심 피해, 조건부 보너스
-- `Melee`: PG 중심 압박, 교전 고정 보너스
-- `Magic`: 직접 피해는 보조, 위치/상태 개입 중심
+- `Firearm`: HP 중심 피해(고정 보너스), 낮은 PG 압박
+- `Melee`: PG 중심 압박(고정 보너스), 낮은 HP 피해
+- `Magic`: HP/PG 균등 분배의 중간 압박
 
 ### 4.2 처단
 
 - PG 임계 상태(붕괴)에 도달한 대상은 처단 위험 상태가 된다.
-- 처단 판정 성공 시 큰 HP 피해를 적용한다.
+- 처단 공격은 `raw + executionBonus` 형태의 큰 HP 피해를 적용한다.
+- `AttackOutcome`은 `damageToPg`, `damageToHp`, `wasExecution`, `becameGroggy`, `defenderDied`로 고정한다.
 
 ### 4.3 방향 보정
 
@@ -138,6 +140,8 @@ SrpGameController
   - `SrpUnitRuntime` / `SrpMapFile` v2 필드(AP/RP, speed, weaponClass, stance, facing) 반영
   - `SrpCombatResolver` 총기/근접/마법 분기 + HP/PG 이원화 반영
   - HUD에 라운드/현재 유닛/대기 큐/AP/RP/PG 노출
+  - AP 부족 시 이동/공격/스킬 차단 문구 표준화
+  - 턴 큐에서 제거 유닛 자동 정리(큐 무결성 보정)
   - EditMode 테스트 `Assets/Tests/EditMode/Editor/SrpM1CoreTests.cs` 추가
 - 진행 필요
   - `SrpReaction`, `SrpOverwatch`, `SrpLineOfSight` 구현

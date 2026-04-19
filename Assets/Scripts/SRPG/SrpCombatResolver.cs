@@ -5,10 +5,11 @@ using UnityEngine;
 /// </summary>
 public static class SrpCombatResolver
 {
+    const int ExecutionBonusDamage = 8;
+
     public struct AttackOutcome
     {
         public int damageToPg;
-        public int damageToAp;
         public int damageToHp;
         public bool wasExecution;
         public bool defenderDied;
@@ -35,7 +36,7 @@ public static class SrpCombatResolver
         if (defender.pg <= 0 || defender.groggy)
         {
             o.wasExecution = true;
-            hpDamage = raw + 6;
+            hpDamage = raw + ExecutionBonusDamage;
             pgDamage = 0;
         }
         else
@@ -43,8 +44,8 @@ public static class SrpCombatResolver
             switch (attacker.weaponClass)
             {
                 case SrpWeaponClass.Firearm:
-                    hpDamage = raw;
-                    pgDamage = Mathf.Max(1, raw / 3);
+                    hpDamage = raw + 2;
+                    pgDamage = Mathf.Max(1, raw / 4);
                     break;
                 case SrpWeaponClass.Magic:
                     hpDamage = Mathf.Max(1, raw / 2);
@@ -52,8 +53,8 @@ public static class SrpCombatResolver
                     break;
                 case SrpWeaponClass.Melee:
                 default:
-                    hpDamage = Mathf.Max(1, raw / 3);
-                    pgDamage = raw + 2;
+                    hpDamage = Mathf.Max(1, raw / 4);
+                    pgDamage = raw + 4;
                     break;
             }
 
@@ -69,8 +70,6 @@ public static class SrpCombatResolver
         defender.hp -= hpDamage;
         o.damageToHp = hpDamage;
         o.damageToPg = pgDamage;
-        o.damageToAp = 0;
-
         if (!o.wasExecution)
         {
             int prevPg = defender.pg;

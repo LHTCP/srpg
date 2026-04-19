@@ -32,17 +32,33 @@ public static class SrpTurnOrder
 
     public static bool HasRemainingUnitInRound(SrpBattleState state)
     {
-        return state.RoundQueue != null && state.RoundQueue.Count > 0;
+        if (state.RoundQueue == null || state.RoundQueue.Count == 0)
+            return false;
+
+        for (int i = state.RoundQueue.Count - 1; i >= 0; i--)
+        {
+            var unit = state.FindUnitById(state.RoundQueue[i]);
+            if (unit == null || unit.eliminated)
+                state.RoundQueue.RemoveAt(i);
+        }
+        return state.RoundQueue.Count > 0;
     }
 
     public static int AdvanceToNextUnit(SrpBattleState state)
     {
-        if (state.RoundQueue == null || state.RoundQueue.Count == 0)
-            return -1;
+        while (state.RoundQueue != null && state.RoundQueue.Count > 0)
+        {
+            int next = state.RoundQueue[0];
+            state.RoundQueue.RemoveAt(0);
+            var unit = state.FindUnitById(next);
+            if (unit == null || unit.eliminated)
+                continue;
 
-        int next = state.RoundQueue[0];
-        state.RoundQueue.RemoveAt(0);
-        state.CurrentUnitId = next;
-        return next;
+            state.CurrentUnitId = next;
+            return next;
+        }
+
+        state.CurrentUnitId = -1;
+        return -1;
     }
 }

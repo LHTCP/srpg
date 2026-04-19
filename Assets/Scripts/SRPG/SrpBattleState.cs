@@ -117,8 +117,8 @@ public class SrpBattleState
             anchorY = ay,
             maxHp = t.maxHp,
             hp = t.maxHp,
-            maxPg = t.maxPg > 0 ? t.maxPg : Mathf.Max(1, t.maxPosture),
-            pg = t.maxPg > 0 ? t.maxPg : Mathf.Max(1, t.maxPosture),
+            maxPg = t.maxPg > 0 ? t.maxPg : 18,
+            pg = t.maxPg > 0 ? t.maxPg : 18,
             maxActionPoints = t.maxActionPoints > 0 ? t.maxActionPoints : 2,
             actionPoints = t.maxActionPoints > 0 ? t.maxActionPoints : 2,
             maxReactionPoints = t.maxReactionPoints > 0 ? t.maxReactionPoints : 1,
@@ -127,10 +127,6 @@ public class SrpBattleState
             weaponClass = ResolveWeaponClass(t),
             stance = t.stance,
             facing = t.facing,
-            maxAp = t.maxAp,
-            ap = t.maxAp,
-            maxPosture = t.maxPosture,
-            posture = 0,
             moveRange = t.moveRange,
             attackRange = t.attackRange,
             attackPower = t.attackPower,
@@ -282,37 +278,14 @@ public class SrpBattleState
         u.hp = 0;
     }
 
-    public int GetCurrentPlayerId()
+    public SrpUnitRuntime FindUnitById(int id)
     {
-        if (PlayerOrder == null || PlayerOrder.Length == 0)
-            return 0;
-        int idx = Mathf.Clamp(CurrentPlayerIndex, 0, PlayerOrder.Length - 1);
-        return PlayerOrder[idx];
-    }
-
-    public void AdvanceToNextLivingPlayer()
-    {
-        if (PlayerOrder == null || PlayerOrder.Length == 0)
-            return;
-        for (int i = 0; i < PlayerOrder.Length; i++)
-        {
-            CurrentPlayerIndex = (CurrentPlayerIndex + 1) % PlayerOrder.Length;
-            int pid = GetCurrentPlayerId();
-            if (OwnerHasAliveUnits(pid))
-                return;
-        }
-    }
-
-    public void ResetActivationFlagsForCurrentPlayer()
-    {
-        int pid = GetCurrentPlayerId();
         foreach (var u in Units)
         {
-            if (!u.eliminated && u.owner == pid)
-            {
-                u.hasMovedThisActivation = false;
-                u.hasAttackedThisActivation = false;
-            }
+            if (u.id == id)
+                return u;
         }
+        return null;
     }
+
 }

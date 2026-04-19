@@ -76,6 +76,24 @@ public class SrpM1CoreTests
         Assert.Greater(meleeOutcome.damageToPg, firearmOutcome.damageToPg);
     }
 
+    [Test]
+    public void TurnOrder_SkipsEliminatedUnits_WhenAdvancing()
+    {
+        var map = SrpDefaultMaps.GetPreset(SrpMapPreset.M1QaIntegrated);
+        var state = SrpBattleState.FromMap(map);
+        state.RoundQueue.Clear();
+        state.RoundQueue.AddRange(SrpTurnOrder.BuildRoundQueue(state));
+        Assert.Greater(state.RoundQueue.Count, 2);
+
+        int removedId = state.RoundQueue[0];
+        var removed = FindUnit(state, removedId);
+        Assert.IsNotNull(removed);
+        removed.eliminated = true;
+
+        int nextId = SrpTurnOrder.AdvanceToNextUnit(state);
+        Assert.AreNotEqual(removedId, nextId, "제거된 유닛이 턴 큐에서 건너뛰어지지 않았습니다.");
+    }
+
     static SrpUnitRuntime CreateDefender()
     {
         return new SrpUnitRuntime

@@ -50,11 +50,7 @@ public class SrpUnitRuntime
     public SrpStance stance;
     public SrpFacing facing;
 
-    // legacy fields (기존 데이터/메이커 호환)
-    public int ap;
-    public int maxAp;
-    public int posture;
-    public int maxPosture;
+    // legacy template compatibility is handled in SrpUnitTemplateData only.
     public int moveRange;
     public int attackRange;
     public int attackPower;
@@ -94,10 +90,6 @@ public class SrpUnitRuntime
             weaponClass = weaponClass,
             stance = stance,
             facing = facing,
-            ap = ap,
-            maxAp = maxAp,
-            posture = posture,
-            maxPosture = maxPosture,
             moveRange = moveRange,
             attackRange = attackRange,
             attackPower = attackPower,
