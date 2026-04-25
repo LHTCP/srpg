@@ -37,11 +37,17 @@ public class SrpM1PlayModeTests
         StringAssert.Contains("대기:", turnHud);
         StringAssert.Contains("행동 단계", statusHud);
         StringAssert.Contains("공격 후 턴 종료", statusHud);
+        StringAssert.Contains("범례:", statusHud);
+        StringAssert.Contains("초록=이동", statusHud);
+        StringAssert.Contains("청록=패링 가능 스킬", statusHud);
+        StringAssert.Contains("파랑=오버워치", statusHud);
         StringAssert.Contains("AP", unitHud);
-        StringAssert.Contains("RP", unitHud);
+        StringAssert.Contains("반응:", unitHud);
         StringAssert.Contains("PG", unitHud);
         StringAssert.Contains("태세", unitHud);
         StringAssert.Contains("방향", unitHud);
+        StringAssert.Contains("오버워치", controller.TestOverwatchButtonText);
+        StringAssert.Contains("SRPG 프로토타입", controller.TestLogText);
 
         Object.Destroy(go);
         yield return null;
@@ -94,16 +100,27 @@ public class SrpM1PlayModeTests
         yield return null;
         Assert.IsTrue(controller.TestDangerAreaVisible, "위험영역 토글 상태 반영 실패");
         StringAssert.Contains("위험영역 ON", controller.TestStatusHudText);
+        StringAssert.Contains("범례:", controller.TestStatusHudText);
+        StringAssert.Contains("빨강=공격/위험", controller.TestStatusHudText);
 
         bool hovered = controller.TestTryHoverFirstMoveTile();
         Assert.IsTrue(hovered, "hover 가능한 이동 타일이 없음");
         yield return null;
         StringAssert.Contains("행동 단계", controller.TestStatusHudText);
+        StringAssert.Contains("범례:", controller.TestStatusHudText);
 
         controller.OnUnitHoverEnter(controller.TestCurrentUnitId);
         yield return null;
         StringAssert.Contains("유닛 미리보기", controller.TestStatusHudText);
+        StringAssert.Contains("ZOC", controller.TestStatusHudText);
         Assert.AreEqual(controller.TestCurrentUnitId, controller.TestHoveredUnitId);
+
+        if (controller.TestShowSkillList())
+        {
+            string skillList = controller.TestSkillListText;
+            Assert.IsFalse(skillList.Contains("CD:"), "스킬 목록에 이전 쿨다운 약어가 남아 있습니다.");
+            Assert.IsFalse(skillList.Contains("CH:"), "스킬 목록에 이전 충전 약어가 남아 있습니다.");
+        }
 
         controller.OnUnitHoverExit(controller.TestCurrentUnitId);
         yield return null;

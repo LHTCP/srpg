@@ -125,14 +125,8 @@ public partial class SrpGameController : MonoBehaviour
 
     void ResetRoundFlagsAndResources()
     {
-        foreach (var u in _state.Units)
-        {
-            if (u.eliminated)
-                continue;
-            u.passiveAppliedThisTurn = false;
-            u.actionPoints = u.maxActionPoints;
-            u.reactionPoints = u.maxReactionPoints;
-        }
+        SrpTurnOrder.ResetRoundResources(_state);
+        _state.RebuildEngagements();
     }
 
     static void EnsureEventSystem()
@@ -223,6 +217,11 @@ public partial class SrpGameController : MonoBehaviour
                 u.hasUsedSkillThisActivation = true;
                 u.actionPoints = Mathf.Max(0, u.actionPoints - 1);
                 RefreshUnitViews();
+                if (TryResolveOverwatchAgainst(u))
+                {
+                    FinishActivation();
+                    return;
+                }
 
                 if (_pendingSkillData.endsActivation)
                 {
@@ -268,14 +267,30 @@ public partial class SrpGameController : MonoBehaviour
             {
                 if (!EnsureApAvailable(u, "이동"))
                     return;
+                bool wasEngaged = _state.IsUnitEngaged(u.id);
+                var previousEngagers = _state.GetEngagedEnemyIds(u.id);
                 PushUndo();
                 u.anchorX = x;
                 u.anchorY = y;
+                _state.RebuildEngagements();
+                bool disengaged = wasEngaged && !_state.IsUnitEngaged(u.id);
                 _remainingMove -= moveCost;
                 u.actionPoints = Mathf.Max(0, u.actionPoints - 1);
                 u.hasMovedThisActivation = true;
-                LogLine($"이동: {u.displayName}({u.id}) → ({x},{y}), 잔여 이동력 {_remainingMove}");
+                string disengageHint = disengaged ? " (교전 이탈)" : string.Empty;
+                LogLine($"이동: {u.displayName}({u.id}) → ({x},{y}), 잔여 이동력 {_remainingMove}{disengageHint}");
+                bool opportunityKilledMover = disengaged && TryResolveOpportunityAttack(u, previousEngagers);
                 RefreshUnitViews();
+                if (opportunityKilledMover)
+                {
+                    FinishActivation();
+                    return;
+                }
+                if (TryResolveOverwatchAgainst(u))
+                {
+                    FinishActivation();
+                    return;
+                }
                 RefreshActiveHighlights(u);
                 UpdateHud();
                 return;
@@ -434,7 +449,12 @@ public partial class SrpGameController : MonoBehaviour
             }
         }
         RefreshAttackTargets(u);
-        if (!_hasAttackedThisTurn) HighlightAttackTiles();
+        if (!_hasAttackedThisTurn)
+        {
+            HighlightAttackTiles();
+            HighlightOverwatchTiles(u);
+            HighlightParryTelegraphForAttackTargets(u);
+        }
         RebuildDangerAndIntentOverlays();
     }
 
@@ -520,6 +540,7 @@ public partial class SrpGameController : MonoBehaviour
         ResetTileColors();
         foreach (var tile in _skillTargetTiles)
             SetOverlayTile(OverlaySkill, tile.x, tile.y, new Color(0.7f, 0.3f, 0.9f));
+        HighlightParryTelegraphForSkillTargets(u, data);
         UpdateHud();
     }
 
@@ -576,18 +597,109 @@ public partial class SrpGameController : MonoBehaviour
 
     void PushUndo() => _undo.Push(_state.Clone());
 
+    bool TryResolveOpportunityAttack(SrpUnitRuntime mover, List<int> previousEngagers)
+    {
+        if (mover == null || mover.eliminated || previousEngagers == null)
+            return false;
+
+        var attacker = FindOpportunityAttacker(mover, previousEngagers);
+        if (attacker == null)
+            return false;
+
+        if (!SrpCombatResolver.TryApplyOpportunityAttack(_state, attacker, mover, out var outcome))
+            return false;
+        SrpSkills.OnAttackResolved(attacker, mover, outcome, _state, LogLine);
+        if (outcome.damageToHp > 0 || outcome.damageToPg > 0)
+            SrpSkills.OnTakeDamage(mover, _state, LogLine);
+
+        LogLine(
+            $"기회공격: {attacker.displayName}({attacker.id}) → {mover.displayName}({mover.id}) | " +
+            $"피해 PG-{outcome.damageToPg} HP-{outcome.damageToHp} | 반응 사격 소모");
+        LogDefenseBuffers(mover, outcome);
+        LogReactionOutcome(mover, outcome);
+        if (outcome.becameGroggy)
+            LogLine($"PG 붕괴: {mover.displayName}({mover.id}) 처단 위험 상태");
+        if (outcome.defenderDied)
+        {
+            _state.RemoveUnit(mover);
+            _state.RebuildEngagements();
+            LogLine($"사망: {mover.displayName}({mover.id})");
+            CheckWin();
+        }
+
+        return outcome.defenderDied;
+    }
+
+    bool TryResolveOverwatchAgainst(SrpUnitRuntime target)
+    {
+        if (target == null || target.eliminated)
+            return false;
+
+        foreach (var watcher in _state.Units)
+        {
+            if (!SrpOverwatch.CanTrigger(_state, watcher, target))
+                continue;
+
+            if (!SrpOverwatch.TryTrigger(_state, watcher, target, out var outcome))
+                continue;
+            SrpSkills.OnAttackResolved(watcher, target, outcome, _state, LogLine);
+            if (outcome.damageToHp > 0 || outcome.damageToPg > 0)
+                SrpSkills.OnTakeDamage(target, _state, LogLine);
+
+            LogLine(
+                $"오버워치 사격: {watcher.displayName}({watcher.id}) → {target.displayName}({target.id}) | " +
+                $"피해 PG-{outcome.damageToPg} HP-{outcome.damageToHp} | 반응 사격 소모");
+            LogDefenseBuffers(target, outcome);
+            LogReactionOutcome(target, outcome);
+            if (outcome.becameGroggy)
+                LogLine($"PG 붕괴: {target.displayName}({target.id}) 처단 위험 상태");
+            if (outcome.defenderDied)
+            {
+                _state.RemoveUnit(target);
+                _state.RebuildEngagements();
+                LogLine($"사망: {target.displayName}({target.id})");
+                CheckWin();
+            }
+
+            return outcome.defenderDied;
+        }
+
+        return false;
+    }
+
+    SrpUnitRuntime FindOpportunityAttacker(SrpUnitRuntime mover, List<int> previousEngagers)
+    {
+        foreach (int enemyId in previousEngagers)
+        {
+            var enemy = _state.FindUnitById(enemyId);
+            if (enemy == null || enemy.eliminated || enemy.owner == mover.owner)
+                continue;
+            if (enemy.reactionPoints <= 0)
+                continue;
+            if (_state.Engagements.TryGetValue(mover.id, out var current) && current.Contains(enemy.id))
+                continue;
+            return enemy;
+        }
+
+        return null;
+    }
+
     void DoAttack(SrpUnitRuntime atk, SrpUnitRuntime def)
     {
         PushUndo();
-        var outcome = SrpCombatResolver.ApplyAttack(atk, def);
+        var outcome = SrpCombatResolver.ApplyAttack(_state, atk, def);
         SrpSkills.OnAttackResolved(atk, def, outcome, _state, LogLine);
+        if (outcome.damageToHp > 0 || outcome.damageToPg > 0)
+            SrpSkills.OnTakeDamage(def, _state, LogLine);
         atk.hasAttackedThisActivation = true;
         _hasAttackedThisTurn = true;
         atk.actionPoints = Mathf.Max(0, atk.actionPoints - 1);
         LogLine(
             $"공격: {atk.displayName}({atk.id}) → {def.displayName}({def.id}) | " +
-            $"PG-{outcome.damageToPg} HP-{outcome.damageToHp} " +
+            $"피해 PG-{outcome.damageToPg} HP-{outcome.damageToHp} | " +
             $"처단:{outcome.wasExecution} 그로기:{outcome.becameGroggy}");
+        LogDefenseBuffers(def, outcome);
+        LogReactionOutcome(def, outcome);
         if (outcome.becameGroggy)
             LogLine($"PG 붕괴: {def.displayName}({def.id}) 처단 위험 상태");
         if (outcome.wasExecution)
@@ -595,10 +707,55 @@ public partial class SrpGameController : MonoBehaviour
         if (outcome.defenderDied)
         {
             _state.RemoveUnit(def);
+            _state.RebuildEngagements();
             LogLine($"사망: {def.displayName}({def.id})");
+        }
+        if (TryResolveOverwatchAgainst(atk))
+        {
+            RefreshUnitViews();
+            FinishActivation();
+            return;
         }
         RefreshUnitViews();
         FinishActivation();
+    }
+
+    void LogDefenseBuffers(SrpUnitRuntime defender, SrpCombatResolver.AttackOutcome outcome)
+    {
+        if (defender == null)
+            return;
+        if (outcome.sustainedDefenseBufferApplied)
+            LogLine($"수비 완충: {defender.displayName} 후속 공격 감쇠 HP-{outcome.reducedHpBySustainedDefense} PG-{outcome.reducedPgBySustainedDefense}");
+        if (outcome.tankMultiEngagementBufferApplied)
+            LogLine($"탱커 대응: {defender.displayName} 다중 교전 감쇠 HP-{outcome.reducedHpByTank} PG-{outcome.reducedPgByTank}");
+    }
+
+    void LogReactionOutcome(SrpUnitRuntime defender, SrpCombatResolver.AttackOutcome outcome)
+    {
+        if (defender == null || !outcome.reactionSpentRp)
+            return;
+
+        string unit = $"{defender.displayName}({defender.id})";
+        switch (outcome.reactionKind)
+        {
+            case SrpReactionKind.Parry:
+                LogLine($"방어 반응: {unit} 패링 성공 | 피해 무효");
+                break;
+            case SrpReactionKind.Dodge:
+                if (outcome.wasDodged)
+                    LogLine($"방어 반응: {unit} 회피 성공 | 피해 무효");
+                else if (outcome.dodgeFailed)
+                    LogLine($"방어 반응: {unit} 회피 실패 | 기본 피해 적용");
+                else
+                    LogLine($"방어 반응: {unit} 회피 발동");
+                break;
+            case SrpReactionKind.Guard:
+                LogLine($"방어 반응: {unit} 가드 발동 | 추가 감쇠 적용");
+                break;
+            default:
+                LogLine($"방어 반응: {unit} {outcome.reactionKind} 발동");
+                break;
+        }
     }
 
     void FinishActivation()
@@ -617,14 +774,13 @@ public partial class SrpGameController : MonoBehaviour
     void StartRound()
     {
         _state.RoundQueue.Clear();
+        _state.RebuildEngagements();
         _state.RoundQueue.AddRange(SrpTurnOrder.BuildRoundQueue(_state));
         foreach (var u in _state.Units)
         {
             if (u.eliminated)
                 continue;
-            foreach (var sr in u.skillRuntimes)
-                if (sr.cooldownRemaining > 0)
-                    sr.cooldownRemaining--;
+            SrpSkills.TickSkillResourcesForUnit(u, _state);
         }
         ResetRoundFlagsAndResources();
         LogLine($"라운드 {_state.RoundNumber} 시작 (유닛 {_state.RoundQueue.Count}명)");

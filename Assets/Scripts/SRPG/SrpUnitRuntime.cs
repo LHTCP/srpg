@@ -23,6 +23,15 @@ public enum SrpFacing
     West,
 }
 
+public enum SrpReactionKind
+{
+    None,
+    Guard,
+    Dodge,
+    Parry,
+    ReactionShot,
+}
+
 /// <summary>
 /// 전장 위 유닛 인스턴스 (시뮬레이션).
 /// </summary>
@@ -66,6 +75,14 @@ public class SrpUnitRuntime
     public bool hasAttackedThisActivation;
     public bool hasUsedSkillThisActivation;
     public bool passiveAppliedThisTurn;
+    public SrpReactionKind lastReactionKind;
+    public int lastReactionRound;
+    public int lastReactionSourceId;
+    public bool overwatchArmed;
+    public int overwatchRange;
+    public int overwatchRound;
+    public int defensiveHitsTakenThisRound;
+    public int defensiveHitsRound;
 
     public SrpUnitRuntime Clone()
     {
@@ -102,6 +119,14 @@ public class SrpUnitRuntime
             hasAttackedThisActivation = hasAttackedThisActivation,
             hasUsedSkillThisActivation = hasUsedSkillThisActivation,
             passiveAppliedThisTurn = passiveAppliedThisTurn,
+            lastReactionKind = lastReactionKind,
+            lastReactionRound = lastReactionRound,
+            lastReactionSourceId = lastReactionSourceId,
+            overwatchArmed = overwatchArmed,
+            overwatchRange = overwatchRange,
+            overwatchRound = overwatchRound,
+            defensiveHitsTakenThisRound = defensiveHitsTakenThisRound,
+            defensiveHitsRound = defensiveHitsRound,
         };
         foreach (var sr in skillRuntimes)
             u.skillRuntimes.Add(sr.Clone());

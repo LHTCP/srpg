@@ -26,6 +26,16 @@ public class SrpLobbyController : MonoBehaviour
     Image[]   _presetImages;
     TextMeshProUGUI _txtLoadStatus;
     TMP_Dropdown    _ddMapSelect;
+    static readonly SrpMapPreset[] PresetValues =
+    {
+        SrpMapPreset.M1QaIntegrated,
+        SrpMapPreset.M1EngagementLab,
+    };
+    static readonly string[] PresetLabels =
+    {
+        "M1 QA\n통합 검증",
+        "교전/포위\n검증 랩",
+    };
 
     // ── 생명주기 ──────────────────────────────────────────────────────────────
 
@@ -97,19 +107,14 @@ public class SrpLobbyController : MonoBehaviour
 
         // 프리셋 버튼 행
         var presetRow = MakeHorizontalRow(centerGo.transform, 72);
-        var presets = new[]
-        {
-            (SrpMapPreset.M1QaIntegrated, "M1 QA\n통합 검증"),
-        };
 
-        _presetButtons = new Button[presets.Length];
-        _presetImages  = new Image[presets.Length];
+        _presetButtons = new Button[PresetValues.Length];
+        _presetImages  = new Image[PresetValues.Length];
 
-        for (int i = 0; i < presets.Length; i++)
+        for (int i = 0; i < PresetValues.Length; i++)
         {
-            var (preset, label) = presets[i];
             int captured = i;
-            var btn = MakeButtonInRow(presetRow.transform, label, () => OnSelectPreset(captured), preset);
+            var btn = MakeButtonInRow(presetRow.transform, PresetLabels[i], () => OnSelectPreset(captured), PresetValues[i]);
             _presetButtons[i] = btn;
             _presetImages[i]  = btn.GetComponent<Image>();
         }
@@ -147,8 +152,7 @@ public class SrpLobbyController : MonoBehaviour
 
     void OnSelectPreset(int index)
     {
-        var presets = new[] { SrpMapPreset.M1QaIntegrated };
-        _selectedPreset = presets[index];
+        _selectedPreset = PresetValues[Mathf.Clamp(index, 0, PresetValues.Length - 1)];
         _loadedMap      = null;
         _txtLoadStatus.text = "";
         RefreshPresetButtons();
@@ -195,9 +199,8 @@ public class SrpLobbyController : MonoBehaviour
 
     void RefreshPresetButtons()
     {
-        var presets = new[] { SrpMapPreset.M1QaIntegrated };
         for (int i = 0; i < _presetImages.Length; i++)
-            _presetImages[i].color = (presets[i] == _selectedPreset && _loadedMap == null)
+            _presetImages[i].color = (PresetValues[i] == _selectedPreset && _loadedMap == null)
                 ? selectedColor
                 : unselectedColor;
     }

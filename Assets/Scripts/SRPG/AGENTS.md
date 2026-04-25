@@ -14,7 +14,7 @@
 | `SrpPathfinder.cs` | 이동 탐색 |
 | `SrpTurnOrder.cs` | 속도 기반 라운드 턴 (신규 예정) |
 | `SrpReaction.cs` | RP 반응행동 처리 (신규 예정) |
-| `SrpOverwatch.cs` | 경계태세 처리 (신규 예정) |
+| `SrpOverwatch.cs` | 명시형 ReactionShot/오버워치 예약·발동 처리 |
 | `SrpLineOfSight.cs` | 사선 판정 (신규 예정) |
 
 ### 2) HUD (`srpg-hud`)
@@ -63,7 +63,7 @@
 
 ## 작업 가이드
 
-1. 작업 전에 `docs/srpg/SRPG_프로토타입_마스터플랜.md`를 먼저 확인한다.
+1. 작업 전에 `docs/srpg/SRPG_전투규칙_기준서_v2.md`와 `docs/srpg/SRPG_프로토타입_마스터플랜.md`를 먼저 확인한다.
 2. 단일 도메인 수정 원칙을 우선한다.
 3. `SrpGameController`는 partial class 3파일을 함께 확인한다.
 4. 신규 파일 추가 시 본 문서와 관련 문서(TDD/마스터플랜)를 함께 갱신한다.

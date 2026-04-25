@@ -2,10 +2,13 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 가중 그래프(칸당 1, ZOC 인접 시 +1) 다익스트라. 이동 가능 앵커 목록.
+/// 가중 그래프(칸당 1, ZOC 인접/교전 이탈 시 +1) 다익스트라. 이동 가능 앵커 목록.
 /// </summary>
 public static class SrpPathfinder
 {
+    const int ZocEnterPenalty = 1;
+    const int EngagementExitPenalty = 1;
+
     static readonly Vector2Int[] Dirs =
     {
         new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1),
@@ -31,6 +34,7 @@ public static class SrpPathfinder
 
         int sx = u.anchorX, sy = u.anchorY;
         int sKey = state.Index(sx, sy);
+        bool startsEngaged = state.IsUnitEngaged(u.id);
         dist[sKey] = 0;
         open.Add((sx, sy, 0));
 
@@ -62,9 +66,7 @@ public static class SrpPathfinder
                 if (!state.InBounds(nx, ny))
                     continue;
 
-                int enter = 1;
-                if (state.IsEnemyAdjacentToTile(nx, ny, u.owner))
-                    enter++;
+                int enter = 1 + GetPositioningPenalty(state, u, startsEngaged, cur.x, cur.y, nx, ny);
 
                 int nextCost = cost + enter;
                 if (nextCost > maxCost)
@@ -83,5 +85,26 @@ public static class SrpPathfinder
         }
 
         return result;
+    }
+
+    static int GetPositioningPenalty(
+        SrpBattleState state,
+        SrpUnitRuntime unit,
+        bool startsEngaged,
+        int fromX,
+        int fromY,
+        int toX,
+        int toY)
+    {
+        int penalty = 0;
+        bool fromEnemyAdjacent = state.IsEnemyAdjacentToTile(fromX, fromY, unit.owner);
+        bool toEnemyAdjacent = state.IsEnemyAdjacentToTile(toX, toY, unit.owner);
+
+        if (toEnemyAdjacent)
+            penalty += ZocEnterPenalty;
+        if (startsEngaged && fromEnemyAdjacent && !toEnemyAdjacent)
+            penalty += EngagementExitPenalty;
+
+        return penalty;
     }
 }

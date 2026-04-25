@@ -62,6 +62,10 @@ public static class SrpDefaultSkills
                 areaSize = 0,
                 endsActivation = true,
                 cooldown = 2,
+                overclockFrozenHeartCost = 5,
+                overclockCooldownReduction = 1,
+                isParryable = true,
+                requiresParryTelegraph = true,
                 effects = new[]
                 {
                     new SrpSkillEffect
@@ -85,6 +89,10 @@ public static class SrpDefaultSkills
                 areaSize = 0,
                 endsActivation = false,
                 cooldown = 1,
+                maxCharges = 2,
+                chargeRecoveryTurns = 2,
+                overclockFrozenHeartCost = 5,
+                overclockChargeRestore = 1,
                 effects = new[]
                 {
                     new SrpSkillEffect

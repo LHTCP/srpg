@@ -16,6 +16,7 @@ public class SrpBattleState
     public int RoundNumber { get; set; }
     public int CurrentUnitId { get; set; }
     public List<int> RoundQueue { get; private set; } = new List<int>();
+    public Dictionary<int, List<int>> Engagements { get; private set; } = new Dictionary<int, List<int>>();
     public Dictionary<string, SrpUnitTemplateData> TemplateLookup { get; private set; } = new Dictionary<string, SrpUnitTemplateData>();
     public Dictionary<string, SrpSkillData> SkillLookup { get; private set; } = new Dictionary<string, SrpSkillData>();
 
@@ -33,6 +34,7 @@ public class SrpBattleState
             RoundNumber = RoundNumber,
             CurrentUnitId = CurrentUnitId,
             RoundQueue = new List<int>(RoundQueue),
+            Engagements = CloneEngagements(Engagements),
             _nextUnitId = _nextUnitId,
             TemplateLookup = new Dictionary<string, SrpUnitTemplateData>(TemplateLookup),
             SkillLookup = new Dictionary<string, SrpSkillData>(SkillLookup),
@@ -70,8 +72,20 @@ public class SrpBattleState
                 if (!string.IsNullOrEmpty(sk.id))
                     st.SkillLookup[sk.id] = sk;
 
-        st.SpawnFromPlacements(map.placements);
+        st.SpawnFromPlacements(map);
+        st.RebuildEngagements();
         return st;
+    }
+
+    static Dictionary<int, List<int>> CloneEngagements(Dictionary<int, List<int>> source)
+    {
+        var copy = new Dictionary<int, List<int>>();
+        if (source == null)
+            return copy;
+
+        foreach (var kv in source)
+            copy[kv.Key] = new List<int>(kv.Value);
+        return copy;
     }
 
     static bool[] BuildWalkable(SrpMapFileV1 map)
@@ -90,22 +104,38 @@ public class SrpBattleState
         return w;
     }
 
-    void SpawnFromPlacements(SrpPlacementData[] placements)
+    void SpawnFromPlacements(SrpMapFileV1 map)
     {
+        var placements = map?.placements;
         if (placements == null)
             return;
+        var allowedSkillIds = BuildSkillFilter(map.allowedSkillIds);
         foreach (var p in placements)
         {
             if (p == null || string.IsNullOrEmpty(p.templateId))
                 continue;
             if (!TemplateLookup.TryGetValue(p.templateId, out var tmpl))
                 continue;
-            var u = CreateUnitFromTemplate(tmpl, p.owner, p.x, p.y, p.footprint ?? System.Array.Empty<SrpOffset>());
+            var u = CreateUnitFromTemplate(
+                tmpl,
+                p.owner,
+                p.x,
+                p.y,
+                p.footprint ?? System.Array.Empty<SrpOffset>(),
+                allowedSkillIds,
+                BuildSkillFilter(p.disabledSkillIds));
             Units.Add(u);
         }
     }
 
-    SrpUnitRuntime CreateUnitFromTemplate(SrpUnitTemplateData t, int owner, int ax, int ay, SrpOffset[] footprint)
+    SrpUnitRuntime CreateUnitFromTemplate(
+        SrpUnitTemplateData t,
+        int owner,
+        int ax,
+        int ay,
+        SrpOffset[] footprint,
+        HashSet<string> allowedSkillIds,
+        HashSet<string> disabledSkillIds)
     {
         var u = new SrpUnitRuntime
         {
@@ -153,21 +183,47 @@ public class SrpBattleState
         }
         if (t.skillIds != null)
         {
+            int maxSkills = t.maxSkills > 0 ? t.maxSkills : int.MaxValue;
             foreach (var s in t.skillIds)
             {
-                if (!string.IsNullOrEmpty(s))
+                if (CanAssignSkill(s, allowedSkillIds, disabledSkillIds))
                 {
                     u.skillIds.Add(s);
                     u.skillRuntimes.Add(new SrpSkillRuntime(s));
+                    if (u.skillIds.Count >= maxSkills)
+                        break;
                 }
             }
         }
         return u;
     }
 
+    static HashSet<string> BuildSkillFilter(string[] skillIds)
+    {
+        if (skillIds == null || skillIds.Length == 0)
+            return null;
+
+        var filter = new HashSet<string>();
+        foreach (var id in skillIds)
+        {
+            if (!string.IsNullOrEmpty(id))
+                filter.Add(id);
+        }
+        return filter.Count > 0 ? filter : null;
+    }
+
+    static bool CanAssignSkill(string skillId, HashSet<string> allowedSkillIds, HashSet<string> disabledSkillIds)
+    {
+        if (string.IsNullOrEmpty(skillId))
+            return false;
+        if (allowedSkillIds != null && !allowedSkillIds.Contains(skillId))
+            return false;
+        return disabledSkillIds == null || !disabledSkillIds.Contains(skillId);
+    }
+
     static SrpWeaponClass ResolveWeaponClass(SrpUnitTemplateData t)
     {
-        if (t.weaponClass == SrpWeaponClass.Magic || t.weaponClass == SrpWeaponClass.Melee)
+        if (Enum.IsDefined(typeof(SrpWeaponClass), t.weaponClass))
             return t.weaponClass;
 
         // legacy 템플릿은 사거리 기반으로 1차 분류한다.
@@ -235,6 +291,77 @@ public class SrpBattleState
             var u = GetOccupant(nx, ny);
             if (u != null && !u.eliminated && u.owner != moverOwner)
                 return true;
+        }
+        return false;
+    }
+
+    public void RebuildEngagements()
+    {
+        Engagements.Clear();
+        for (int i = 0; i < Units.Count; i++)
+        {
+            var a = Units[i];
+            if (a == null || a.eliminated)
+                continue;
+
+            for (int j = i + 1; j < Units.Count; j++)
+            {
+                var b = Units[j];
+                if (b == null || b.eliminated || a.owner == b.owner)
+                    continue;
+
+                if (!AreOrthogonallyAdjacent(a, b))
+                    continue;
+
+                AddEngagement(a.id, b.id);
+                AddEngagement(b.id, a.id);
+            }
+        }
+    }
+
+    public bool IsUnitEngaged(int unitId)
+    {
+        return Engagements.TryGetValue(unitId, out var enemies) && enemies.Count > 0;
+    }
+
+    public List<int> GetEngagedEnemyIds(int unitId)
+    {
+        if (!Engagements.TryGetValue(unitId, out var enemies))
+            return new List<int>();
+        return new List<int>(enemies);
+    }
+
+    public int CountEngagingEnemies(SrpUnitRuntime unit)
+    {
+        if (unit == null || !Engagements.TryGetValue(unit.id, out var enemies))
+            return 0;
+        return enemies.Count;
+    }
+
+    void AddEngagement(int unitId, int enemyId)
+    {
+        if (!Engagements.TryGetValue(unitId, out var list))
+        {
+            list = new List<int>();
+            Engagements[unitId] = list;
+        }
+        if (!list.Contains(enemyId))
+            list.Add(enemyId);
+    }
+
+    static bool AreOrthogonallyAdjacent(SrpUnitRuntime a, SrpUnitRuntime b)
+    {
+        foreach (var ao in a.footprintOffsets)
+        {
+            int ax = a.anchorX + ao.x;
+            int ay = a.anchorY + ao.y;
+            foreach (var bo in b.footprintOffsets)
+            {
+                int bx = b.anchorX + bo.x;
+                int by = b.anchorY + bo.y;
+                if (Mathf.Abs(ax - bx) + Mathf.Abs(ay - by) == 1)
+                    return true;
+            }
         }
         return false;
     }

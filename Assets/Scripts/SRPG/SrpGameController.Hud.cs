@@ -16,6 +16,7 @@ public partial class SrpGameController
 
     const int MaxLogLines = 80;
     const int QueuePreviewCount = 5;
+    const string OverlayLegendText = "범례: 초록=이동 | 주황=ZOC/주의 | 빨강=공격/위험 | 보라=스킬 | 청록=패링 가능 스킬 | 파랑=오버워치";
     readonly List<string> _log = new List<string>();
 
     TextMeshProUGUI _txtTurn;
@@ -30,6 +31,7 @@ public partial class SrpGameController
     Button _btnUseSkill;
     Button _btnCancelSkill;
     Button _btnDangerArea;
+    Button _btnOverwatch;
     GameObject _skillListPanel;
     readonly List<SkillListEntry> _skillListButtons = new List<SkillListEntry>();
     TextMeshProUGUI _txtLogToggleLabel;
@@ -103,6 +105,8 @@ public partial class SrpGameController
         _btnUseSkill.GetComponent<Image>().color = new Color(0.40f, 0.22f, 0.55f, 0.9f);
         _btnCancelSkill = MakeButton(panel.transform, "스킬 취소", OnCancelSkillUi, 48, 20);
         _btnCancelSkill.GetComponent<Image>().color = new Color(0.55f, 0.25f, 0.20f, 0.9f);
+        _btnOverwatch = MakeButton(panel.transform, "오버워치", OnOverwatchUi, 48, 20);
+        _btnOverwatch.GetComponent<Image>().color = new Color(0.15f, 0.24f, 0.55f, 0.9f);
         _btnDangerArea = MakeButton(panel.transform, "위험영역 보기", OnToggleDangerAreaUi, 48, 20);
         _btnDangerArea.GetComponent<Image>().color = new Color(0.25f, 0.22f, 0.15f, 0.9f);
 
@@ -309,13 +313,20 @@ public partial class SrpGameController
 
             entry.label.fontSize = 18;
             entry.label.color = usable ? Color.white : new Color(0.6f, 0.6f, 0.6f);
-            string cdText = sr.cooldownRemaining > 0 ? $" (CD:{sr.cooldownRemaining})" : "";
-            entry.label.text = $"{data.displayName}{cdText}";
+            string resourceText = BuildSkillResourceText(data, sr);
+            string tagText = BuildSkillTagText(data);
+            entry.label.text = $"{data.displayName}{resourceText}{tagText}";
             entry.label.alignment = TextAlignmentOptions.MidlineLeft;
             entry.label.overflowMode = TextOverflowModes.Ellipsis;
             entry.label.textWrappingMode = TextWrappingModes.Normal;
 
-            string fullTooltip = $"<b>{data.displayName}</b>{cdText}\n{data.description}";
+            string fullTooltip = $"<b>{data.displayName}</b>{resourceText}{tagText}\n{data.description}";
+            if (SrpSkills.UsesCharges(data))
+                fullTooltip += $"\n충전 회복: {Mathf.Max(1, data.chargeRecoveryTurns)} 라운드";
+            if (data.overclockFrozenHeartCost > 0)
+                fullTooltip += $"\n오버클럭: 안정도(FH) {data.overclockFrozenHeartCost} 소모";
+            if (data.requiresParryTelegraph)
+                fullTooltip += "\n패링 가능 스킬: 대상에게 청록색 텔레그래프 표시";
             if (data.endsActivation) fullTooltip += "\n(사용 후 활성화 종료)";
             SetTooltipTrigger(entry.trigger, fullTooltip);
             entry.root.SetActive(true);
@@ -356,6 +367,32 @@ public partial class SrpGameController
     void OnToggleDangerAreaUi()
     {
         ToggleDangerArea();
+    }
+
+    void OnOverwatchUi()
+    {
+        if (_gameOver || _phase != Phase.UnitActive || !_selectedId.HasValue)
+            return;
+        var unit = GetUnit(_selectedId.Value);
+        if (unit == null)
+            return;
+        var status = SrpOverwatch.GetArmStatus(unit);
+        if (status != SrpOverwatchArmStatus.Ready)
+        {
+            LogLine($"오버워치 불가: {unit.displayName}({unit.id}) | {DescribeOverwatchArmStatus(status)}");
+            UpdateHud();
+            return;
+        }
+
+        PushUndo();
+        if (!SrpOverwatch.Arm(_state, unit))
+        {
+            UpdateHud();
+            return;
+        }
+        LogLine($"오버워치 예약: {unit.displayName}({unit.id}) | 사거리 {unit.overwatchRange} | 행동 소모");
+        RefreshUnitViews();
+        FinishActivation();
     }
 
     SkillListEntry GetOrCreateSkillEntry(int index)
@@ -580,6 +617,15 @@ public partial class SrpGameController
             if (label != null)
                 label.text = IsDangerAreaVisible ? "위험영역 숨기기" : "위험영역 보기";
         }
+        if (_btnOverwatch != null)
+        {
+            var active = unitActive && _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+            var status = SrpOverwatch.GetArmStatus(active);
+            _btnOverwatch.interactable = unitActive && status == SrpOverwatchArmStatus.Ready;
+            var label = _btnOverwatch.GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null)
+                label.text = BuildOverwatchButtonLabel(active, status);
+        }
 
         if (_skillListPanel != null && _phase != Phase.UnitActive && _phase != Phase.SelectingSkillTarget)
             _skillListPanel.SetActive(false);
@@ -626,35 +672,34 @@ public partial class SrpGameController
     {
         if (_state == null)
             return "전투 상태를 준비 중입니다.";
-        const string OverlayLegend = "범례: 노랑=ZOC | 빨강=적 공격범위 | 보라=스킬범위";
         if (_phase == Phase.Idle)
         {
             if (_postUndoHint)
-                return $"되감기 후 상태\n현재 행동 유닛 타일을 다시 클릭하세요\n{OverlayLegend}";
-            return $"다음 행동 유닛 자동 선택 대기\n{OverlayLegend}";
+                return $"되감기 후 상태\n현재 행동 유닛 타일을 다시 클릭하세요\n{OverlayLegendText}";
+            return $"다음 행동 유닛 자동 선택 대기\n{OverlayLegendText}";
         }
 
         if (_phase == Phase.SelectingSkillTarget)
         {
             string skillName = _pendingSkillData != null ? _pendingSkillData.displayName : "?";
-            return $"스킬 대상 선택: {skillName}\n보라색 타일 클릭 / 잘못 선택 시 스킬 취소\n{OverlayLegend}";
+            return $"스킬 대상 선택: {skillName}\n보라색 타일 클릭 / 청록=패링 가능 스킬 / 잘못 선택 시 스킬 취소\n{OverlayLegendText}";
         }
 
         if (!string.IsNullOrEmpty(_hoverStatusHint))
-            return $"행동 단계\n{_hoverStatusHint}\n{OverlayLegend}";
+            return $"행동 단계\n{_hoverStatusHint}\n{OverlayLegendText}";
 
         if (_selectedId.HasValue)
         {
             var selected = GetUnit(_selectedId.Value);
             if (selected != null && selected.actionPoints <= 0)
-                return $"행동 단계\nAP 0: 이동/공격/스킬 사용 불가\n행동 종료 또는 강제 턴 종료를 선택하세요\n{OverlayLegend}";
+                return $"행동 단계\nAP 0: 이동/공격/스킬 사용 불가\n행동 종료 또는 강제 턴 종료를 선택하세요\n{OverlayLegendText}";
         }
 
         string moveInfo = _remainingMove > 0 ? $"이동력 {_remainingMove}" : "이동력 없음";
         string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능 (공격 후 턴 종료)";
         string dangerInfo = IsDangerAreaVisible ? "위험영역 ON" : "위험영역 OFF";
         string undoInfo = _undo.Count > 0 ? "되감기 가능" : "되감기 없음(행동 확정 후 생성)";
-        return $"행동 단계\n{moveInfo} | {atkInfo}\n{dangerInfo} | {undoInfo}\n행동 종료=정상 종료 / 강제 턴 종료=선택 중단 후 종료\n{OverlayLegend}";
+        return $"행동 단계\n{moveInfo} | {atkInfo}\n{dangerInfo} | {undoInfo}\n행동 종료=정상 종료 / 강제 턴 종료=선택 중단 후 종료\n{OverlayLegendText}";
     }
 
     string BuildUnitHudText()
@@ -673,22 +718,101 @@ public partial class SrpGameController
         bool isCurrent = _state.CurrentUnitId == unit.id;
         sb.AppendLine($"{(isCurrent ? "▶ " : string.Empty)}{unit.displayName} (P{unit.owner}) [{unit.weaponClass}]");
         sb.AppendLine($"HP {unit.hp}/{unit.maxHp}  PG {unit.pg}/{unit.maxPg}");
-        sb.AppendLine($"AP {unit.actionPoints}/{unit.maxActionPoints}  RP {unit.reactionPoints}/{unit.maxReactionPoints}");
+        sb.AppendLine($"AP {unit.actionPoints}/{unit.maxActionPoints}  반응: {BuildReactionReadinessText(unit)}");
         if (isCurrent && unit.actionPoints <= 0)
             sb.AppendLine("상태: AP 소진 (행동 종료 필요)");
         sb.AppendLine($"태세: {unit.stance}  방향: {unit.facing}  그로기: {unit.groggy}");
+        if (unit.HasTag(SrpUnitTags.Tank))
+            sb.AppendLine($"역할: 탱커  교전 수: {_state.CountEngagingEnemies(unit)}");
+        if (unit.stance == SrpStance.Defensive && unit.defensiveHitsRound == _state.RoundNumber)
+            sb.AppendLine($"수비 압박 누적: {unit.defensiveHitsTakenThisRound}");
+        if (unit.overwatchArmed)
+            sb.AppendLine($"반응 예약: 오버워치 사거리 {unit.overwatchRange}");
         if (unit.skillIds.Count > 0)
         {
             sb.Append("스킬:");
-            foreach (var sid in unit.skillIds)
+            for (int i = 0; i < unit.skillIds.Count; i++)
             {
+                var sid = unit.skillIds[i];
                 if (_state.SkillLookup.TryGetValue(sid, out var sd))
-                    sb.Append($" {sd.displayName}");
+                {
+                    var runtime = i < unit.skillRuntimes.Count ? unit.skillRuntimes[i] : null;
+                    sb.Append($" {sd.displayName}{BuildSkillResourceText(sd, runtime)}{BuildSkillTagText(sd)}");
+                }
                 else
+                {
                     sb.Append($" {sid}");
+                }
             }
         }
         return sb.ToString();
+    }
+
+    static string BuildSkillResourceText(SrpSkillData data, SrpSkillRuntime runtime)
+    {
+        if (data == null || runtime == null)
+            return string.Empty;
+
+        var parts = new List<string>();
+        if (runtime.cooldownRemaining > 0)
+            parts.Add($"쿨다운:{runtime.cooldownRemaining}");
+        if (SrpSkills.UsesCharges(data))
+            parts.Add($"충전:{runtime.chargesRemaining}/{data.maxCharges}");
+        return parts.Count > 0 ? $" ({string.Join(", ", parts)})" : string.Empty;
+    }
+
+    static string BuildSkillTagText(SrpSkillData data)
+    {
+        if (data == null)
+            return string.Empty;
+
+        var tags = new List<string>();
+        if (data.isParryable || data.requiresParryTelegraph)
+            tags.Add("패링 가능");
+        if (data.overclockFrozenHeartCost > 0)
+            tags.Add("오버클럭");
+        return tags.Count > 0 ? $" [{string.Join("/", tags)}]" : string.Empty;
+    }
+
+    static string BuildReactionReadinessText(SrpUnitRuntime unit)
+    {
+        if (unit == null || unit.eliminated)
+            return "불가";
+        if (unit.reactionPoints > 0)
+            return unit.overwatchArmed ? "예약 중" : "준비";
+        return "소모됨";
+    }
+
+    static string BuildOverwatchButtonLabel(SrpUnitRuntime unit, SrpOverwatchArmStatus status)
+    {
+        if (unit != null && unit.overwatchArmed)
+            return "오버워치 예약 중";
+        return status == SrpOverwatchArmStatus.Ready ? "오버워치 예약" : "오버워치 불가";
+    }
+
+    static string DescribeOverwatchArmStatus(SrpOverwatchArmStatus status)
+    {
+        switch (status)
+        {
+            case SrpOverwatchArmStatus.Ready:
+                return "예약 가능";
+            case SrpOverwatchArmStatus.AlreadyArmed:
+                return "이미 예약 중";
+            case SrpOverwatchArmStatus.NoUnit:
+                return "선택 유닛 없음";
+            case SrpOverwatchArmStatus.Eliminated:
+                return "전투 불능";
+            case SrpOverwatchArmStatus.NoAction:
+                return "행동 소모";
+            case SrpOverwatchArmStatus.NoReaction:
+                return "반응 소모";
+            case SrpOverwatchArmStatus.NotFirearm:
+                return "총기 유닛만 예약 가능";
+            case SrpOverwatchArmStatus.RangeTooShort:
+                return "원거리 사거리 필요";
+            default:
+                return "조건 불충족";
+        }
     }
 
 #if UNITY_INCLUDE_TESTS
@@ -696,5 +820,38 @@ public partial class SrpGameController
     public string TestTurnHudText => _txtTurn != null ? _txtTurn.text : string.Empty;
     public string TestStatusHudText => _txtStatus != null ? _txtStatus.text : string.Empty;
     public string TestUnitHudText => _txtUnit != null ? _txtUnit.text : string.Empty;
+    public string TestLogText => _txtLog != null ? _txtLog.text : string.Empty;
+    public string TestSkillListText
+    {
+        get
+        {
+            var sb = new StringBuilder();
+            foreach (var entry in _skillListButtons)
+            {
+                if (entry == null || entry.root == null || !entry.root.activeSelf || entry.label == null)
+                    continue;
+                if (sb.Length > 0)
+                    sb.Append("\n");
+                sb.Append(entry.label.text);
+            }
+            return sb.ToString();
+        }
+    }
+    public string TestOverwatchButtonText
+    {
+        get
+        {
+            if (_btnOverwatch == null)
+                return string.Empty;
+            var label = _btnOverwatch.GetComponentInChildren<TextMeshProUGUI>();
+            return label != null ? label.text : string.Empty;
+        }
+    }
+
+    public bool TestShowSkillList()
+    {
+        OnShowSkillList();
+        return _skillListPanel != null && _skillListPanel.activeSelf;
+    }
 #endif
 }

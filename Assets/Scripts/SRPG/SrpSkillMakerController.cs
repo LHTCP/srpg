@@ -23,7 +23,14 @@ public class SrpSkillMakerController : MonoBehaviour
     TMP_InputField _fldRange;
     TMP_InputField _fldArea;
     TMP_InputField _fldCooldown;
+    TMP_InputField _fldMaxCharges;
+    TMP_InputField _fldChargeRecoveryTurns;
+    TMP_InputField _fldOverclockFrozenHeartCost;
+    TMP_InputField _fldOverclockCooldownReduction;
+    TMP_InputField _fldOverclockChargeRestore;
     Toggle _togEndsActivation;
+    Toggle _togIsParryable;
+    Toggle _togRequiresParryTelegraph;
     TMP_Dropdown _ddType;
     TMP_Dropdown _ddTrigger;
     TMP_Dropdown _ddTarget;
@@ -210,7 +217,14 @@ public class SrpSkillMakerController : MonoBehaviour
         _fldRange    = MakeFieldRow(form, "사거리", "1", TMP_InputField.ContentType.IntegerNumber);
         _fldArea     = MakeFieldRow(form, "범위 크기", "0", TMP_InputField.ContentType.IntegerNumber);
         _fldCooldown = MakeFieldRow(form, "쿨다운(턴)", "0", TMP_InputField.ContentType.IntegerNumber);
+        _fldMaxCharges = MakeFieldRow(form, "최대 충전", "0", TMP_InputField.ContentType.IntegerNumber);
+        _fldChargeRecoveryTurns = MakeFieldRow(form, "충전 회복(라운드)", "1", TMP_InputField.ContentType.IntegerNumber);
+        _fldOverclockFrozenHeartCost = MakeFieldRow(form, "오버클럭 FH 비용", "0", TMP_InputField.ContentType.IntegerNumber);
+        _fldOverclockCooldownReduction = MakeFieldRow(form, "오버클럭 CD 단축", "0", TMP_InputField.ContentType.IntegerNumber);
+        _fldOverclockChargeRestore = MakeFieldRow(form, "오버클럭 충전 복구", "0", TMP_InputField.ContentType.IntegerNumber);
         _togEndsActivation = MakeToggleRow(form, "사용 후 활성화 종료 (공격 대체)");
+        _togIsParryable = MakeToggleRow(form, "패링 가능 공격");
+        _togRequiresParryTelegraph = MakeToggleRow(form, "패링 텔레그래프 필요");
 
         MakeSep(form);
         MakeLabelInLayout(form, "효과 목록", 22, new Color(0.8f, 0.9f, 1f), 30);
@@ -301,7 +315,14 @@ public class SrpSkillMakerController : MonoBehaviour
         _fldRange.text    = s.range.ToString();
         _fldArea.text     = s.areaSize.ToString();
         _fldCooldown.text = s.cooldown.ToString();
+        _fldMaxCharges.text = s.maxCharges.ToString();
+        _fldChargeRecoveryTurns.text = s.chargeRecoveryTurns.ToString();
+        _fldOverclockFrozenHeartCost.text = s.overclockFrozenHeartCost.ToString();
+        _fldOverclockCooldownReduction.text = s.overclockCooldownReduction.ToString();
+        _fldOverclockChargeRestore.text = s.overclockChargeRestore.ToString();
         _togEndsActivation.isOn = s.endsActivation;
+        _togIsParryable.isOn = s.isParryable;
+        _togRequiresParryTelegraph.isOn = s.requiresParryTelegraph;
         _ddType.value    = (int)s.skillType;
         _ddTrigger.value = (int)s.trigger;
         _ddTarget.value  = (int)s.targetType;
@@ -318,7 +339,14 @@ public class SrpSkillMakerController : MonoBehaviour
         int.TryParse(_fldRange.text, out s.range);
         int.TryParse(_fldArea.text, out s.areaSize);
         int.TryParse(_fldCooldown.text, out s.cooldown);
+        int.TryParse(_fldMaxCharges.text, out s.maxCharges);
+        int.TryParse(_fldChargeRecoveryTurns.text, out s.chargeRecoveryTurns);
+        int.TryParse(_fldOverclockFrozenHeartCost.text, out s.overclockFrozenHeartCost);
+        int.TryParse(_fldOverclockCooldownReduction.text, out s.overclockCooldownReduction);
+        int.TryParse(_fldOverclockChargeRestore.text, out s.overclockChargeRestore);
         s.endsActivation = _togEndsActivation.isOn;
+        s.isParryable = _togIsParryable.isOn;
+        s.requiresParryTelegraph = _togRequiresParryTelegraph.isOn;
         s.skillType  = (SrpSkillType)_ddType.value;
         s.trigger    = (SrpSkillTrigger)_ddTrigger.value;
         s.targetType = (SrpTargetType)_ddTarget.value;
@@ -434,7 +462,10 @@ public class SrpSkillMakerController : MonoBehaviour
             tx.color = Color.white;
             string label = string.IsNullOrEmpty(s.displayName) ? s.id : s.displayName;
             string typeTag = s.skillType == SrpSkillType.Active ? "[A]" : "[P]";
-            tx.text = $"{typeTag} {label}";
+            string chargeTag = s.maxCharges > 0 ? $" CH:{s.maxCharges}" : string.Empty;
+            string parryTag = s.isParryable ? " Parry" : string.Empty;
+            string overclockTag = s.overclockFrozenHeartCost > 0 ? " OC" : string.Empty;
+            tx.text = $"{typeTag} {label}{chargeTag}{parryTag}{overclockTag}";
             tx.alignment = TextAlignmentOptions.MidlineLeft;
 
             _listItems.Add(item);

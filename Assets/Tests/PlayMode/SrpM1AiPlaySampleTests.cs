@@ -31,9 +31,13 @@ public class SrpM1AiPlaySampleTests
 
         StringAssert.Contains("라운드", controller.TestTurnHudText);
         StringAssert.Contains("현재:", controller.TestTurnHudText);
+        StringAssert.Contains("범례:", controller.TestStatusHudText);
+        StringAssert.Contains("청록=패링 가능 스킬", controller.TestStatusHudText);
         StringAssert.Contains("AP", controller.TestUnitHudText);
-        StringAssert.Contains("RP", controller.TestUnitHudText);
+        StringAssert.Contains("반응:", controller.TestUnitHudText);
         StringAssert.Contains("PG", controller.TestUnitHudText);
+        StringAssert.Contains("오버워치", controller.TestOverwatchButtonText);
+        StringAssert.Contains("행동 시작", controller.TestLogText);
 
         Object.Destroy(go);
         yield return null;

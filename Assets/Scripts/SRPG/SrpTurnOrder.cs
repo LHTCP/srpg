@@ -2,6 +2,30 @@ using System.Collections.Generic;
 
 public static class SrpTurnOrder
 {
+    public static void ResetRoundResources(SrpBattleState state)
+    {
+        if (state == null || state.Units == null)
+            return;
+
+        foreach (var unit in state.Units)
+        {
+            if (unit == null || unit.eliminated)
+                continue;
+
+            unit.passiveAppliedThisTurn = false;
+            unit.actionPoints = unit.maxActionPoints;
+            unit.reactionPoints = unit.maxReactionPoints > 0 ? unit.maxReactionPoints : 1;
+            unit.lastReactionKind = SrpReactionKind.None;
+            unit.lastReactionRound = state.RoundNumber;
+            unit.lastReactionSourceId = -1;
+            unit.overwatchArmed = false;
+            unit.overwatchRange = 0;
+            unit.overwatchRound = 0;
+            unit.defensiveHitsTakenThisRound = 0;
+            unit.defensiveHitsRound = state.RoundNumber;
+        }
+    }
+
     public static List<int> BuildRoundQueue(SrpBattleState state)
     {
         var queue = new List<SrpUnitRuntime>();

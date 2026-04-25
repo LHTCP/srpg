@@ -1,149 +1,127 @@
-# SRPG 기술 설계 문서 (TDD) v1.0
+# SRPG 기술 설계 문서 (TDD) v2.0
+
+상위 기준:
+
+- `docs/srpg/SRPG_전투규칙_기준서_v2.md`
+- `docs/srpg/new/SRPG_NEW_DIALOG_POLICY_LOCK.md`
 
 ## 1. 설계 목표
 
-- v1 GDD의 7개 검증 항목을 기술적으로 구현 가능한 형태로 분해한다.
-- 기존 핫시트 플레이어 턴 구조를 속도 기반 라운드 구조로 전환한다.
-- AP/RP, 태세, 방향, LOS, 반응행동을 독립 모듈로 분리한다.
+- GDD v2 규칙을 구현 가능한 모듈 계약으로 분해한다.
+- 문서 1차 개편에서 확정한 계약을 기준으로 2차 구현과 중간 점검 보정을 진행한다.
+- 전투/데이터/HUD/렌더링 경계를 유지해 단계별 리스크를 낮춘다.
 
 ## 2. 모듈 아키텍처
 
 ```text
 SrpGameController
   ├─ SrpBattleState
-  ├─ SrpTurnOrder           (new)
+  ├─ SrpTurnOrder
   ├─ SrpCombatResolver
-  ├─ SrpReaction            (new)
-  ├─ SrpOverwatch           (new)
-  ├─ SrpLineOfSight         (new)
   ├─ SrpSkills
-  └─ SrpPathfinder
+  ├─ SrpPathfinder
+  ├─ SrpGameController.Hud
+  └─ SrpGameController.Rendering
 ```
 
-## 3. 핵심 데이터 모델
+2차 확장/후속 모듈:
 
-### 3.1 SrpUnitRuntime (v1)
+- `SrpOverwatch`: AP 예약/RP 발동, 8방향 직선 사선, 장애물/유닛 차단, 1회 발동/해제 규칙 구현 완료
+- `SrpReaction`: 별도 파일 대신 `SrpCombatResolver`의 반응 선택/소비 흐름에 흡수
+- `SrpLineOfSight`: 현재는 `SrpOverwatch` helper로 유지, 다른 시스템이 사선을 공유할 때 별도 모듈 분리 검토
 
-필수 필드
+## 3. 핵심 데이터 계약
 
-- `hp`, `maxHp`
-- `pg`, `maxPg`
-- `actionPoints`, `maxActionPoints` (기본 2)
-- `reactionPoints`, `maxReactionPoints` (기본 1)
-- `speed`
-- `stance` (`Aggressive`, `Defensive`)
-- `facing` (`North`, `East`, `South`, `West`)
-- `weaponClass` (`Firearm`, `Melee`, `Magic`)
-- M1부터 `ap/maxAp/posture/maxPosture` 런타임 의존은 제거한다.
+### 3.1 유닛 런타임 계약
 
-### 3.2 SrpBattleState
-
-- 유닛 목록, 점유, 생존/제거 상태
-- 교전 쌍(engagement pair) 또는 교전 집합
-- 현재 라운드 번호, 현재 행동 유닛 id
-- 반응 대기 이벤트 큐
-
-### 3.3 SrpTurnOrder (new)
-
-- 라운드 시작 시 정렬:
-  - 살아있는 유닛을 `speed` 내림차순 정렬
-  - 동속 처리 규칙: owner -> id 순
-- API
-  - `BuildRoundQueue(state)`
-  - `AdvanceToNextUnit(state)`
-  - `HasRemainingUnitInRound(state)`
-
-## 4. 전투 해석 규칙
-
-### 4.1 무기 분기
-
-- `Firearm`: HP 중심 피해(고정 보너스), 낮은 PG 압박
-- `Melee`: PG 중심 압박(고정 보너스), 낮은 HP 피해
-- `Magic`: HP/PG 균등 분배의 중간 압박
-
-### 4.2 처단
-
-- PG 임계 상태(붕괴)에 도달한 대상은 처단 위험 상태가 된다.
-- 처단 공격은 `raw + executionBonus` 형태의 큰 HP 피해를 적용한다.
-- `AttackOutcome`은 `damageToPg`, `damageToHp`, `wasExecution`, `becameGroggy`, `defenderDied`로 고정한다.
-
-### 4.3 방향 보정
-
-- 피격자 기준 정면/측면/후방 판정으로 반응/피해 보정
-- 후방은 대응 제한이 가장 크다.
-
-## 5. 반응행동
-
-### 5.1 기본 반응
-
-- 방어(피해 경감)
-- 회피(명중 판정 회피)
-- 패링(조건부, 정면 근접 중심)
-- 반응사격(경계태세 기반)
-
-### 5.2 소비 규칙
-
-- 반응행동은 RP를 소비한다.
-- RP가 0이면 반응행동을 사용할 수 없다.
-
-## 6. 경계태세
-
-- AP 1 소비로 활성화
-- 적 유닛이 조건(사선 진입 등)을 만족하면 반응사격 트리거
-- 같은 적 턴 내 발동 제한은 밸런스 결정 사항으로 둔다
-
-## 7. LOS
-
-- 브레젠햄 라인 트레이스 기반 1차 구현
-- 사선 차단 타일(엄폐/장애물) 데이터 참조
-- 총기, 반응사격, 일부 마법 타게팅에 공통 사용
-
-## 8. 맵/유닛 스키마 v2
-
-`SrpMapFile.version = 2` 기준
-
-- 유닛 템플릿 필드 추가:
+- 기본 필드:
+  - `hp`, `maxHp`
+  - `pg`, `maxPg`
+  - `actionPoints`, `maxActionPoints`
+  - `reactionPoints`, `maxReactionPoints`
   - `speed`
-  - `maxActionPoints`
-  - `maxReactionPoints`
-  - `defaultStance`
-  - `defaultFacing`
+  - `stance`
+  - `facing`
   - `weaponClass`
-- 기존 `allowedSkillIds`, `disabledSkillIds`는 유지하되 v1 효과 타입과 동기화
+- 정책:
+  - AP 기본 2, RP 기본 1
+  - RP는 반응 전용 자원
 
-## 9. 테스트 전략
+### 3.2 전투 상태 계약
 
-우선 EditMode 단위 테스트를 추가한다.
+- 라운드/현재 행동 유닛/큐 상태를 유지한다.
+- 교전 상태와 반응 대기 이벤트를 상태에서 추적 가능해야 한다.
+- `SrpBattleState`는 Unity 엔진 타입에 의존하지 않는다.
 
-- `SrpTurnOrderTests`
-  - 속도 정렬, 동속 규칙, 라운드 종료
-- `SrpCombatResolverTests`
-  - 총기/근접/마법 분기, PG 붕괴/처단
-- `SrpReactionTests`
-  - RP 소비, 반응 우선순위
-- `SrpLineOfSightTests`
-  - 사선 차단/통과 케이스
+### 3.3 스킬 계약
 
-## 10. 구현 순서
+- 기본 스킬 모델은 쿨다운/충전 기반.
+- 안정도는 오버클럭 메타 데이터로 연결 가능해야 한다.
+- MP/SP 고정 바 의존 필드는 도입하지 않는다.
 
-1. 상태/데이터 리네이밍 및 필드 전환
-2. 턴 오더 모듈 도입
-3. 전투 공식 교체
-4. 반응/경계태세/LOS 도입
-5. 스킬/메이커 동기화
-6. 테스트와 튜닝
+## 4. 전투 해석 계약
 
-## 11. 구현 반영 상태 (2026-04-18)
+### 4.1 기본 분기
 
-- 완료
-  - `SrpTurnOrder` 도입 및 속도 기반 라운드 큐 전환
-  - `SrpUnitRuntime` / `SrpMapFile` v2 필드(AP/RP, speed, weaponClass, stance, facing) 반영
-  - `SrpCombatResolver` 총기/근접/마법 분기 + HP/PG 이원화 반영
-  - HUD에 라운드/현재 유닛/대기 큐/AP/RP/PG 노출
-  - AP 부족 시 이동/공격/스킬 차단 문구 표준화
-  - 턴 큐에서 제거 유닛 자동 정리(큐 무결성 보정)
-  - EditMode 테스트 `Assets/Tests/EditMode/Editor/SrpM1CoreTests.cs` 추가
-- 진행 필요
-  - `SrpReaction`, `SrpOverwatch`, `SrpLineOfSight` 구현
-  - 태세/방향의 실전 판정 보정(전후방 보너스/패널티) 강화
-  - 교전 고정 및 강제 이탈 기회공격 규칙 구현
+- `Firearm`: HP 압박 중심
+- `Melee`: PG 붕괴 중심
+- `Magic`: 전장 개입 중심(피해 분배는 스킬별)
+
+### 4.2 방어/반응
+
+- 상시 감쇠(DEF/GRD) 후 반응행동 처리 순서를 정의한다.
+- 공격 태세는 회피 시도 우선, 실패 시 백업 없음.
+- 수비 태세는 안정 생존 우선.
+- 패링은 주인공 전용 + 정면 근접 강공/스킬 태그 조건.
+
+### 4.3 교전/방향
+
+- 방향 판정(정면/측면/후면) 인터페이스를 고정한다.
+- 교전 이탈 시 기회공격 훅 포인트를 정의한다.
+
+## 5. 테스트 계약
+
+- 핵심 단위 테스트:
+  - 턴 큐 정렬/진행
+  - 무기 분기 및 PG 붕괴/처단
+  - 태세 선택 효과(공격/수비)
+  - 교전/이탈 규칙
+  - 반응행동 소비 및 우선순위
+- 통합 테스트:
+  - HUD의 전투 상태 반영
+  - 위험영역/의도/상태 문구 일관성
+
+## 6. 2차 구현 상태와 순서
+
+완료된 1차 기반:
+
+1. 속도 라운드/AP/RP 리셋
+2. 교전 상태 저장/클론
+3. DEF/GRD 감쇠와 수비 Guard 반응
+4. 교전 이탈 비용 브릿지
+5. 교전 이탈 기회공격 1차 구현
+6. 스킬 쿨다운/충전 및 오버클럭 기본 모델
+7. 패링 가능 조건/태그/텔레그래프 1차 구현
+8. Dodge/Parry/명시형 ReactionShot 반응행동 브릿지
+9. 수비 지속 완충/탱커 다중 대응 브릿지
+10. 스킬/유닛 메이커 v2 메타데이터 편집/저장 정합성 확장
+11. 중간 점검 보정: 무기 분류 보존, 스킬 AP/PG 별칭, 스킬 피해 그로기, 맵/배치 스킬 필터
+12. 유닛 시각 방향성 개선: 원기둥을 facing 기반 쐐기형 삼각기둥으로 교체
+13. 교전/둘러싸임 검증 프리셋 보강: `M1EngagementLab` 내장 프리셋 추가
+14. RP/HUD 노출 정책 정리: RP 원시 수치 대신 반응 준비/소모/예약 상태 중심 표기
+15. 기획 대조 P1 보정: 기본공격 패링 제거, Dodge 확률형 시도/실패 브릿지, 측후면 방어 불리 브릿지 추가
+16. HUD/로그 가독성 동기화: 범례/반응/오버워치/스킬 자원/로그 문구 용어 통일 및 PlayMode 스모크 보강
+17. 오버워치 사선/횟수/해제 상세 규칙: 8방향 직선 사선, 장애물/유닛 차단, 예약 1회당 1회 발동, 라운드 리셋 해제
+
+다음 구현 순서:
+
+1. 테스트/시뮬레이션 기준 갱신
+2. 오버워치 고급 우선순위/특수 지형 상호작용 검토
+
+## 7. 미정 기술 항목
+
+- DEF/GRD 계산 공식
+- 회피 확률 계산식
+- 오버워치 고급 우선순위/특수 지형 상호작용
+- 패링 보상·실패 패널티 정량 수치
+- 탱커 다중 대응 패시브 구현 방식

@@ -22,6 +22,24 @@ public class SrpM1RuleSpecTests
     }
 
     [Test]
+    public void EngagementExit_IncreasesMoveCost_WhenLeavingEnemyAdjacency()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var mover = FindUnit(state, owner: 0, templateId: "mover");
+        Assert.IsNotNull(mover, "교전 이탈 테스트 유닛 생성 실패");
+
+        mover.anchorX = 2;
+        mover.anchorY = 1;
+        state.RebuildEngagements();
+        Assert.AreEqual(1, state.CountEngagingEnemies(mover), "테스트 전 교전 상태 구성 실패");
+
+        var costs = SrpPathfinder.GetReachableWithCosts(state, mover, maxCost: 3);
+
+        Assert.IsTrue(costs.TryGetValue(new UnityEngine.Vector2Int(1, 1), out int exitCost), "교전 이탈 칸 비용 계산 실패");
+        Assert.AreEqual(2, exitCost, "교전 이탈 이동 비용 기준값(기본1+이탈1) 불일치");
+    }
+
+    [Test]
     public void Stance_Aggressive_IncreasesPgPressure()
     {
         var aggressive = new SrpUnitRuntime
@@ -90,6 +108,510 @@ public class SrpM1RuleSpecTests
         Assert.IsTrue(groggy.wasExecution, "그로기 상태에서 처단 판정 미발생");
         Assert.AreEqual(0, groggyTarget.pg, "처단 후 PG는 0으로 정규화되어야 함");
         Assert.IsFalse(groggyTarget.groggy, "처단 처리 후 groggy 상태는 해제되어야 함");
+    }
+
+    [Test]
+    public void BattleStateClone_CopiesEngagementAndReactionStateIndependently()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var mover = FindUnit(state, owner: 0, templateId: "mover");
+        var enemy = FindUnit(state, owner: 1, templateId: "enemy");
+        Assert.IsNotNull(mover);
+        Assert.IsNotNull(enemy);
+
+        mover.anchorX = 2;
+        mover.anchorY = 1;
+        mover.lastReactionKind = SrpReactionKind.Guard;
+        mover.lastReactionRound = 2;
+        mover.lastReactionSourceId = enemy.id;
+        mover.defensiveHitsTakenThisRound = 2;
+        mover.defensiveHitsRound = state.RoundNumber;
+        state.RebuildEngagements();
+        Assert.AreEqual(1, state.CountEngagingEnemies(mover), "테스트 전 교전 상태 구성 실패");
+
+        var clone = state.Clone();
+        var clonedMover = FindUnit(clone, owner: 0, templateId: "mover");
+        Assert.AreEqual(SrpReactionKind.Guard, clonedMover.lastReactionKind);
+        Assert.AreEqual(2, clonedMover.lastReactionRound);
+        Assert.AreEqual(enemy.id, clonedMover.lastReactionSourceId);
+        Assert.AreEqual(2, clonedMover.defensiveHitsTakenThisRound);
+        Assert.AreEqual(state.RoundNumber, clonedMover.defensiveHitsRound);
+        Assert.AreEqual(1, clone.CountEngagingEnemies(clonedMover), "클론 교전 상태 복사 실패");
+
+        clone.Engagements[clonedMover.id].Clear();
+        clonedMover.lastReactionKind = SrpReactionKind.None;
+        clonedMover.defensiveHitsTakenThisRound = 0;
+
+        Assert.AreEqual(1, state.CountEngagingEnemies(mover), "클론 변경이 원본 교전 상태를 오염했습니다.");
+        Assert.AreEqual(SrpReactionKind.Guard, mover.lastReactionKind, "클론 변경이 원본 반응 상태를 오염했습니다.");
+        Assert.AreEqual(2, mover.defensiveHitsTakenThisRound, "클론 변경이 원본 수비 완충 상태를 오염했습니다.");
+    }
+
+    [Test]
+    public void DefensiveReaction_ConsumesRpAndReducesIncomingDamage_WhenStateProvided()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var attacker = FindUnit(state, owner: 1, templateId: "enemy");
+        var defender = FindUnit(state, owner: 0, templateId: "mover");
+        defender.stance = SrpStance.Defensive;
+        defender.reactionPoints = 1;
+
+        var reacted = SrpCombatResolver.ApplyAttack(state, attacker, defender);
+
+        Assert.AreEqual(SrpReactionKind.Guard, reacted.reactionKind, "수비 태세 반응 Guard가 선택되지 않았습니다.");
+        Assert.IsTrue(reacted.reactionSpentRp, "반응행동이 RP를 소비하지 않았습니다.");
+        Assert.AreEqual(0, defender.reactionPoints, "반응행동 후 RP가 감소하지 않았습니다.");
+        Assert.AreEqual(SrpReactionKind.Guard, defender.lastReactionKind, "마지막 반응 상태가 기록되지 않았습니다.");
+        Assert.Greater(reacted.reducedHpByDef, 0, "Guard/DEF HP 감쇠가 기록되지 않았습니다.");
+        Assert.Greater(reacted.reducedPgByGrd, 0, "Guard/GRD PG 감쇠가 기록되지 않았습니다.");
+    }
+
+    [Test]
+    public void OpportunityAttack_ConsumesEnemyRpAndDamagesMover_WhenLeavingEngagement()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var mover = FindUnit(state, owner: 0, templateId: "mover");
+        var enemy = FindUnit(state, owner: 1, templateId: "enemy");
+        mover.anchorX = 2;
+        mover.anchorY = 1;
+        enemy.reactionPoints = 1;
+        state.RebuildEngagements();
+        var previousEngagers = state.GetEngagedEnemyIds(mover.id);
+        Assert.Contains(enemy.id, previousEngagers, "테스트 전 교전 상대 기록 실패");
+
+        mover.anchorX = 1;
+        mover.anchorY = 1;
+        int beforeHp = mover.hp;
+        int beforePg = mover.pg;
+        state.RebuildEngagements();
+        Assert.IsFalse(state.GetEngagedEnemyIds(mover.id).Contains(enemy.id), "테스트 전 교전 이탈 상태 구성 실패");
+
+        bool triggered = SrpCombatResolver.TryApplyOpportunityAttack(state, enemy, mover, out var outcome);
+
+        Assert.IsTrue(triggered, "교전 이탈 기회공격이 발동하지 않았습니다.");
+        Assert.AreEqual(0, enemy.reactionPoints, "기회공격 후 적 RP가 감소하지 않았습니다.");
+        Assert.AreEqual(SrpReactionKind.ReactionShot, enemy.lastReactionKind, "기회공격 반응 종류가 기록되지 않았습니다.");
+        Assert.AreEqual(mover.id, enemy.lastReactionSourceId, "기회공격 출처 대상이 기록되지 않았습니다.");
+        Assert.Greater(outcome.damageToHp + outcome.damageToPg, 0, "기회공격 피해가 발생하지 않았습니다.");
+        Assert.Less(mover.hp + mover.pg, beforeHp + beforePg, "기회공격 피해가 유닛 상태에 반영되지 않았습니다.");
+    }
+
+    [Test]
+    public void OpportunityAttack_DoesNotTrigger_WhenEnemyHasNoRp()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var mover = FindUnit(state, owner: 0, templateId: "mover");
+        var enemy = FindUnit(state, owner: 1, templateId: "enemy");
+        int beforeHp = mover.hp;
+        int beforePg = mover.pg;
+        enemy.reactionPoints = 0;
+
+        bool triggered = SrpCombatResolver.TryApplyOpportunityAttack(state, enemy, mover, out var outcome);
+
+        Assert.IsFalse(triggered, "RP가 없는 적이 기회공격을 발동했습니다.");
+        Assert.AreEqual(SrpReactionKind.None, enemy.lastReactionKind, "실패한 기회공격이 반응 상태를 오염했습니다.");
+        Assert.AreEqual(0, outcome.damageToHp + outcome.damageToPg, "실패한 기회공격이 피해를 기록했습니다.");
+        Assert.AreEqual(beforeHp, mover.hp, "실패한 기회공격이 HP를 변경했습니다.");
+        Assert.AreEqual(beforePg, mover.pg, "실패한 기회공격이 PG를 변경했습니다.");
+    }
+
+    [Test]
+    public void ParryCondition_AllowsTaggedFrontMeleeSkillParry_WhenDefenderHasTagAndRp()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var attacker = FindUnit(state, owner: 1, templateId: "enemy");
+        var defender = FindUnit(state, owner: 0, templateId: "mover");
+        PlaceParryPair(attacker, defender, attackerX: 2, attackerY: 3, defenderFacing: SrpFacing.North);
+
+        bool canParryBasic = SrpCombatResolver.CanDefenderParry(state, attacker, defender);
+        bool canParrySkill = SrpCombatResolver.CanDefenderParry(state, attacker, defender, CreateParryableSkill());
+
+        Assert.IsFalse(canParryBasic, "기본 근접 공격이 패링 가능으로 판정되었습니다.");
+        Assert.IsTrue(canParrySkill, "정면 패링 가능 스킬을 패링 가능으로 판정하지 않았습니다.");
+    }
+
+    [Test]
+    public void ParryCondition_BlocksInvalidThreats()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var attacker = FindUnit(state, owner: 1, templateId: "enemy");
+        var defender = FindUnit(state, owner: 0, templateId: "mover");
+
+        PlaceParryPair(attacker, defender, attackerX: 3, attackerY: 2, defenderFacing: SrpFacing.North);
+        Assert.IsFalse(SrpCombatResolver.CanDefenderParry(state, attacker, defender), "측후면 공격이 패링 가능으로 판정되었습니다.");
+
+        PlaceParryPair(attacker, defender, attackerX: 2, attackerY: 3, defenderFacing: SrpFacing.North);
+        attacker.weaponClass = SrpWeaponClass.Firearm;
+        Assert.IsFalse(SrpCombatResolver.CanDefenderParry(state, attacker, defender), "기본 원거리 공격이 패링 가능으로 판정되었습니다.");
+
+        attacker.weaponClass = SrpWeaponClass.Melee;
+        defender.tags = 0;
+        Assert.IsFalse(SrpCombatResolver.CanDefenderParry(state, attacker, defender), "패링 가능자 태그가 없는 수비자가 패링 가능으로 판정되었습니다.");
+
+        defender.tags = (int)SrpUnitTags.ParryUser;
+        defender.reactionPoints = 0;
+        Assert.IsFalse(SrpCombatResolver.CanDefenderParry(state, attacker, defender), "RP 0 수비자가 패링 가능으로 판정되었습니다.");
+    }
+
+    [Test]
+    public void ParryReaction_ConsumesRpAndNullifiesDamage_WhenTaggedSkillMatches()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var attacker = FindUnit(state, owner: 1, templateId: "enemy");
+        var defender = FindUnit(state, owner: 0, templateId: "mover");
+        PlaceParryPair(attacker, defender, attackerX: 2, attackerY: 3, defenderFacing: SrpFacing.North);
+        int beforeHp = defender.hp;
+        int beforePg = defender.pg;
+
+        var outcome = SrpCombatResolver.ApplyAttack(state, attacker, defender, CreateParryableSkill());
+
+        Assert.AreEqual(SrpReactionKind.Parry, outcome.reactionKind, "패링 조건에서 Parry 반응이 선택되지 않았습니다.");
+        Assert.IsTrue(outcome.reactionSpentRp, "패링이 RP를 소비하지 않았습니다.");
+        Assert.IsTrue(outcome.wasParried, "패링 결과 플래그가 기록되지 않았습니다.");
+        Assert.AreEqual(0, defender.reactionPoints, "패링 후 RP가 감소하지 않았습니다.");
+        Assert.AreEqual(beforeHp, defender.hp, "패링이 HP 피해를 무효화하지 않았습니다.");
+        Assert.AreEqual(beforePg, defender.pg, "패링이 PG 피해를 무효화하지 않았습니다.");
+    }
+
+    [Test]
+    public void DodgeReaction_ConsumesRpAndResolvesByChance_ForAggressiveDefender()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var attacker = FindUnit(state, owner: 1, templateId: "enemy");
+        var defender = FindUnit(state, owner: 0, templateId: "mover");
+        attacker.anchorX = 2;
+        attacker.anchorY = 4;
+        attacker.weaponClass = SrpWeaponClass.Firearm;
+        defender.anchorX = 2;
+        defender.anchorY = 2;
+        defender.stance = SrpStance.Aggressive;
+        defender.reactionPoints = 1;
+        int beforeHp = defender.hp;
+        int beforePg = defender.pg;
+
+        var outcome = SrpCombatResolver.ApplyAttack(state, attacker, defender);
+
+        Assert.AreEqual(SrpReactionKind.Dodge, outcome.reactionKind, "공격 태세 원거리 위협에서 Dodge 반응이 선택되지 않았습니다.");
+        Assert.IsTrue(outcome.reactionSpentRp, "Dodge가 RP를 소비하지 않았습니다.");
+        Assert.IsTrue(outcome.wasDodged, "Dodge 결과 플래그가 기록되지 않았습니다.");
+        Assert.AreEqual(0, defender.reactionPoints, "Dodge 후 RP가 감소하지 않았습니다.");
+        Assert.AreEqual(beforeHp, defender.hp, "Dodge가 HP 피해를 무효화하지 않았습니다.");
+        Assert.AreEqual(beforePg, defender.pg, "Dodge가 PG 피해를 무효화하지 않았습니다.");
+    }
+
+    [Test]
+    public void DodgeReaction_FailureKeepsMitigatedDamageWithoutGuardBackup()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var attacker = FindUnit(state, owner: 1, templateId: "enemy");
+        var defender = FindUnit(state, owner: 0, templateId: "mover");
+        attacker.anchorX = 40;
+        attacker.anchorY = 4;
+        attacker.weaponClass = SrpWeaponClass.Firearm;
+        defender.anchorX = 2;
+        defender.anchorY = 2;
+        defender.stance = SrpStance.Aggressive;
+        defender.reactionPoints = 1;
+        int beforeHp = defender.hp;
+        int beforePg = defender.pg;
+
+        var outcome = SrpCombatResolver.ApplyAttack(state, attacker, defender);
+
+        Assert.AreEqual(SrpReactionKind.Dodge, outcome.reactionKind, "공격 태세 원거리 위협에서 Dodge 반응이 선택되지 않았습니다.");
+        Assert.IsTrue(outcome.reactionSpentRp, "실패한 Dodge도 RP를 소비해야 합니다.");
+        Assert.IsFalse(outcome.wasDodged, "실패한 Dodge가 피해 무효 플래그를 기록했습니다.");
+        Assert.IsTrue(outcome.dodgeFailed, "Dodge 실패 플래그가 기록되지 않았습니다.");
+        Assert.AreEqual(0, defender.reactionPoints, "Dodge 후 RP가 감소하지 않았습니다.");
+        Assert.Less(defender.hp + defender.pg, beforeHp + beforePg, "실패한 Dodge가 기본 감쇠 후 피해를 유지하지 않았습니다.");
+    }
+
+    [Test]
+    public void DirectionalVulnerability_IncreasesDamage_WhenHitFromBack()
+    {
+        var frontAttacker = new SrpUnitRuntime
+        {
+            anchorX = 2,
+            anchorY = 3,
+            attackPower = 8,
+            weaponClass = SrpWeaponClass.Melee,
+        };
+        var backAttacker = new SrpUnitRuntime
+        {
+            anchorX = 2,
+            anchorY = 1,
+            attackPower = 8,
+            weaponClass = SrpWeaponClass.Melee,
+        };
+        var frontTarget = CreateDefender(SrpStance.Defensive);
+        var backTarget = CreateDefender(SrpStance.Defensive);
+        frontTarget.anchorX = 2;
+        frontTarget.anchorY = 2;
+        frontTarget.facing = SrpFacing.North;
+        frontTarget.reactionPoints = 0;
+        backTarget.anchorX = 2;
+        backTarget.anchorY = 2;
+        backTarget.facing = SrpFacing.North;
+        backTarget.reactionPoints = 0;
+
+        var front = SrpCombatResolver.ApplyAttack(frontAttacker, frontTarget);
+        var back = SrpCombatResolver.ApplyAttack(backAttacker, backTarget);
+
+        Assert.Greater(back.damageToHp + back.damageToPg, front.damageToHp + front.damageToPg, "후면 피격 방어 불리 브릿지가 피해에 반영되지 않았습니다.");
+    }
+
+    [Test]
+    public void Overwatch_ArmCloneAndTrigger_UsesApReservationAndRpReactionShot()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var watcher = FindUnit(state, owner: 0, templateId: "mover");
+        var target = FindUnit(state, owner: 1, templateId: "enemy");
+        watcher.weaponClass = SrpWeaponClass.Firearm;
+        watcher.attackRange = 3;
+        watcher.attackPower = 8;
+        watcher.actionPoints = 2;
+        watcher.reactionPoints = 1;
+        target.reactionPoints = 0;
+        int beforeTargetHp = target.hp;
+
+        Assert.IsTrue(SrpOverwatch.Arm(state, watcher), "오버워치 예약 실패");
+        Assert.AreEqual(1, watcher.actionPoints, "오버워치 예약이 AP를 소비하지 않았습니다.");
+        Assert.IsTrue(watcher.overwatchArmed, "오버워치 예약 상태가 기록되지 않았습니다.");
+        Assert.AreEqual(3, watcher.overwatchRange, "오버워치 사거리 기록이 불일치합니다.");
+
+        var clone = state.Clone();
+        var clonedWatcher = FindUnit(clone, owner: 0, templateId: "mover");
+        Assert.IsTrue(clonedWatcher.overwatchArmed, "클론에 오버워치 예약 상태가 복사되지 않았습니다.");
+        clonedWatcher.overwatchArmed = false;
+        Assert.IsTrue(watcher.overwatchArmed, "클론 변경이 원본 오버워치 예약 상태를 오염했습니다.");
+
+        Assert.IsTrue(SrpOverwatch.TryTrigger(state, watcher, target, out var outcome), "오버워치 ReactionShot이 발동하지 않았습니다.");
+        Assert.IsFalse(watcher.overwatchArmed, "오버워치 발동 후 예약 상태가 해제되지 않았습니다.");
+        Assert.AreEqual(0, watcher.reactionPoints, "오버워치 발동이 RP를 소비하지 않았습니다.");
+        Assert.AreEqual(SrpReactionKind.ReactionShot, watcher.lastReactionKind, "오버워치 발동 반응 종류가 기록되지 않았습니다.");
+        Assert.AreEqual(target.id, watcher.lastReactionSourceId, "오버워치 발동 대상이 기록되지 않았습니다.");
+        Assert.Greater(beforeTargetHp, target.hp, "오버워치 피해가 대상 HP에 반영되지 않았습니다.");
+        Assert.Greater(outcome.damageToHp + outcome.damageToPg, 0, "오버워치 결과 피해가 기록되지 않았습니다.");
+    }
+
+    [Test]
+    public void Overwatch_CanTrigger_RequiresEightDirectionLineOfSight()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var watcher = FindUnit(state, owner: 0, templateId: "mover");
+        var target = FindUnit(state, owner: 1, templateId: "enemy");
+        watcher.weaponClass = SrpWeaponClass.Firearm;
+        watcher.attackRange = 4;
+        watcher.actionPoints = 2;
+        watcher.reactionPoints = 1;
+        target.anchorX = 3;
+        target.anchorY = 2;
+        target.reactionPoints = 0;
+
+        Assert.IsTrue(SrpOverwatch.Arm(state, watcher), "오버워치 예약 실패");
+
+        Assert.IsFalse(SrpOverwatch.CanTrigger(state, watcher, target), "8방향 직선 사선 밖 대상에게 오버워치가 발동 가능으로 판정되었습니다.");
+
+        target.anchorX = 3;
+        target.anchorY = 1;
+        Assert.IsTrue(SrpOverwatch.CanTrigger(state, watcher, target), "직선 사선 내 대상에게 오버워치가 발동 불가로 판정되었습니다.");
+    }
+
+    [Test]
+    public void Overwatch_CanTrigger_BlocksWhenLineOfSightIsObstructed()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var watcher = FindUnit(state, owner: 0, templateId: "mover");
+        var target = FindUnit(state, owner: 1, templateId: "enemy");
+        var blocker = CreateExtraEnemy(id: 100, x: 2, y: 1);
+        watcher.weaponClass = SrpWeaponClass.Firearm;
+        watcher.attackRange = 4;
+        watcher.actionPoints = 2;
+        watcher.reactionPoints = 1;
+        target.anchorX = 4;
+        target.anchorY = 1;
+        target.reactionPoints = 0;
+        state.Units.Add(blocker);
+
+        Assert.IsTrue(SrpOverwatch.Arm(state, watcher), "오버워치 예약 실패");
+
+        Assert.IsFalse(SrpOverwatch.CanTrigger(state, watcher, target), "중간 유닛이 사선을 막는데 오버워치가 발동 가능으로 판정되었습니다.");
+        Assert.IsFalse(SrpOverwatch.TryTrigger(state, watcher, target, out var outcome), "차단된 사선에서 오버워치가 발동했습니다.");
+        Assert.AreEqual(0, outcome.damageToHp + outcome.damageToPg, "차단된 오버워치가 피해를 기록했습니다.");
+
+        state.Units.Remove(blocker);
+        state.Walkable[state.Index(2, 1)] = false;
+        Assert.IsFalse(SrpOverwatch.CanTrigger(state, watcher, target), "장애물 타일이 사선을 막는데 오버워치가 발동 가능으로 판정되었습니다.");
+    }
+
+    [Test]
+    public void Overwatch_ArmStatus_ExplainsHudPolicyConditions()
+    {
+        var unit = CreateOverwatchReadyUnit();
+
+        Assert.AreEqual(SrpOverwatchArmStatus.Ready, SrpOverwatch.GetArmStatus(unit));
+        Assert.IsTrue(SrpOverwatch.CanArm(unit), "Ready 상태는 예약 가능해야 합니다.");
+
+        unit.overwatchArmed = true;
+        Assert.AreEqual(SrpOverwatchArmStatus.AlreadyArmed, SrpOverwatch.GetArmStatus(unit));
+        unit.overwatchArmed = false;
+
+        unit.actionPoints = 0;
+        Assert.AreEqual(SrpOverwatchArmStatus.NoAction, SrpOverwatch.GetArmStatus(unit));
+        unit.actionPoints = 1;
+
+        unit.reactionPoints = 0;
+        Assert.AreEqual(SrpOverwatchArmStatus.NoReaction, SrpOverwatch.GetArmStatus(unit));
+        unit.reactionPoints = 1;
+
+        unit.weaponClass = SrpWeaponClass.Melee;
+        Assert.AreEqual(SrpOverwatchArmStatus.NotFirearm, SrpOverwatch.GetArmStatus(unit));
+        unit.weaponClass = SrpWeaponClass.Firearm;
+
+        unit.attackRange = 1;
+        Assert.AreEqual(SrpOverwatchArmStatus.RangeTooShort, SrpOverwatch.GetArmStatus(unit));
+    }
+
+    [Test]
+    public void Overwatch_ArmStatus_TracksReservationAndRoundReset()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var watcher = FindUnit(state, owner: 0, templateId: "mover");
+        watcher.weaponClass = SrpWeaponClass.Firearm;
+        watcher.attackRange = 3;
+        watcher.actionPoints = 2;
+        watcher.reactionPoints = 1;
+
+        Assert.AreEqual(SrpOverwatchArmStatus.Ready, SrpOverwatch.GetArmStatus(watcher));
+        Assert.IsTrue(SrpOverwatch.Arm(state, watcher));
+        Assert.AreEqual(SrpOverwatchArmStatus.AlreadyArmed, SrpOverwatch.GetArmStatus(watcher));
+
+        SrpTurnOrder.ResetRoundResources(state);
+
+        Assert.IsFalse(watcher.overwatchArmed, "라운드 리셋 후 오버워치 예약이 해제되지 않았습니다.");
+        Assert.AreEqual(SrpReactionKind.None, watcher.lastReactionKind, "라운드 리셋 후 반응 상태가 초기화되지 않았습니다.");
+        Assert.AreEqual(SrpOverwatchArmStatus.Ready, SrpOverwatch.GetArmStatus(watcher), "라운드 리셋 후 예약 가능 상태로 돌아오지 않았습니다.");
+    }
+
+    [Test]
+    public void SustainedDefenseBuffer_AppliesOnFollowUpHit_WhenDefensiveAndEngaged()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var defender = FindUnit(state, owner: 0, templateId: "mover");
+        var attacker = FindUnit(state, owner: 1, templateId: "enemy");
+        defender.anchorX = 2;
+        defender.anchorY = 1;
+        defender.stance = SrpStance.Defensive;
+        defender.reactionPoints = 0;
+        defender.hp = 50;
+        defender.maxHp = 50;
+        defender.pg = 50;
+        defender.maxPg = 50;
+        attacker.attackPower = 8;
+        state.RebuildEngagements();
+
+        var first = SrpCombatResolver.ApplyAttack(state, attacker, defender);
+        var second = SrpCombatResolver.ApplyAttack(state, attacker, defender);
+
+        Assert.IsFalse(first.sustainedDefenseBufferApplied, "첫 피격에 후속 수비 완충이 적용되었습니다.");
+        Assert.IsTrue(second.sustainedDefenseBufferApplied, "후속 피격에 수비 완충이 적용되지 않았습니다.");
+        Assert.Greater(second.reducedHpBySustainedDefense + second.reducedPgBySustainedDefense, 0, "후속 수비 완충 감쇠량이 기록되지 않았습니다.");
+        Assert.AreEqual(2, defender.defensiveHitsTakenThisRound, "수비 피격 누적이 라운드 내에서 증가하지 않았습니다.");
+    }
+
+    [Test]
+    public void TankMultiEngagementBuffer_AppliesOnlyForTank_WhenEngagedByMultipleEnemies()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var tank = FindUnit(state, owner: 0, templateId: "mover");
+        var attacker = FindUnit(state, owner: 1, templateId: "enemy");
+        var secondEnemy = CreateExtraEnemy(id: 99, x: 2, y: 2);
+        state.Units.Add(secondEnemy);
+        tank.anchorX = 2;
+        tank.anchorY = 1;
+        tank.stance = SrpStance.Defensive;
+        tank.tags = (int)SrpUnitTags.Tank;
+        tank.reactionPoints = 0;
+        attacker.attackPower = 8;
+        state.RebuildEngagements();
+        Assert.AreEqual(2, state.CountEngagingEnemies(tank), "테스트 전 다중 교전 상태 구성 실패");
+
+        var tanked = SrpCombatResolver.ApplyAttack(state, attacker, tank);
+
+        Assert.IsTrue(tanked.tankMultiEngagementBufferApplied, "탱커 다중 대응 완충이 적용되지 않았습니다.");
+        Assert.Greater(tanked.reducedHpByTank + tanked.reducedPgByTank, 0, "탱커 다중 대응 감쇠량이 기록되지 않았습니다.");
+
+        tank.hp = tank.maxHp;
+        tank.pg = tank.maxPg;
+        tank.tags = 0;
+        tank.defensiveHitsTakenThisRound = 0;
+        tank.defensiveHitsRound = state.RoundNumber;
+        var normal = SrpCombatResolver.ApplyAttack(state, attacker, tank);
+
+        Assert.IsFalse(normal.tankMultiEngagementBufferApplied, "일반 유닛에 탱커 전용 완충이 적용되었습니다.");
+    }
+
+    [Test]
+    public void EngagementLabPreset_StartsWithTankInMultiEngagement()
+    {
+        var state = SrpBattleState.FromMap(SrpDefaultMaps.GetPreset(SrpMapPreset.M1EngagementLab));
+        var tank = FindUnit(state, owner: 0, templateId: "engage_tank");
+
+        Assert.IsNotNull(tank, "교전 랩 탱커가 배치되지 않았습니다.");
+        Assert.IsTrue(tank.HasTag(SrpUnitTags.Tank), "교전 랩 탱커에 Tank 태그가 없습니다.");
+        Assert.AreEqual(SrpStance.Defensive, tank.stance, "교전 랩 탱커가 수비 태세가 아닙니다.");
+        Assert.AreEqual(2, state.CountEngagingEnemies(tank), "교전 랩 탱커가 2명에게 둘러싸여 시작하지 않습니다.");
+    }
+
+    [Test]
+    public void EngagementLabPreset_DisengageMoveHasExitCostAndOpportunityAttack()
+    {
+        var state = SrpBattleState.FromMap(SrpDefaultMaps.GetPreset(SrpMapPreset.M1EngagementLab));
+        var tank = FindUnit(state, owner: 0, templateId: "engage_tank");
+        var raider = FindUnit(state, owner: 1, templateId: "engage_raider");
+        tank.reactionPoints = 0;
+        raider.reactionPoints = 1;
+        state.RebuildEngagements();
+
+        var costs = SrpPathfinder.GetReachableWithCosts(state, tank, tank.moveRange);
+        var escapeTile = new UnityEngine.Vector2Int(2, 1);
+
+        Assert.IsTrue(costs.TryGetValue(escapeTile, out int escapeCost), "교전 랩 이탈 타일이 도달 가능하지 않습니다.");
+        Assert.Greater(escapeCost, 2, "교전 이탈/포지셔닝 비용이 프리셋 이동 비용에 반영되지 않았습니다.");
+
+        var previousEngagers = state.GetEngagedEnemyIds(tank.id);
+        Assert.Contains(raider.id, previousEngagers, "교전 랩 기회공격 후보가 기록되지 않았습니다.");
+        tank.anchorX = escapeTile.x;
+        tank.anchorY = escapeTile.y;
+        state.RebuildEngagements();
+        Assert.IsFalse(state.IsUnitEngaged(tank.id), "교전 랩 이탈 타일에서 여전히 교전 중입니다.");
+
+        int beforeHp = tank.hp;
+        bool triggered = SrpCombatResolver.TryApplyOpportunityAttack(state, raider, tank, out var outcome);
+
+        Assert.IsTrue(triggered, "교전 랩 이탈 기회공격이 발동하지 않았습니다.");
+        Assert.AreEqual(0, raider.reactionPoints, "교전 랩 기회공격이 RP를 소비하지 않았습니다.");
+        Assert.Greater(outcome.damageToHp + outcome.damageToPg, 0, "교전 랩 기회공격 피해가 기록되지 않았습니다.");
+        Assert.Less(tank.hp, beforeHp, "교전 랩 기회공격 HP 피해가 반영되지 않았습니다.");
+    }
+
+    [Test]
+    public void EngagementLabPreset_AppliesTankAndSustainedDefenseBuffers()
+    {
+        var state = SrpBattleState.FromMap(SrpDefaultMaps.GetPreset(SrpMapPreset.M1EngagementLab));
+        var tank = FindUnit(state, owner: 0, templateId: "engage_tank");
+        var raider = FindUnit(state, owner: 1, templateId: "engage_raider");
+        tank.reactionPoints = 0;
+        raider.attackPower = 8;
+        state.RebuildEngagements();
+
+        var first = SrpCombatResolver.ApplyAttack(state, raider, tank);
+        var second = SrpCombatResolver.ApplyAttack(state, raider, tank);
+
+        Assert.IsTrue(first.tankMultiEngagementBufferApplied, "교전 랩 첫 피격에 탱커 다중 대응이 적용되지 않았습니다.");
+        Assert.IsFalse(first.sustainedDefenseBufferApplied, "교전 랩 첫 피격에 후속 수비 완충이 적용되었습니다.");
+        Assert.IsTrue(second.tankMultiEngagementBufferApplied, "교전 랩 후속 피격에 탱커 다중 대응이 유지되지 않았습니다.");
+        Assert.IsTrue(second.sustainedDefenseBufferApplied, "교전 랩 후속 피격에 수비 지속 완충이 적용되지 않았습니다.");
+        Assert.AreEqual(2, tank.defensiveHitsTakenThisRound, "교전 랩 수비 피격 누적이 증가하지 않았습니다.");
     }
 
     static SrpMapFileV1 CreateZocTestMap()
@@ -166,6 +688,79 @@ public class SrpM1RuleSpecTests
             pg = 24,
             maxPg = 24,
             stance = stance,
+        };
+    }
+
+    static void PlaceParryPair(SrpUnitRuntime attacker, SrpUnitRuntime defender, int attackerX, int attackerY, SrpFacing defenderFacing)
+    {
+        attacker.anchorX = attackerX;
+        attacker.anchorY = attackerY;
+        attacker.weaponClass = SrpWeaponClass.Melee;
+        attacker.owner = 1;
+        defender.anchorX = 2;
+        defender.anchorY = 2;
+        defender.owner = 0;
+        defender.facing = defenderFacing;
+        defender.tags = (int)SrpUnitTags.ParryUser;
+        defender.reactionPoints = 1;
+    }
+
+    static SrpSkillData CreateParryableSkill()
+    {
+        return new SrpSkillData
+        {
+            id = "test_parryable",
+            displayName = "Test Parryable",
+            isParryable = true,
+            requiresParryTelegraph = true,
+        };
+    }
+
+    static SrpUnitRuntime CreateExtraEnemy(int id, int x, int y)
+    {
+        return new SrpUnitRuntime
+        {
+            id = id,
+            templateId = "enemy_extra",
+            displayName = "EnemyExtra",
+            owner = 1,
+            anchorX = x,
+            anchorY = y,
+            footprintOffsets = new System.Collections.Generic.List<UnityEngine.Vector2Int> { UnityEngine.Vector2Int.zero },
+            hp = 30,
+            maxHp = 30,
+            pg = 10,
+            maxPg = 10,
+            actionPoints = 2,
+            maxActionPoints = 2,
+            reactionPoints = 1,
+            maxReactionPoints = 1,
+            speed = 10,
+            weaponClass = SrpWeaponClass.Melee,
+            stance = SrpStance.Aggressive,
+            moveRange = 3,
+            attackRange = 1,
+            attackPower = 8,
+        };
+    }
+
+    static SrpUnitRuntime CreateOverwatchReadyUnit()
+    {
+        return new SrpUnitRuntime
+        {
+            id = 900,
+            displayName = "OverwatchReady",
+            owner = 0,
+            hp = 30,
+            maxHp = 30,
+            pg = 10,
+            maxPg = 10,
+            actionPoints = 1,
+            maxActionPoints = 2,
+            reactionPoints = 1,
+            maxReactionPoints = 1,
+            weaponClass = SrpWeaponClass.Firearm,
+            attackRange = 3,
         };
     }
 }

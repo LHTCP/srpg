@@ -21,7 +21,7 @@ public static class SrpDefaultUnits
                 facing = SrpFacing.South,
                 skillIds = new[] { "heart_spike" },
                 maxSkills = 4,
-                tags = 0,
+                tags = (int)(SrpUnitTags.ParryUser | SrpUnitTags.Tank),
             },
             new SrpUnitTemplateData
             {

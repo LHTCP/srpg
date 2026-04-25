@@ -4,4 +4,5 @@
 public enum SrpMapPreset
 {
     M1QaIntegrated = 0,
+    M1EngagementLab = 1,
 }

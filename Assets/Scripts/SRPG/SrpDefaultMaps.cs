@@ -7,7 +7,14 @@ public static class SrpDefaultMaps
 {
     public static SrpMapFileV1 GetPreset(SrpMapPreset preset)
     {
-        return CreateM1QaIntegrated();
+        switch (preset)
+        {
+            case SrpMapPreset.M1EngagementLab:
+                return CreateM1EngagementLab();
+            case SrpMapPreset.M1QaIntegrated:
+            default:
+                return CreateM1QaIntegrated();
+        }
     }
 
     /// <summary>
@@ -71,7 +78,7 @@ public static class SrpDefaultMaps
                 facing = SrpFacing.West,
                 skillIds = new string[0],
                 maxSkills = 4,
-                tags = 0,
+                tags = (int)(SrpUnitTags.ParryUser | SrpUnitTags.Tank),
             },
             new SrpUnitTemplateData
             {
@@ -130,6 +137,150 @@ public static class SrpDefaultMaps
         {
             version = 2,
             name = "m1_qa_integrated",
+            width = w,
+            height = h,
+            walkable = walk,
+            playerOrder = new[] { 0, 1 },
+            templates = templates,
+            placements = placements,
+        };
+    }
+
+    /// <summary>
+    /// 교전/둘러싸임 QA 프리셋.
+    /// - 탱커가 두 적에게 인접한 상태로 시작해 다중 교전 완충을 확인한다.
+    /// - 서쪽으로 한 칸 이탈하면 교전 이탈 비용/기회공격을 확인할 수 있다.
+    /// - 사격수는 오버워치 예약과 위험 범위 확인용으로 배치한다.
+    /// </summary>
+    public static SrpMapFileV1 CreateM1EngagementLab()
+    {
+        int w = 8, h = 6;
+        int n = w * h;
+        var walk = new bool[n];
+        for (int i = 0; i < n; i++)
+            walk[i] = true;
+
+        // 좌측 통로와 우측 교전 구역을 느슨하게 분리한다.
+        walk[3 + 0 * w] = false;
+        walk[3 + 1 * w] = false;
+        walk[3 + 4 * w] = false;
+        walk[3 + 5 * w] = false;
+
+        var templates = new[]
+        {
+            new SrpUnitTemplateData
+            {
+                id = "engage_tank",
+                displayName = "교전 탱커",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 8,
+                maxHp = 52,
+                maxPg = 36,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 8,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Defensive,
+                facing = SrpFacing.East,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = (int)(SrpUnitTags.ParryUser | SrpUnitTags.Tank),
+            },
+            new SrpUnitTemplateData
+            {
+                id = "engage_guard",
+                displayName = "지원 근접병",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 7,
+                maxHp = 34,
+                maxPg = 20,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 10,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.East,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "engage_raider",
+                displayName = "포위 돌격병",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 8,
+                maxHp = 30,
+                maxPg = 18,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 11,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.West,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "engage_flanker",
+                displayName = "포위 측면병",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 7,
+                maxHp = 28,
+                maxPg = 18,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 9,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.West,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "engage_overwatch",
+                displayName = "오버워치 사격수",
+                moveRange = 3,
+                attackRange = 4,
+                attackPower = 8,
+                maxHp = 28,
+                maxPg = 16,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 7,
+                weaponClass = SrpWeaponClass.Firearm,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.West,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+        };
+
+        var placements = new[]
+        {
+            // Owner 0: 탱커가 이미 두 적에게 인접해 다중 교전 상태로 시작한다.
+            new SrpPlacementData { templateId = "engage_tank", owner = 0, x = 3, y = 2, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "engage_guard", owner = 0, x = 1, y = 2, footprint = new SrpOffset[0] },
+
+            // Owner 1
+            new SrpPlacementData { templateId = "engage_raider", owner = 1, x = 4, y = 2, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "engage_flanker", owner = 1, x = 3, y = 3, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "engage_overwatch", owner = 1, x = 6, y = 2, footprint = new SrpOffset[0] },
+        };
+
+        return new SrpMapFileV1
+        {
+            version = 2,
+            name = "m1_engagement_lab",
             width = w,
             height = h,
             walkable = walk,
