@@ -13,7 +13,7 @@ public static class SrpSkills
             if (data.trigger != SrpSkillTrigger.OnTurnStart) continue;
             if (sr.cooldownRemaining > 0) continue;
 
-            ApplyEffects(data, u, u, state, log);
+            ApplyEffects(data, null, u, u, state, log);
             sr.cooldownRemaining = data.cooldown;
             log?.Invoke($"스킬 발동: {u.displayName} → {data.displayName} | 턴 시작 효과");
             any = true;
@@ -30,7 +30,7 @@ public static class SrpSkills
             if (data.skillType != SrpSkillType.Passive) continue;
             if (data.trigger != SrpSkillTrigger.OnAttackHit) continue;
 
-            ApplyEffects(data, attacker, defender, state, log);
+            ApplyEffects(data, null, attacker, defender, state, log);
             log?.Invoke($"스킬 발동: {attacker.displayName} → {data.displayName} | 공격 적중 효과");
         }
     }
@@ -43,7 +43,7 @@ public static class SrpSkills
             if (data.skillType != SrpSkillType.Passive) continue;
             if (data.trigger != SrpSkillTrigger.OnTakeDamage) continue;
 
-            ApplyEffects(data, defender, defender, state, log);
+            ApplyEffects(data, null, defender, defender, state, log);
             log?.Invoke($"스킬 발동: {defender.displayName} → {data.displayName} | 피격 시 효과");
         }
     }
@@ -107,7 +107,8 @@ public static class SrpSkills
             target = caster;
 
         EnsureRuntimeInitialized(data, runtime);
-        ApplyEffects(data, caster, target, state, log);
+        ApplyEffects(data, runtime, caster, target, state, log);
+        ConsumeOverclockPowerIfNeeded(data, runtime, log);
         SpendSkillResource(data, runtime);
         runtime.cooldownRemaining = data.cooldown;
         string targetName = target != null ? target.displayName : $"({targetX},{targetY})";
@@ -172,6 +173,29 @@ public static class SrpSkills
         SrpSkillRuntime runtime,
         System.Action<string> log)
     {
+        if (!CanOverclockSkill(caster, data, runtime))
+            return false;
+
+        caster.frozenHeart = Mathf.Max(0, caster.frozenHeart - data.overclockFrozenHeartCost);
+        if (data.overclockCooldownReduction > 0 && runtime.cooldownRemaining > 0)
+            runtime.cooldownRemaining = Mathf.Max(0, runtime.cooldownRemaining - data.overclockCooldownReduction);
+        if (data.overclockChargeRestore > 0 && UsesCharges(data) && runtime.chargesRemaining < data.maxCharges)
+        {
+            runtime.chargesRemaining = Mathf.Min(data.maxCharges, runtime.chargesRemaining + data.overclockChargeRestore);
+            runtime.chargeRecoveryRemaining = runtime.chargesRemaining < data.maxCharges ? runtime.chargeRecoveryRemaining : 0;
+        }
+        if (CanApplyOverclockPower(data, runtime))
+            runtime.overclockedUsesRemaining = 1;
+
+        string powerText = runtime.overclockedUsesRemaining > 0 && data.overclockPowerBonus > 0
+            ? $" | 다음 사용 피해/회복 +{data.overclockPowerBonus}"
+            : string.Empty;
+        log?.Invoke($"오버클럭: {caster.displayName} → {data.displayName} | 안정도(FH)-{data.overclockFrozenHeartCost}{powerText}");
+        return true;
+    }
+
+    public static bool CanOverclockSkill(SrpUnitRuntime caster, SrpSkillData data, SrpSkillRuntime runtime)
+    {
         if (caster == null || data == null || runtime == null)
             return false;
         if (data.overclockFrozenHeartCost <= 0 || caster.frozenHeart < data.overclockFrozenHeartCost)
@@ -182,20 +206,17 @@ public static class SrpSkills
         bool canRestoreCharge = data.overclockChargeRestore > 0
             && UsesCharges(data)
             && runtime.chargesRemaining < data.maxCharges;
-        if (!canReduceCooldown && !canRestoreCharge)
-            return false;
+        return canReduceCooldown || canRestoreCharge || CanApplyOverclockPower(data, runtime);
+    }
 
-        caster.frozenHeart = Mathf.Max(0, caster.frozenHeart - data.overclockFrozenHeartCost);
-        if (canReduceCooldown)
-            runtime.cooldownRemaining = Mathf.Max(0, runtime.cooldownRemaining - data.overclockCooldownReduction);
-        if (canRestoreCharge)
-        {
-            runtime.chargesRemaining = Mathf.Min(data.maxCharges, runtime.chargesRemaining + data.overclockChargeRestore);
-            runtime.chargeRecoveryRemaining = runtime.chargesRemaining < data.maxCharges ? runtime.chargeRecoveryRemaining : 0;
-        }
-
-        log?.Invoke($"오버클럭: {caster.displayName} → {data.displayName} | 안정도(FH)-{data.overclockFrozenHeartCost}");
-        return true;
+    static bool CanApplyOverclockPower(SrpSkillData data, SrpSkillRuntime runtime)
+    {
+        return data != null
+            && runtime != null
+            && data.skillType == SrpSkillType.Active
+            && data.trigger == SrpSkillTrigger.OnActivate
+            && data.overclockPowerBonus > 0
+            && runtime.overclockedUsesRemaining <= 0;
     }
 
     static void SpendSkillResource(SrpSkillData data, SrpSkillRuntime runtime)
@@ -213,7 +234,22 @@ public static class SrpSkills
         return Mathf.Max(1, data != null ? data.chargeRecoveryTurns : 1);
     }
 
-    static void ApplyEffects(SrpSkillData data, SrpUnitRuntime caster, SrpUnitRuntime target,
+    static int ApplyOverclockPowerBonus(SrpSkillData data, SrpSkillRuntime runtime, int baseValue)
+    {
+        if (data == null || runtime == null || runtime.overclockedUsesRemaining <= 0 || data.overclockPowerBonus <= 0)
+            return baseValue;
+        return baseValue + data.overclockPowerBonus;
+    }
+
+    static void ConsumeOverclockPowerIfNeeded(SrpSkillData data, SrpSkillRuntime runtime, System.Action<string> log)
+    {
+        if (data == null || runtime == null || runtime.overclockedUsesRemaining <= 0 || data.overclockPowerBonus <= 0)
+            return;
+        runtime.overclockedUsesRemaining = Mathf.Max(0, runtime.overclockedUsesRemaining - 1);
+        log?.Invoke($"오버클럭 강화 소모: {data.displayName} | 피해/회복 +{data.overclockPowerBonus}");
+    }
+
+    static void ApplyEffects(SrpSkillData data, SrpSkillRuntime runtime, SrpUnitRuntime caster, SrpUnitRuntime target,
         SrpBattleState state, System.Action<string> log)
     {
         if (data.effects == null) return;
@@ -224,7 +260,8 @@ public static class SrpSkills
                 case SrpEffectType.Damage:
                 {
                     if (target == null) break;
-                    int dmg = eff.value;
+                    int baseDmg = eff.value;
+                    int dmg = ApplyOverclockPowerBonus(data, runtime, baseDmg);
                     if (dmg <= 0) break;
                     int pgDmg = Mathf.Max(1, dmg / 2);
                     int hpDmg = dmg;
@@ -236,7 +273,8 @@ public static class SrpSkills
                     if (reaction.reactionSpentRp)
                         LogSkillReaction(target, reaction, log);
                     SrpCombatResolver.ApplyResolvedDamage(target, ref reaction, hpDmg, pgDmg);
-                    log?.Invoke($"스킬 피해: {target.displayName} | PG-{pgDmg} HP-{hpDmg} (기준 {dmg})");
+                    string overclockText = dmg != baseDmg ? $" | 오버클럭 +{data.overclockPowerBonus}" : string.Empty;
+                    log?.Invoke($"스킬 피해: {target.displayName} | PG-{pgDmg} HP-{hpDmg} (기준 {baseDmg}{overclockText})");
                     if (reaction.becameGroggy)
                         log?.Invoke($"PG 붕괴: {target.displayName} | 처단 위험 상태");
                     if (reaction.defenderDied)
@@ -249,9 +287,11 @@ public static class SrpSkills
                 case SrpEffectType.Heal:
                 {
                     if (target == null) break;
-                    int heal = eff.value;
+                    int baseHeal = eff.value;
+                    int heal = ApplyOverclockPowerBonus(data, runtime, baseHeal);
                     target.hp = Mathf.Min(target.hp + heal, target.maxHp);
-                    log?.Invoke($"회복: {target.displayName} | HP +{heal}");
+                    string overclockText = heal != baseHeal ? $" | 오버클럭 +{data.overclockPowerBonus}" : string.Empty;
+                    log?.Invoke($"회복: {target.displayName} | HP +{heal} (기준 {baseHeal}{overclockText})");
                     break;
                 }
                 case SrpEffectType.FrozenHeart:

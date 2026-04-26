@@ -11,7 +11,7 @@
 
 ## 0. 현재 착수 상태
 
-2026-04-26 기준 Phase2 1차 전투 코어 기반 작업, 교전 이탈 비용 브릿지, 교전 이탈 기회공격 1차 구현, 스킬 자원 기본 모델, 패링 조건/텔레그래프 1차 구현, 반응행동 파이프라인 1차 구현, 수비 지속 완충/탱커 다중 대응 브릿지, 메이커 메타데이터 UI 확장, 중간 점검 보정, 유닛 시각 방향성 개선, 교전/둘러싸임 검증 프리셋 보강, RP/HUD 노출 정책 정리, 기획 대조 P1 보정, HUD/로그 가독성 동기화, 오버워치 사선/횟수/해제 상세 규칙을 완료했다.
+2026-04-26 기준 Phase2 1차 전투 코어 기반 작업, 교전 이탈 비용 브릿지, 교전 이탈 기회공격 1차 구현, 스킬 자원 기본 모델, 패링 조건/텔레그래프 1차 구현, 반응행동 파이프라인 1차 구현, 수비 지속 완충/탱커 다중 대응 브릿지, 메이커 메타데이터 UI 확장, 중간 점검 보정, 유닛 시각 방향성 개선, 교전/둘러싸임 검증 프리셋 보강, RP/HUD 노출 정책 정리, 기획 대조 P1 보정, HUD/로그 가독성 동기화, 오버워치 사선/횟수/해제 상세 규칙, 테스트 프리셋 v2 + HUD 레이아웃 개편, 전투 직접 조작 UI 보강, 오버클럭 성능 증폭, 재장전 AP 행동 1차 구현, 엄폐 AP 행동 1차 구현, 상호작용 AP 행동 1차 구현, 개발용 전술 HUD 개선을 완료했다.
 
 완료 범위:
 
@@ -21,8 +21,8 @@
 - `SrpTurnOrder.cs`: 라운드 AP/RP 리셋 정책 분리
 - `SrpGameController.cs`: 상태 기반 전투 해결, 피격 패시브 훅, 교전 재계산, 교전 이탈 로그 힌트, 기회공격 실행 연결
 - `SrpPathfinder.cs`: 교전 중 적 인접 상태를 벗어나는 이동에 임시 이탈 비용 추가
-- `SrpSkillData.cs`: 충전/오버클럭 스킬 메타와 런타임 충전 상태 추가
-- `SrpSkills.cs`: 쿨다운/충전 소비·회복, FH 기반 오버클럭 헬퍼 추가
+- `SrpSkillData.cs`: 충전/오버클럭 스킬 메타, 런타임 충전 상태, 오버클럭 1회 강화 상태 추가
+- `SrpSkills.cs`: 쿨다운/충전 소비·회복, FH 기반 오버클럭 헬퍼, 다음 스킬 사용 1회 피해/회복 증폭 추가
 - `SrpUnitTags.cs`: 패링 가능자 플래그 추가
 - `SrpSkillData.cs`: 패링 가능 공격/텔레그래프 메타 추가
 - `SrpCombatResolver.cs`: 정면/근접/RP/태그 기반 패링 가능 판정 헬퍼 추가
@@ -49,33 +49,55 @@
 - `SrpGameController.cs`, `SrpSkills.cs`: 반응 로그를 RP 원시 수치보다 발동/소모 중심 문구로 정리
 - `SrpCombatResolver.cs`: 기본공격 패링 제거, 패링 태그 기반 정면 근접 스킬 패링 제한, Dodge 확률형 시도/실패 브릿지, 측후면 방어 불리 브릿지 추가
 - `SrpGameController.Hud.cs`: 실제 오버레이와 맞춘 공통 범례, 반응/오버워치/스킬 자원 용어 통일, PlayMode 테스트용 HUD 관측 헬퍼 추가
+- `SrpGameController.Hud.cs`: 상단 전투 헤더, 보조 정보 바, 좌측 조작 콘솔, 우측 로그로 HUD 레이아웃 분리
+- `SrpDefaultMaps.cs`: `M1QaIntegrated`를 최신 스킬 자원/패링 가능 스킬/오버워치 사선/탱커 확인용 프리셋으로 갱신
+- `SrpBattleState.cs`: 로컬 스킬 DB가 구버전이어도 내장 QA 프리셋의 v2 기본 스킬 메타가 누락되지 않게 보강
+- `SrpGameController.Hud.cs`: 태세 선택, 최종 방향 선택, 오버클럭 실행 버튼을 좌측 전술 콘솔에 추가
+- `SrpGameController.cs`, `SrpSkills.cs`: 태세/방향 직접 변경과 오버클럭 가능 조건 helper를 전투 입력 흐름에 연결
+- `SrpGameController.Hud.cs`, `SrpSkillMakerController.cs`: 오버클럭 증폭/강화 대기 상태와 메이커 입력 필드 추가
 - `SrpGameController.cs`, `SrpSkills.cs`: 공격/기회공격/오버워치/스킬/반응 로그를 이벤트 단위 문구로 정리
-- EditMode 테스트: 교전/반응 클론 독립성, Guard RP 소비, 라운드 RP 리셋, 교전 이탈 비용, 기회공격 발생/미발생, 쿨다운/충전/오버클럭, 패링 가능/불가 조건, Parry/Dodge/명시형 ReactionShot, 오버워치 사선/차단, 수비 지속 완충/탱커 다중 대응, 메이커 JSON 메타 보존, 중간 점검 회귀, 유닛 뷰 방향 회전, 프리셋 기반 교전/포위 검증, 오버워치 상태 helper 검증 추가
-- PlayMode 테스트: HUD의 반응 상태 표기(`반응: 준비/소모/예약`), 범례, 오버워치 버튼, hover 문구, 로그 핵심 문구를 스모크 검증
+- `SrpUnitRuntime.cs`, `SrpMapFile.cs`, `SrpBattleState.cs`: 총기 유닛 탄약/최대 탄약 계약과 스폰 기본 탄약 초기화 추가
+- `SrpGameController.cs`, `SrpOverwatch.cs`: 기본 공격/오버워치 탄약 검사·소비, AP 1 재장전 행동 연결
+- `SrpGameController.Hud.cs`, `SrpUnitMakerController.cs`: 좌측 전술 콘솔 재장전 버튼, HUD 탄약 표시, 유닛 메이커 최대 탄약 입력 추가
+- `SrpUnitRuntime.cs`, `SrpBattleState.cs`: 엄폐 상태와 인접 비보행 타일 엄폐 판정 추가
+- `SrpCombatResolver.cs`: 총기 기본 공격/오버워치 사격의 엄폐 완충과 근접/마법/처단 비적용 규칙 추가
+- `SrpGameController.cs`, `SrpGameController.Hud.cs`, `SrpGameController.Rendering.cs`: 좌측 전술 콘솔 엄폐 버튼, HUD 엄폐 상태, 엄폐 오버레이 추가
+- `SrpMapFile.cs`, `SrpBattleState.cs`: 맵 상호작용 포인트 계약과 런타임 클론/인접 탐색/활성화 helper 추가
+- `SrpGameController.cs`, `SrpGameController.Hud.cs`, `SrpGameController.Rendering.cs`: AP 1 상호작용 실행, 좌측 전술 콘솔 상호작용 버튼, HUD 상태, 상호작용 오버레이 추가
+- `SrpDefaultMaps.cs`: `M1QaIntegrated`에 직접 테스트용 상호작용 포인트 추가
+- `SrpGameController.Hud.cs`: 좌측 하단 현재 유닛 카드, 우측 하단 행동 preview 카드, HP/PG/AP/탄약 숫자+게이지 표시 추가
+- `SrpGameController.cs`: 유닛/타일 hover 상태를 이동/공격/스킬/상호작용 preview 카드에 읽기 전용으로 연결
+- EditMode 테스트: 교전/반응 클론 독립성, Guard RP 소비, 라운드 RP 리셋, 교전 이탈 비용, 기회공격 발생/미발생, 쿨다운/충전/오버클럭, 오버클럭 성능 증폭, 패링 가능/불가 조건, Parry/Dodge/명시형 ReactionShot, 오버워치 사선/차단, 수비 지속 완충/탱커 다중 대응, 메이커 JSON 메타 보존, 중간 점검 회귀, 유닛 뷰 방향 회전, 프리셋 기반 교전/포위 검증, QA 프리셋 v2 스킬/태그 검증, 오버클럭 가능 조건, 오버워치 상태 helper, 탄약/재장전/오버워치 탄약 소비, 엄폐 판정/완충, 상호작용 탐색/실행/owner 제한/클론/JSON/프리셋 검증 추가
+- PlayMode 테스트: HUD의 반응 상태 표기(`반응: 준비/소모/예약`), 상단 헤더/좌측 콘솔/하단 유닛 카드/행동 preview 카드, 태세/방향/오버클럭/재장전/엄폐/상호작용 직접 조작, 범례, 오버워치 버튼, hover 문구, 로그 핵심 문구를 스모크 검증
 
 주의:
 
 - 원기획의 교전 이탈 규칙은 이동력 추가 소모가 아니라 `기회공격` 리스크 중심이다.
 - 현재 `+1` 비용은 기존 ZOC 비용 모델에 맞춘 브릿지 구현이며, 기회공격 1차 구현 후에도 이동 선택 단계의 위험 힌트로 유지한다.
 - `ReactionShot` 기록은 교전 이탈 기회공격과 명시형 오버워치 발동 모두에 사용한다.
-- 현재 오버클럭 비용은 기존 `frozenHeart` 값을 안정도 대용으로 사용한다. 별도 안정도 수치계/전용 UI는 후속으로 남긴다.
+- 현재 오버클럭 비용은 기존 `frozenHeart` 값을 안정도 대용으로 사용하고, 좌측 전술 콘솔의 오버클럭 버튼으로 실행한다. 오버클럭은 쿨다운 단축, 충전 복구, 다음 스킬 사용 1회 피해/회복 증폭을 지원한다. 별도 안정도 수치계/전용 UI는 후속으로 남긴다.
+- 현재 재장전은 총기 유닛 전용 AP 1 행동이다. 기본 공격과 오버워치 발동은 탄약 1을 소비하며, 오버워치 예약도 탄약이 있어야 가능하다. 명시 `maxAmmo`가 없는 총기 기본 탄창은 전장식 총기 정책에 따라 1발이며, 비총기 유닛에는 탄약 UI/제한을 적용하지 않는다.
+- 현재 엄폐는 기존 비보행 장애물 타일에 인접하거나 같은 칸의 방향성 edge segment에 선 유닛이 AP 1로 취하는 1차 행동이다. 엄폐 완충은 총기 원거리 공격/오버워치 사격에만 적용하며, 근접/마법/처단에는 적용하지 않는다. 선형/방향성 엄폐는 `SrpCoverSegmentData { x, y, edge, shape, coverDef, coverGrd, blocksLineOfSight }` 계약으로 분리하고, ㄱ자/ㄷ자 엄폐는 여러 edge segment 조합으로 표현한다. 1차 구현은 공격자-방어자 방향 기준 피해 완충까지이며, `blocksLineOfSight` 사선 차단과 맵 메이커 편집 UI는 후속으로 남긴다.
+- 현재 상호작용은 맵의 `SrpInteractionPointData`에 인접한 유닛이 AP 1로 활성화하는 1차 행동이다. `requiredOwner < 0`이면 누구나 가능하고, 아니면 해당 owner만 가능하다. 복잡한 시나리오 스크립트와 맵 메이커 전용 편집 UI는 후속으로 남긴다.
 - 현재 Parry/Dodge는 피해 무효화 브릿지로 구현했다. 최종 회피 확률식, 패링 보상/실패 패널티 수치는 `TBD-003`, `TBD-005` 후속으로 남긴다.
 - 현재 Dodge는 임시 확률형 브릿지로 성공/실패만 분기한다. 최종 확률식과 스탯/방향 가중치는 `TBD-003` 후속으로 남긴다.
 - 현재 방향 방어 불리는 측후면 추가 피해 브릿지로만 반영한다. 최종 DEF/GRD 수치표와 방향별 공식은 `TBD-002` 후속으로 남긴다.
-- 현재 명시형 `ReactionShot`은 AP 예약/RP 발동, 8방향 직선 사선, 장애물/유닛 차단, 예약 1회당 1회 발동, 라운드 리셋 해제를 1차 상세 규칙으로 사용한다. 여러 오버워치 후보의 우선순위와 특수 지형 상호작용은 `TBD-004` 후속으로 남긴다.
+- 현재 명시형 `ReactionShot`은 AP 예약/RP 발동, 8방향 직선 사선, 장애물/유닛 차단, 예약 1회당 1회 발동, 라운드 리셋 해제를 1차 상세 규칙으로 사용한다. 여러 오버워치 후보의 우선순위와 추가 특수 지형 상호작용은 `TBD-004` 후속으로 남긴다.
 - 현재 탱커 다중 대응은 `Tank` 태그와 다중 교전 수 기반 감쇠 브릿지다. 탱커 전용 패시브 최종 형태/수치는 `TBD-006` 후속으로 남긴다.
 
 검증:
 
-- Unity EditMode 테스트 통과: `45 passed / 0 failed`
-- Unity PlayMode 테스트 통과: `4 passed / 0 failed`
+- Unity EditMode 테스트 통과: `64 passed / 0 failed`
+- Unity PlayMode 테스트 통과: `5 passed / 0 failed`
 - 실행 명령:
   - `Unity.exe -batchmode -automated -projectPath c:/workdir/srpg -runTests -testPlatform EditMode -testResults c:/workdir/srpg/TestResults-EditMode.xml -logFile c:/workdir/srpg/UnityTest-EditMode.log`
 
 다음 착수 후보:
 
-- P1/P2: 테스트/시뮬레이션 기준 갱신
-- P2: 탱커 패시브 최종안/특수 스킬 피해 파이프라인 정리
+- P1/P2: 방향성 엄폐 후속 구현
+  - 다음 단계: 오버워치/사선 차단과 연동
+  - 이후 단계: 맵 메이커 편집 UI
+- P1/P2: 마법/전장 개입 스킬 콘텐츠 검토
 
 ## 0-1. 완료: 기획 대조 P1 보정
 
@@ -173,6 +195,279 @@
 - `ReadLints` 변경 파일 진단 통과
 - Unity EditMode 테스트 통과: `45 passed / 0 failed`
 - Unity PlayMode 테스트 통과: `4 passed / 0 failed`
+- 테스트 산출물 확인 후 삭제
+
+## 0-4. 완료: 테스트 프리셋 v2 + HUD 레이아웃 개편
+
+목표:
+
+- 최신 Phase2 전투 규칙을 플레이 중 직접 확인할 수 있도록 `M1QaIntegrated`를 갱신한다.
+- 전투 상태 정보와 조작 콘솔을 분리해 HUD 가독성과 테스트 편의성을 높인다.
+
+작업 범위:
+
+| 우선순위 | 파일 | 작업 | 요구사항 ID |
+| --- | --- | --- | --- |
+| P1-4-1 | `Assets/Scripts/SRPG/SrpDefaultMaps.cs`, `Assets/Scripts/SRPG/SrpBattleState.cs` | 스킬 자원/패링 가능 스킬/오버워치 사선/탱커 확인용 `M1QaIntegrated` 갱신 및 구버전 로컬 스킬 DB 보강 | `RQ-003`, `RQ-009`, `RQ-011`, `TBD-001` |
+| P1-4-2 | `Assets/Scripts/SRPG/SrpGameController.Hud.cs` | 상단 전투 헤더, 보조 정보 바, 좌측 조작 콘솔, 우측 로그로 HUD 레이아웃 분리 | `RQ-002`, `RQ-003`, `TBD-001` |
+| P1-4-3 | `Assets/Tests/EditMode/Editor/SrpMakerMetadataTests.cs`, `Assets/Tests/PlayMode/SrpM1PlayModeTests.cs`, `Assets/Tests/PlayMode/SrpM1AiPlaySampleTests.cs` | 프리셋 v2와 HUD 레이아웃 스모크 테스트 갱신 | `RQ-002`, `RQ-009`, `RQ-011`, `TBD-001` |
+| P1-4-4 | `docs/srpg/SRPG_BACKLOG.md`, `docs/srpg/SRPG_TDD.md`, `docs/srpg/SRPG_GDD_TEST_TRACEABILITY.md`, `docs/srpg/SRPG_CHANGELOG.md`, `docs/srpg/SRPG_README.md` | 완료 범위와 테스트 결과 문서화 | `TBD-001` |
+
+비범위:
+
+- 정식 튜토리얼/가이드 팝업
+- 새 전투 규칙 추가
+- 별도 UI 프리팹/아트 리소스 제작
+
+검증:
+
+- `ReadLints` 변경 파일 진단 통과
+- Unity EditMode 테스트 통과: `46 passed / 0 failed`
+- Unity PlayMode 테스트 통과: `4 passed / 0 failed`
+- 테스트 산출물 확인 후 삭제
+
+## 0-5. 완료: 전투 직접 조작 UI 보강
+
+목표:
+
+- 구현은 되어 있지만 전투 중 직접 설정할 UI가 부족했던 태세, 방향, 오버클럭 조작을 좌측 전술 콘솔에 연결한다.
+- 자동 반응행동과 미구현 코어 기능을 직접 조작 UI 범위에서 분리한다.
+
+작업 범위:
+
+| 우선순위 | 파일 | 작업 | 요구사항 ID |
+| --- | --- | --- | --- |
+| P1-5-1 | `Assets/Scripts/SRPG/SrpGameController.Hud.cs` | 태세 선택, 방향 선택, 오버클럭 버튼과 테스트 관측 helper 추가 | `RQ-005`, `RQ-011`, `RQ-012`, `TBD-001` |
+| P1-5-2 | `Assets/Scripts/SRPG/SrpGameController.cs` | 태세 변경 제한, 방향 변경, 오버클럭 실행을 전투 상태/Undo/로그/HUD에 연결 | `RQ-005`, `RQ-011`, `RQ-012` |
+| P1-5-3 | `Assets/Scripts/SRPG/SrpSkills.cs` | 오버클럭 실행 전 가능 조건 helper 추가 | `RQ-011`, `RQ-012` |
+| P1-5-4 | `Assets/Tests/EditMode/Editor/SrpMakerMetadataTests.cs`, `Assets/Tests/PlayMode/SrpM1PlayModeTests.cs` | 오버클럭 가능 조건 및 태세/방향/오버클럭 직접 조작 PlayMode 검증 | `RQ-005`, `RQ-011`, `RQ-012` |
+| P1-5-5 | `docs/srpg/SRPG_BACKLOG.md`, `docs/srpg/SRPG_TDD.md`, `docs/srpg/SRPG_GDD_TEST_TRACEABILITY.md`, `docs/srpg/SRPG_CHANGELOG.md`, `docs/srpg/SRPG_README.md` | 완료 범위와 테스트 결과 문서화 | `TBD-001` |
+
+비범위:
+
+- 패링/회피/가드/기회공격/오버워치 발동 직접 선택 UI
+- 엄폐/재장전/상호작용 UI
+
+검증:
+
+- `ReadLints` 변경 파일 진단 통과
+- Unity EditMode 테스트 통과: `47 passed / 0 failed`
+- Unity PlayMode 테스트 통과: `5 passed / 0 failed`
+- 테스트 산출물 확인 후 삭제
+
+## 0-6. 완료: 오버클럭 성능 증폭
+
+목표:
+
+- 안정도 오버클럭의 남은 확정 기능인 일시 성능 증폭을 기존 스킬 자원 모델에 통합한다.
+- 지속 턴/중첩/범위 증폭은 도입하지 않고 다음 액티브 스킬 사용 1회 강화로 제한한다.
+
+작업 범위:
+
+| 우선순위 | 파일 | 작업 | 요구사항 ID |
+| --- | --- | --- | --- |
+| P1-6-1 | `Assets/Scripts/SRPG/SrpSkillData.cs` | 오버클럭 위력 보너스 메타와 런타임 강화 대기 상태 추가 | `RQ-012` |
+| P1-6-2 | `Assets/Scripts/SRPG/SrpSkills.cs` | 오버클럭 실행 시 다음 사용 1회 피해/회복 보너스 적용 및 소모 | `RQ-011`, `RQ-012` |
+| P1-6-3 | `Assets/Scripts/SRPG/SrpGameController.Hud.cs`, `Assets/Scripts/SRPG/SrpSkillMakerController.cs` | HUD/스킬 목록/로그/메이커에 증폭과 강화 대기 상태 표시 | `RQ-012`, `TBD-001` |
+| P1-6-4 | `Assets/Tests/EditMode/Editor/SrpM1CoreTests.cs`, `Assets/Tests/EditMode/Editor/SrpMakerMetadataTests.cs`, `Assets/Tests/PlayMode/SrpM1PlayModeTests.cs` | 성능 증폭 적용/소모와 UI 표기 회귀 테스트 | `RQ-012` |
+| P1-6-5 | `docs/srpg/SRPG_BACKLOG.md`, `docs/srpg/SRPG_TDD.md`, `docs/srpg/SRPG_GDD_TEST_TRACEABILITY.md`, `docs/srpg/SRPG_CHANGELOG.md`, `docs/srpg/SRPG_README.md` | 완료 범위와 테스트 결과 문서화 | `TBD-001` |
+
+비범위:
+
+- 지속 턴/중첩/범위 증폭
+- 별도 안정도 수치계/전용 UI
+
+검증:
+
+- `ReadLints` 변경 파일 진단 통과
+- Unity EditMode 테스트 통과: `48 passed / 0 failed`
+- Unity PlayMode 테스트 통과: `5 passed / 0 failed`
+- 테스트 산출물 확인 후 삭제
+
+## 0-7. 완료: 재장전 AP 행동 1차 구현
+
+목표:
+
+- 기준서의 AP 능동 행동 후보 중 재장전을 첫 확정 기능으로 구현한다.
+- 총기 유닛에만 탄약 제한을 적용하고, 비총기 유닛의 기존 공격 흐름은 유지한다.
+
+작업 범위:
+
+| 우선순위 | 파일 | 작업 | 요구사항 ID |
+| --- | --- | --- | --- |
+| P1-7-1 | `Assets/Scripts/SRPG/SrpUnitRuntime.cs`, `Assets/Scripts/SRPG/SrpMapFile.cs`, `Assets/Scripts/SRPG/SrpBattleState.cs` | 탄약/최대 탄약 런타임·템플릿 계약과 총기 기본 탄약 초기화 추가 | `RQ-002` |
+| P1-7-2 | `Assets/Scripts/SRPG/SrpGameController.cs`, `Assets/Scripts/SRPG/SrpOverwatch.cs` | 기본 공격과 오버워치 예약/발동에 탄약 검사/소비 연결 | `RQ-002`, `RQ-003` |
+| P1-7-3 | `Assets/Scripts/SRPG/SrpGameController.Hud.cs`, `Assets/Scripts/SRPG/SrpUnitMakerController.cs` | 좌측 콘솔 재장전 버튼, HUD 탄약 상태, 메이커 최대 탄약 입력 추가 | `RQ-002`, `TBD-001` |
+| P1-7-4 | `Assets/Tests/EditMode/Editor/SrpM1CoreTests.cs`, `Assets/Tests/EditMode/Editor/SrpMakerMetadataTests.cs`, `Assets/Tests/PlayMode/SrpM1PlayModeTests.cs` | 탄약 소비/차단/재장전/클론/오버워치 탄약 소비와 HUD 표기 회귀 테스트 | `RQ-002`, `RQ-003` |
+| P1-7-5 | `docs/srpg/SRPG_BACKLOG.md`, `docs/srpg/SRPG_TDD.md`, `docs/srpg/SRPG_GDD_TEST_TRACEABILITY.md`, `docs/srpg/SRPG_CHANGELOG.md`, `docs/srpg/SRPG_README.md` | 완료 범위와 테스트 결과 문서화 | `TBD-001` |
+
+비범위:
+
+- 엄폐/상호작용 AP 행동
+- 탄창별 재장전 시간, 탄종, 잔탄 공유 자원
+- 비총기 무기 탄약 제한
+
+검증:
+
+- `ReadLints` 변경 파일 진단 통과
+- Unity EditMode 테스트 통과: `51 passed / 0 failed`
+- Unity PlayMode 테스트 통과: `5 passed / 0 failed`
+- 테스트 산출물 확인 후 삭제
+
+## 0-8. 완료: 엄폐 AP 행동 1차 구현
+
+목표:
+
+- 재장전 다음 AP 행동으로 엄폐를 구현한다.
+- 별도 엄폐 타일 스키마를 새로 도입하지 않고, 기존 비보행 장애물 타일을 인접 엄폐물로 해석한다.
+
+작업 범위:
+
+| 우선순위 | 파일 | 작업 | 요구사항 ID |
+| --- | --- | --- | --- |
+| P1-8-1 | `Assets/Scripts/SRPG/SrpUnitRuntime.cs`, `Assets/Scripts/SRPG/SrpBattleState.cs` | 엄폐 런타임 상태와 인접 비보행 타일 엄폐 판정 추가 | `RQ-002`, `RQ-004` |
+| P1-8-2 | `Assets/Scripts/SRPG/SrpCombatResolver.cs` | 총기 원거리 공격/오버워치 사격 엄폐 완충과 근접/마법/처단 비적용 고정 | `RQ-004`, `TBD-004` |
+| P1-8-3 | `Assets/Scripts/SRPG/SrpGameController.cs`, `Assets/Scripts/SRPG/SrpGameController.Hud.cs`, `Assets/Scripts/SRPG/SrpGameController.Rendering.cs` | 좌측 콘솔 엄폐 버튼, HUD 엄폐 상태, 엄폐 오버레이 추가 | `RQ-002`, `TBD-001` |
+| P1-8-4 | `Assets/Tests/EditMode/Editor/SrpM1CoreTests.cs`, `Assets/Tests/PlayMode/SrpM1PlayModeTests.cs` | 엄폐 가능/클론/완충/비적용/HUD 표기 회귀 테스트 | `RQ-002`, `RQ-004`, `TBD-004` |
+| P1-8-5 | `docs/srpg/SRPG_BACKLOG.md`, `docs/srpg/SRPG_TDD.md`, `docs/srpg/SRPG_GDD_TEST_TRACEABILITY.md`, `docs/srpg/SRPG_CHANGELOG.md`, `docs/srpg/SRPG_README.md` | 완료 범위와 테스트 결과 문서화 | `TBD-001` |
+
+비범위:
+
+- 별도 엄폐 타일 스키마와 맵 메이커 엄폐 전용 편집
+- 여러 오버워치 후보 우선순위
+- 특수 지형 상호작용과 엄폐 방향별 정밀 수치
+- 상호작용 AP 행동
+
+검증:
+
+- `ReadLints` 변경 파일 진단 통과
+- Unity EditMode 테스트 통과: `54 passed / 0 failed`
+- Unity PlayMode 테스트 통과: `5 passed / 0 failed`
+- 테스트 산출물 확인 후 삭제
+
+## 0-9. 완료: 상호작용 AP 행동 1차 구현
+
+목표:
+
+- 재장전/엄폐에 이어 마지막 AP 행동 확정 후보인 상호작용을 1차 구현한다.
+- 복잡한 시나리오 스크립트가 아니라 맵에 배치된 포인트를 인접 유닛이 AP 1로 활성화하는 최소 규칙을 고정한다.
+
+작업 범위:
+
+| 우선순위 | 파일 | 작업 | 요구사항 ID |
+| --- | --- | --- | --- |
+| P1-9-1 | `Assets/Scripts/SRPG/SrpMapFile.cs`, `Assets/Scripts/SRPG/SrpBattleState.cs` | 상호작용 포인트 데이터 계약, 런타임 목록, 클론, 인접 탐색 helper 추가 | `RQ-002`, `TBD-001` |
+| P1-9-2 | `Assets/Scripts/SRPG/SrpGameController.cs` | AP 1 상호작용 실행, owner 제한, 활성화 상태 변경을 전투 입력에 연결 | `RQ-002` |
+| P1-9-3 | `Assets/Scripts/SRPG/SrpGameController.Hud.cs`, `Assets/Scripts/SRPG/SrpGameController.Rendering.cs` | 좌측 콘솔 상호작용 버튼, HUD 상태, 노랑 상호작용 오버레이 추가 | `RQ-002`, `TBD-001` |
+| P1-9-4 | `Assets/Scripts/SRPG/SrpDefaultMaps.cs` | `M1QaIntegrated`에 상호작용 포인트 1개 배치 | `RQ-002` |
+| P1-9-5 | `Assets/Tests/EditMode/Editor/SrpM1CoreTests.cs`, `Assets/Tests/EditMode/Editor/SrpMakerMetadataTests.cs`, `Assets/Tests/PlayMode/SrpM1PlayModeTests.cs` | 탐색/실행/차단/클론/JSON/프리셋/HUD 회귀 테스트 추가 | `RQ-002`, `TBD-001` |
+
+비범위:
+
+- 복잡한 이벤트 스크립트/문 열림/승리 조건 연동
+- 맵 메이커 상호작용 포인트 전용 편집 UI
+- 특수 지형과 상호작용 결과의 연쇄 효과
+
+검증:
+
+- `ReadLints` 변경 파일 진단 통과
+- Unity EditMode 테스트 통과: `59 passed / 0 failed`
+- Unity PlayMode 테스트 통과: `5 passed / 0 failed`
+- 테스트 산출물 확인 후 삭제
+
+## 0-10. 완료: 개발용 전술 HUD 개선
+
+목표:
+
+- 텍스처/프리팹 정식 UI 전환 전에도 테스트 편의성을 높일 수 있는 개발용 전술 HUD를 추가한다.
+- 전투 규칙에는 영향을 주지 않고, 선택 유닛과 hover 대상의 정보를 읽기 전용 preview로 표시한다.
+
+작업 범위:
+
+| 우선순위 | 파일 | 작업 | 요구사항 ID |
+| --- | --- | --- | --- |
+| P1-10-1 | `Assets/Scripts/SRPG/SrpGameController.Hud.cs` | 좌측 하단 현재 유닛 카드와 우측 하단 행동 preview 카드 추가 | `RQ-002`, `TBD-001` |
+| P1-10-2 | `Assets/Scripts/SRPG/SrpGameController.Hud.cs` | HP/PG/AP/탄약 숫자+단색 게이지 helper 추가 | `RQ-002`, `TBD-001` |
+| P1-10-3 | `Assets/Scripts/SRPG/SrpGameController.Hud.cs`, `Assets/Scripts/SRPG/SrpGameController.cs` | 이동/공격/스킬/상호작용 hover preview 데이터 구성 | `RQ-002`, `TBD-001` |
+| P1-10-4 | `Assets/Tests/PlayMode/SrpM1PlayModeTests.cs` | 하단 카드 생성, 게이지 텍스트, 이동/유닛/상호작용 preview 회귀 테스트 추가 | `RQ-002`, `TBD-001` |
+
+비범위:
+
+- 텍스처/아이콘/프리팹 기반 정식 UI
+- 애니메이션/사운드/팝업 연출
+- 최종 밸런스 수치와 확률 기대값의 완전한 예측
+
+검증:
+
+- `ReadLints` 변경 파일 진단 통과
+- Unity EditMode 테스트 통과: `59 passed / 0 failed`
+- Unity PlayMode 테스트 통과: `5 passed / 0 failed`
+- 테스트 산출물 확인 후 삭제
+
+## 0-11. 완료: 총기 1발 고화력 + 방향성 엄폐 설계
+
+목표:
+
+- 전장식 총기 컨셉에 맞춰 기본 탄창을 1발로 낮추고, 기본 공격을 HP 고화력 압박으로 재조정한다.
+- 선형/방향성 엄폐는 이번 단계에서 코드 구현하지 않고, 후속 데이터 계약과 판정 단계를 문서로 고정한다.
+
+작업 범위:
+
+| 우선순위 | 파일 | 작업 | 요구사항 ID |
+| --- | --- | --- | --- |
+| P1-11-1 | `Assets/Scripts/SRPG/SrpUnitRuntime.cs` | 명시 `maxAmmo`가 없는 총기 유닛의 기본 탄창을 1발로 변경 | `RQ-002` |
+| P1-11-2 | `Assets/Scripts/SRPG/SrpCombatResolver.cs` | 총기 기본 공격을 HP 고화력/낮은 PG 압박 공식으로 조정 | `RQ-002`, `RQ-004` |
+| P1-11-3 | `Assets/Tests/EditMode/Editor/SrpM1CoreTests.cs`, `Assets/Tests/PlayMode/SrpM1PlayModeTests.cs` | 기본 탄창 1발, 고화력 HP 피해, 비총기 탄약 예외, HUD `1/1` 표기 회귀 테스트 | `RQ-002` |
+| P1-11-4 | `docs/srpg/SRPG_TDD.md`, `docs/srpg/SRPG_PHASE2_CODE_BACKLOG.md`, `docs/srpg/SRPG_BACKLOG.md`, `docs/srpg/SRPG_README.md`, `docs/srpg/SRPG_CHANGELOG.md` | 방향성 엄폐 데이터 계약과 후속 구현 단계 문서화 | `TBD-001`, `TBD-004` |
+
+방향성 엄폐 후속 단계:
+
+1. edge 엄폐 데이터/렌더링
+2. 공격자-방어자 방향 기준 엄폐 적용
+3. 오버워치/사선 차단과 연동
+4. 맵 메이커 편집 UI
+
+비범위:
+
+- 선형/방향성 엄폐의 런타임 판정 구현
+- ㄱ자/ㄷ자 엄폐 렌더링
+- 총기별 탄종, 장전 시간, 개별 사거리/피해 테이블
+
+검증:
+
+- `ReadLints` 변경 파일 진단 통과
+- Unity EditMode 테스트 통과: `61 passed / 0 failed`
+- Unity PlayMode 테스트 통과: `5 passed / 0 failed`
+- 테스트 산출물 확인 후 삭제
+
+## 0-12. 완료: 방향성 엄폐 1차 구현
+
+목표:
+
+- 선형/방향성 엄폐를 데이터, 런타임, 렌더링, 총기 피해 판정에 연결한다.
+- 오버워치 사선 차단과 맵 메이커 편집 UI는 후속 단계로 분리한다.
+
+작업 범위:
+
+| 우선순위 | 파일 | 작업 | 요구사항 ID |
+| --- | --- | --- | --- |
+| P1-12-1 | `Assets/Scripts/SRPG/SrpMapFile.cs`, `Assets/Scripts/SRPG/SrpBattleState.cs` | `SrpCoverSegmentData` 계약, 맵 스키마, 런타임 로딩/클론 추가 | `TBD-001`, `TBD-004` |
+| P1-12-2 | `Assets/Scripts/SRPG/SrpBattleState.cs`, `Assets/Scripts/SRPG/SrpCombatResolver.cs` | 공격자-방어자 방향이 segment edge를 통과할 때만 총기 엄폐 완충 적용 | `RQ-004`, `TBD-004` |
+| P1-12-3 | `Assets/Scripts/SRPG/SrpGameController.Rendering.cs`, `Assets/Scripts/SRPG/SrpGameController.Hud.cs`, `Assets/Scripts/SRPG/SrpDefaultMaps.cs` | 방향성 엄폐 overlay, HUD 범례, `M1QaIntegrated` QA segment 추가 | `TBD-001` |
+| P1-12-4 | `Assets/Tests/EditMode/Editor/SrpM1CoreTests.cs`, `Assets/Tests/EditMode/Editor/SrpMakerMetadataTests.cs`, `Assets/Tests/PlayMode/SrpM1PlayModeTests.cs` | 로딩/클론/방향 판정/JSON/프리셋/HUD 회귀 테스트 추가 | `RQ-004`, `TBD-004` |
+| P1-12-5 | `docs/srpg/SRPG_BACKLOG.md`, `docs/srpg/SRPG_TDD.md`, `docs/srpg/SRPG_GDD_TEST_TRACEABILITY.md`, `docs/srpg/SRPG_CHANGELOG.md`, `docs/srpg/SRPG_README.md` | 완료 범위와 후속 범위 문서화 | `TBD-001` |
+
+비범위:
+
+- `blocksLineOfSight` 기반 오버워치/원거리 사선 차단
+- ㄱ자/ㄷ자 엄폐 전용 edge mesh 렌더링
+- 맵 메이커 방향성 엄폐 전용 편집 UI
+
+검증:
+
+- `ReadLints` 변경 파일 진단 통과
+- Unity EditMode 테스트 통과: `64 passed / 0 failed`
+- Unity PlayMode 테스트 통과: `5 passed / 0 failed`
 - 테스트 산출물 확인 후 삭제
 
 ## 1. 전투 코어

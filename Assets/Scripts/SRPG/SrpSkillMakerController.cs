@@ -28,6 +28,7 @@ public class SrpSkillMakerController : MonoBehaviour
     TMP_InputField _fldOverclockFrozenHeartCost;
     TMP_InputField _fldOverclockCooldownReduction;
     TMP_InputField _fldOverclockChargeRestore;
+    TMP_InputField _fldOverclockPowerBonus;
     Toggle _togEndsActivation;
     Toggle _togIsParryable;
     Toggle _togRequiresParryTelegraph;
@@ -222,6 +223,7 @@ public class SrpSkillMakerController : MonoBehaviour
         _fldOverclockFrozenHeartCost = MakeFieldRow(form, "오버클럭 FH 비용", "0", TMP_InputField.ContentType.IntegerNumber);
         _fldOverclockCooldownReduction = MakeFieldRow(form, "오버클럭 CD 단축", "0", TMP_InputField.ContentType.IntegerNumber);
         _fldOverclockChargeRestore = MakeFieldRow(form, "오버클럭 충전 복구", "0", TMP_InputField.ContentType.IntegerNumber);
+        _fldOverclockPowerBonus = MakeFieldRow(form, "오버클럭 위력 보너스", "0", TMP_InputField.ContentType.IntegerNumber);
         _togEndsActivation = MakeToggleRow(form, "사용 후 활성화 종료 (공격 대체)");
         _togIsParryable = MakeToggleRow(form, "패링 가능 공격");
         _togRequiresParryTelegraph = MakeToggleRow(form, "패링 텔레그래프 필요");
@@ -320,6 +322,7 @@ public class SrpSkillMakerController : MonoBehaviour
         _fldOverclockFrozenHeartCost.text = s.overclockFrozenHeartCost.ToString();
         _fldOverclockCooldownReduction.text = s.overclockCooldownReduction.ToString();
         _fldOverclockChargeRestore.text = s.overclockChargeRestore.ToString();
+        _fldOverclockPowerBonus.text = s.overclockPowerBonus.ToString();
         _togEndsActivation.isOn = s.endsActivation;
         _togIsParryable.isOn = s.isParryable;
         _togRequiresParryTelegraph.isOn = s.requiresParryTelegraph;
@@ -344,6 +347,7 @@ public class SrpSkillMakerController : MonoBehaviour
         int.TryParse(_fldOverclockFrozenHeartCost.text, out s.overclockFrozenHeartCost);
         int.TryParse(_fldOverclockCooldownReduction.text, out s.overclockCooldownReduction);
         int.TryParse(_fldOverclockChargeRestore.text, out s.overclockChargeRestore);
+        int.TryParse(_fldOverclockPowerBonus.text, out s.overclockPowerBonus);
         s.endsActivation = _togEndsActivation.isOn;
         s.isParryable = _togIsParryable.isOn;
         s.requiresParryTelegraph = _togRequiresParryTelegraph.isOn;
@@ -464,7 +468,9 @@ public class SrpSkillMakerController : MonoBehaviour
             string typeTag = s.skillType == SrpSkillType.Active ? "[A]" : "[P]";
             string chargeTag = s.maxCharges > 0 ? $" CH:{s.maxCharges}" : string.Empty;
             string parryTag = s.isParryable ? " Parry" : string.Empty;
-            string overclockTag = s.overclockFrozenHeartCost > 0 ? " OC" : string.Empty;
+            string overclockTag = s.overclockFrozenHeartCost > 0
+                ? (s.overclockPowerBonus > 0 ? $" OC+{s.overclockPowerBonus}" : " OC")
+                : string.Empty;
             tx.text = $"{typeTag} {label}{chargeTag}{parryTag}{overclockTag}";
             tx.alignment = TextAlignmentOptions.MidlineLeft;
 

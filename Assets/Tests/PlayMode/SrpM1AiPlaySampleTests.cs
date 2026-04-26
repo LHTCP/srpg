@@ -31,6 +31,8 @@ public class SrpM1AiPlaySampleTests
 
         StringAssert.Contains("라운드", controller.TestTurnHudText);
         StringAssert.Contains("현재:", controller.TestTurnHudText);
+        Assert.IsTrue(controller.TestHasTopStatusPanel, "상단 전투 상태 헤더가 생성되지 않았습니다.");
+        Assert.IsTrue(controller.TestHasLeftConsolePanel, "좌측 조작 콘솔이 생성되지 않았습니다.");
         StringAssert.Contains("범례:", controller.TestStatusHudText);
         StringAssert.Contains("청록=패링 가능 스킬", controller.TestStatusHudText);
         StringAssert.Contains("AP", controller.TestUnitHudText);

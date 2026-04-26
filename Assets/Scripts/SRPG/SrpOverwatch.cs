@@ -10,6 +10,7 @@ public enum SrpOverwatchArmStatus
     NoReaction,
     NotFirearm,
     RangeTooShort,
+    NoAmmo,
 }
 
 public static class SrpOverwatch
@@ -37,6 +38,8 @@ public static class SrpOverwatch
             return SrpOverwatchArmStatus.NotFirearm;
         if (unit.attackRange <= 1)
             return SrpOverwatchArmStatus.RangeTooShort;
+        if (!unit.HasAmmoForAttack())
+            return SrpOverwatchArmStatus.NoAmmo;
         return SrpOverwatchArmStatus.Ready;
     }
 
@@ -61,6 +64,8 @@ public static class SrpOverwatch
         if (watcher.overwatchRound != state.RoundNumber)
             return false;
         if (watcher.owner == target.owner || watcher.reactionPoints <= 0)
+            return false;
+        if (!watcher.HasAmmoForAttack())
             return false;
         int range = watcher.overwatchRange > 0 ? watcher.overwatchRange : watcher.attackRange;
         return IsTileInLineOfSight(state, watcher, target.anchorX, target.anchorY, range, target.id);
@@ -133,6 +138,7 @@ public static class SrpOverwatch
         watcher.overwatchRange = 0;
         watcher.overwatchRound = 0;
         watcher.reactionPoints = Mathf.Max(0, watcher.reactionPoints - 1);
+        watcher.SpendAmmoForAttack();
         watcher.lastReactionKind = SrpReactionKind.ReactionShot;
         watcher.lastReactionRound = state.RoundNumber;
         watcher.lastReactionSourceId = target.id;

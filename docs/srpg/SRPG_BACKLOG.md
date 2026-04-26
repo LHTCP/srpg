@@ -88,14 +88,61 @@
   - 장애물 타일과 중간 유닛이 사선을 차단하도록 처리
   - 예약 1회당 1회 발동, 발동/라운드 리셋 시 예약 해제 정책을 문서화
   - EditMode 테스트 `45 passed / 0 failed`, PlayMode 테스트 `4 passed / 0 failed`
+- [x] Phase2 테스트 프리셋 v2 + HUD 레이아웃 개편
+  - `M1QaIntegrated`를 스킬 자원/패링 가능 스킬/오버워치 사선/탱커 확인용 프리셋으로 갱신
+  - HUD를 상단 전투 헤더, 보조 정보 바, 좌측 조작 콘솔, 우측 로그로 재배치
+  - 텍스트 overflow를 줄이고 버튼/스킬 목록 문구를 짧은 테스트용 표기로 정리
+  - EditMode 테스트 `46 passed / 0 failed`, PlayMode 테스트 `4 passed / 0 failed`
+- [x] Phase2 전투 직접 조작 UI 보강
+  - 좌측 전술 콘솔에 태세 선택, 최종 방향 선택, 오버클럭 실행 UI 추가
+  - 태세는 행동 전 변경, 방향은 행동 종료 전 변경, 오버클럭은 기존 자원 조건을 따르도록 연결
+  - EditMode 테스트 `47 passed / 0 failed`, PlayMode 테스트 `5 passed / 0 failed`
+- [x] Phase2 오버클럭 성능 증폭
+  - 오버클럭 메타에 다음 스킬 사용 1회 피해/회복 보너스를 추가
+  - HUD/스킬 목록/로그에 오버클럭 강화 대기 상태 표시
+  - EditMode 테스트 `48 passed / 0 failed`, PlayMode 테스트 `5 passed / 0 failed`
+- [x] Phase2 재장전 AP 행동 1차 구현
+  - 총기 유닛 전용 탄약/재장전 계약 추가
+  - 기본 공격과 오버워치에 탄약 검사/소비 연결
+  - 좌측 전술 콘솔 재장전 버튼과 HUD 탄약 상태 표시 추가
+  - EditMode 테스트 `51 passed / 0 failed`, PlayMode 테스트 `5 passed / 0 failed`
+- [x] Phase2 엄폐 AP 행동 1차 구현
+  - 기존 비보행 장애물 타일을 인접 엄폐물로 판정하는 1차 계약 추가
+  - 총기 기본 공격/오버워치 사격에 엄폐 완충 연결
+  - 좌측 전술 콘솔 엄폐 버튼, HUD 엄폐 상태, 엄폐 오버레이 추가
+  - EditMode 테스트 `54 passed / 0 failed`, PlayMode 테스트 `5 passed / 0 failed`
+- [x] Phase2 상호작용 AP 행동 1차 구현
+  - 맵 상호작용 포인트 계약과 런타임 클론/인접 탐색 helper 추가
+  - 인접 유닛의 AP 1 상호작용 실행, owner 제한, singleUse 활성화 처리 연결
+  - 좌측 전술 콘솔 상호작용 버튼, HUD 상태, 노랑 상호작용 오버레이 추가
+  - EditMode 테스트 `59 passed / 0 failed`, PlayMode 테스트 `5 passed / 0 failed`
+- [x] Phase2 개발용 전술 HUD 개선
+  - 좌측 하단 현재 유닛 카드와 우측 하단 행동 preview 카드 추가
+  - HP/PG/AP/탄약 숫자+게이지 표시와 이동/공격/스킬/상호작용 hover preview 연결
+  - 텍스처 없이 uGUI/TMP 단색 패널로 구현해 정식 UI 전환 전 테스트 편의성 확보
+  - EditMode 테스트 `59 passed / 0 failed`, PlayMode 테스트 `5 passed / 0 failed`
+- [x] Phase2 총기 1발 고화력 + 방향성 엄폐 설계
+  - 명시 `maxAmmo`가 없는 총기 기본 탄창을 전장식 총기 정책에 맞춰 1발로 변경
+  - 총기 기본 공격을 HP 고화력/낮은 PG 압박 공식으로 조정
+  - 선형/방향성 엄폐는 `SrpCoverSegmentData` 초안과 후속 단계로 분리
+  - EditMode 테스트 `61 passed / 0 failed`, PlayMode 테스트 `5 passed / 0 failed`
+- [x] Phase2 방향성 엄폐 1차 구현
+  - `SrpCoverSegmentData` 맵 스키마와 런타임 로딩/클론 추가
+  - 공격자-방어자 방향이 segment edge를 통과할 때만 총기 엄폐 완충 적용
+  - 방향성 엄폐 overlay, HUD 범례, `M1QaIntegrated` QA segment 추가
+  - EditMode 테스트 `64 passed / 0 failed`, PlayMode 테스트 `5 passed / 0 failed`
 
 ## 다음 스프린트 (코드 2차 확장, P1/P2)
 
 - [ ] 1차 전수 점검 후속 정리 (`TBD-001`, `TBD-006`)
   - 탱커 다중 대응이 수비 태세 전용인지 별도 패시브인지 결정 전 문서에 임시 정책 명시
   - 기회공격 다중 후보 우선순위와 스킬 특수 피해 파이프라인은 다음 밸런스/규칙 스프린트 후보로 분리
+- [ ] 방향성 엄폐 후속 구현 (`TBD-001`, `TBD-004`)
+  - 오버워치/사선 차단과 맵 메이커 편집 UI 순서로 분리
 - [ ] 오버워치 고급 우선순위/특수 지형 상호작용 (`TBD-004`)
-  - 여러 오버워치 후보의 발동 우선순위와 엄폐/특수 지형 상호작용은 후속으로 분리
+  - 여러 오버워치 후보의 발동 우선순위와 특수 지형 상호작용은 후속으로 분리
+- [ ] 마법/전장 개입 스킬 콘텐츠 검토
+  - AP 행동 1차 후보 완료 후 남은 확정 기능/스킬 콘텐츠 범위를 재분류
 
 ## 후속 스프린트 (밸런스/검증, P2)
 

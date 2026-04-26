@@ -89,6 +89,55 @@
   - 오버워치 범위 오버레이가 실제 발동 가능한 사선 타일만 표시하도록 동기화: `SrpGameController.Rendering`
   - 예약 1회당 1회 발동, 발동/라운드 리셋 시 예약 해제 정책을 기준서와 백로그에 반영
   - 사선/차단 회귀 테스트 추가 및 검증 통과: EditMode `45 passed / 0 failed`, PlayMode `4 passed / 0 failed`
+- Phase2 테스트 프리셋 v2 + HUD 레이아웃 개편 완료
+  - `M1QaIntegrated`를 스킬 자원, 패링 가능 스킬, 오버워치 사선, 탱커 확인용 프리셋으로 갱신
+  - HUD를 상단 전투 헤더, 보조 정보 바, 좌측 조작 콘솔, 우측 로그로 분리: `SrpGameController.Hud`
+  - 긴 상태 문구와 버튼/스킬 목록 overflow를 줄이고 PlayMode HUD 스모크 기준을 새 레이아웃으로 갱신
+  - 프리셋 v2 회귀 테스트 추가 및 검증 통과: EditMode `46 passed / 0 failed`, PlayMode `4 passed / 0 failed`
+- Phase2 전투 직접 조작 UI 보강 완료
+  - 좌측 전술 콘솔에 태세 선택, 최종 방향 선택, 오버클럭 실행 버튼 추가: `SrpGameController.Hud`
+  - 태세/방향 변경을 전투 상태와 유닛 회전에 연결하고 오버클럭을 기존 스킬 자원 모델에 연결: `SrpGameController`, `SrpSkills`
+  - 직접 조작 UI PlayMode 테스트와 오버클럭 조건 회귀 테스트 추가
+  - 검증 통과: EditMode `47 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 오버클럭 성능 증폭 완료
+  - 스킬 메타/런타임에 오버클럭 위력 보너스와 다음 사용 1회 강화 상태 추가: `SrpSkillData`
+  - 오버클럭 실행 시 다음 액티브 스킬 피해/회복을 증폭하고 사용 후 상태를 소모: `SrpSkills`
+  - HUD/스킬 목록/로그와 스킬 메이커 목록에 오버클럭 증폭/강화 대기 상태 표시
+  - 검증 통과: EditMode `48 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 재장전 AP 행동 1차 구현 완료
+  - 총기 유닛 전용 탄약/재장전 계약 추가: `SrpUnitRuntime`, `SrpMapFile`, `SrpBattleState`
+  - 기본 공격과 오버워치 예약/발동에 탄약 검사와 소비 연결: `SrpGameController`, `SrpOverwatch`
+  - 좌측 전술 콘솔 재장전 버튼, HUD 탄약 상태, 유닛 메이커 최대 탄약 입력 추가
+  - 검증 통과: EditMode `51 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 엄폐 AP 행동 1차 구현 완료
+  - 유닛 런타임 엄폐 상태와 인접 비보행 타일 엄폐 판정 추가: `SrpUnitRuntime`, `SrpBattleState`
+  - 총기 기본 공격/오버워치 사격에 엄폐 완충을 연결하고 근접/마법/처단 비적용을 고정: `SrpCombatResolver`
+  - 좌측 전술 콘솔 엄폐 버튼, HUD 엄폐 상태, 연두색 엄폐 오버레이 추가: `SrpGameController`, `SrpGameController.Hud`, `SrpGameController.Rendering`
+  - 검증 통과: EditMode `54 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 상호작용 AP 행동 1차 구현 완료
+  - 맵 상호작용 포인트 계약과 런타임 클론/인접 탐색 helper 추가: `SrpMapFile`, `SrpBattleState`
+  - 인접 유닛이 AP 1로 포인트를 활성화하고 owner 제한/singleUse 상태를 처리하도록 전투 입력 연결: `SrpGameController`
+  - 좌측 전술 콘솔 상호작용 버튼, HUD 상태, 노랑색 상호작용 오버레이 추가: `SrpGameController.Hud`, `SrpGameController.Rendering`
+  - `M1QaIntegrated`에 전술 단말 상호작용 포인트를 추가하고 JSON/프리셋/HUD 회귀 테스트 보강
+  - 검증 통과: EditMode `59 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 개발용 전술 HUD 개선 완료
+  - 좌측 하단 현재 유닛 카드와 우측 하단 행동 preview 카드를 코드 생성 uGUI/TMP로 추가: `SrpGameController.Hud`
+  - HP/PG/AP/탄약을 숫자와 단색 게이지로 함께 표시하고, hover 중인 이동/공격/스킬/상호작용 예상 정보를 표시
+  - 유닛/타일 hover 상태를 preview 카드에 연결하되 실제 전투 상태는 변경하지 않는 읽기 전용 흐름으로 제한: `SrpGameController`
+  - PlayMode HUD 회귀 테스트에 하단 카드/preview 카드 검증 추가
+  - 검증 통과: EditMode `59 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 총기 1발 고화력 + 방향성 엄폐 설계 완료
+  - 명시 `maxAmmo`가 없는 총기 기본 탄창을 1발로 낮춤: `SrpUnitRuntime`
+  - 총기 기본 공격을 HP 고화력/낮은 PG 압박 공식으로 조정: `SrpCombatResolver`
+  - 기본 탄창 1발, 고화력 HP 피해, 비총기 탄약 예외, HUD `1/1` 표기 회귀 테스트 추가
+  - 선형/방향성 엄폐는 `SrpCoverSegmentData` 초안과 edge 단계별 구현 방침으로 문서화
+  - 검증 통과: EditMode `61 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 방향성 엄폐 1차 구현 완료
+  - `SrpCoverSegmentData` 맵 스키마와 런타임 `CoverSegments` 로딩/클론 추가: `SrpMapFile`, `SrpBattleState`
+  - 공격자-방어자 방향이 segment edge를 통과할 때만 원거리 총기 엄폐 완충 적용: `SrpCombatResolver`
+  - 방향성 엄폐 overlay, HUD 범례, `M1QaIntegrated` QA segment 추가: `SrpGameController.Rendering`, `SrpGameController.Hud`, `SrpDefaultMaps`
+  - JSON/프리셋/방향 판정/HUD 회귀 테스트 추가
+  - 검증 통과: EditMode `64 passed / 0 failed`, PlayMode `5 passed / 0 failed`
 
 ## 2026-04-25
 

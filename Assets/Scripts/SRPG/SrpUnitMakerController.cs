@@ -23,6 +23,7 @@ public class SrpUnitMakerController : MonoBehaviour
     TMP_InputField _fldMoveRange;
     TMP_InputField _fldAtkRange;
     TMP_InputField _fldAtkPower;
+    TMP_InputField _fldMaxAmmo;
     TMP_InputField _fldMaxHp;
     TMP_InputField _fldMaxActionPoints;
     TMP_InputField _fldMaxReactionPoints;
@@ -158,6 +159,7 @@ public class SrpUnitMakerController : MonoBehaviour
         _fldMoveRange   = MakeFieldRow(form, "이동력", "5", TMP_InputField.ContentType.IntegerNumber);
         _fldAtkRange    = MakeFieldRow(form, "공격 사거리", "1", TMP_InputField.ContentType.IntegerNumber);
         _fldAtkPower    = MakeFieldRow(form, "공격력", "10", TMP_InputField.ContentType.IntegerNumber);
+        _fldMaxAmmo     = MakeFieldRow(form, "최대 탄약(총기)", "0", TMP_InputField.ContentType.IntegerNumber);
         _fldMaxHp       = MakeFieldRow(form, "최대 HP", "40", TMP_InputField.ContentType.IntegerNumber);
         _fldMaxActionPoints = MakeFieldRow(form, "최대 AP(v2)", "2", TMP_InputField.ContentType.IntegerNumber);
         _fldMaxReactionPoints = MakeFieldRow(form, "최대 RP(v2)", "1", TMP_InputField.ContentType.IntegerNumber);
@@ -334,6 +336,7 @@ public class SrpUnitMakerController : MonoBehaviour
         _fldMoveRange.text   = u.moveRange.ToString();
         _fldAtkRange.text    = u.attackRange.ToString();
         _fldAtkPower.text    = u.attackPower.ToString();
+        _fldMaxAmmo.text     = u.maxAmmo.ToString();
         _fldMaxHp.text       = u.maxHp.ToString();
         _fldMaxActionPoints.text = u.maxActionPoints.ToString();
         _fldMaxReactionPoints.text = u.maxReactionPoints.ToString();
@@ -370,6 +373,7 @@ public class SrpUnitMakerController : MonoBehaviour
         int.TryParse(_fldMoveRange.text, out u.moveRange);
         int.TryParse(_fldAtkRange.text, out u.attackRange);
         int.TryParse(_fldAtkPower.text, out u.attackPower);
+        int.TryParse(_fldMaxAmmo.text, out u.maxAmmo);
         int.TryParse(_fldMaxHp.text, out u.maxHp);
         int.TryParse(_fldMaxActionPoints.text, out u.maxActionPoints);
         int.TryParse(_fldMaxReactionPoints.text, out u.maxReactionPoints);
@@ -506,6 +510,7 @@ public class SrpUnitMakerController : MonoBehaviour
         unit.maxReactionPoints = Mathf.Max(0, unit.maxReactionPoints);
         unit.maxPg = Mathf.Max(1, unit.maxPg);
         unit.speed = Mathf.Max(0, unit.speed);
+        unit.maxAmmo = Mathf.Max(0, unit.maxAmmo);
         unit.maxAp = unit.maxActionPoints;
         unit.maxPosture = unit.maxPg;
     }

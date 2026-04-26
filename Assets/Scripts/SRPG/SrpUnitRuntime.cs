@@ -38,6 +38,8 @@ public enum SrpReactionKind
 [Serializable]
 public class SrpUnitRuntime
 {
+    public const int DefaultFirearmMaxAmmo = 1;
+
     public int id;
     public string templateId;
     public string displayName = "Unit";
@@ -63,6 +65,8 @@ public class SrpUnitRuntime
     public int moveRange;
     public int attackRange;
     public int attackPower;
+    public int ammo;
+    public int maxAmmo;
     public int frozenHeart;
     public int tags;
     public List<string> skillIds = new List<string>();
@@ -74,6 +78,7 @@ public class SrpUnitRuntime
     public bool hasMovedThisActivation;
     public bool hasAttackedThisActivation;
     public bool hasUsedSkillThisActivation;
+    public bool hasReloadedThisActivation;
     public bool passiveAppliedThisTurn;
     public SrpReactionKind lastReactionKind;
     public int lastReactionRound;
@@ -81,6 +86,10 @@ public class SrpUnitRuntime
     public bool overwatchArmed;
     public int overwatchRange;
     public int overwatchRound;
+    public bool coverActive;
+    public int coverRound;
+    public int coverSourceX;
+    public int coverSourceY;
     public int defensiveHitsTakenThisRound;
     public int defensiveHitsRound;
 
@@ -110,6 +119,8 @@ public class SrpUnitRuntime
             moveRange = moveRange,
             attackRange = attackRange,
             attackPower = attackPower,
+            ammo = ammo,
+            maxAmmo = maxAmmo,
             frozenHeart = frozenHeart,
             tags = tags,
             skillIds = new List<string>(skillIds),
@@ -118,6 +129,7 @@ public class SrpUnitRuntime
             hasMovedThisActivation = hasMovedThisActivation,
             hasAttackedThisActivation = hasAttackedThisActivation,
             hasUsedSkillThisActivation = hasUsedSkillThisActivation,
+            hasReloadedThisActivation = hasReloadedThisActivation,
             passiveAppliedThisTurn = passiveAppliedThisTurn,
             lastReactionKind = lastReactionKind,
             lastReactionRound = lastReactionRound,
@@ -125,6 +137,10 @@ public class SrpUnitRuntime
             overwatchArmed = overwatchArmed,
             overwatchRange = overwatchRange,
             overwatchRound = overwatchRound,
+            coverActive = coverActive,
+            coverRound = coverRound,
+            coverSourceX = coverSourceX,
+            coverSourceY = coverSourceY,
             defensiveHitsTakenThisRound = defensiveHitsTakenThisRound,
             defensiveHitsRound = defensiveHitsRound,
         };
@@ -136,5 +152,51 @@ public class SrpUnitRuntime
     public bool HasTag(SrpUnitTags t)
     {
         return (tags & (int)t) != 0;
+    }
+
+    public bool UsesAmmo => weaponClass == SrpWeaponClass.Firearm && maxAmmo > 0;
+
+    public bool HasAmmoForAttack()
+    {
+        return !UsesAmmo || ammo > 0;
+    }
+
+    public bool SpendAmmoForAttack()
+    {
+        if (!UsesAmmo)
+            return true;
+        if (ammo <= 0)
+            return false;
+        ammo = Mathf.Max(0, ammo - 1);
+        return true;
+    }
+
+    public bool CanReload()
+    {
+        return UsesAmmo && ammo < maxAmmo;
+    }
+
+    public bool ReloadAmmo()
+    {
+        if (!CanReload())
+            return false;
+        ammo = maxAmmo;
+        return true;
+    }
+
+    public void ClearCover()
+    {
+        coverActive = false;
+        coverRound = 0;
+        coverSourceX = 0;
+        coverSourceY = 0;
+    }
+
+    public void SetCover(int round, int sourceX, int sourceY)
+    {
+        coverActive = true;
+        coverRound = round;
+        coverSourceX = sourceX;
+        coverSourceY = sourceY;
     }
 }

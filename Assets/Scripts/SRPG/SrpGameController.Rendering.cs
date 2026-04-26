@@ -11,6 +11,8 @@ public partial class SrpGameController
     const int OverlayMove = 10;
     const int OverlayAttack = 20;
     const int OverlayOverwatch = 25;
+    const int OverlayCover = 27;
+    const int OverlayInteraction = 28;
     const int OverlaySkill = 30;
     const int OverlayParryTelegraph = 35;
     const int OverlayDangerAttack = 40;
@@ -26,6 +28,8 @@ public partial class SrpGameController
         OverlayMove,
         OverlayAttack,
         OverlayOverwatch,
+        OverlayCover,
+        OverlayInteraction,
         OverlaySkill,
         OverlayParryTelegraph,
         OverlayDangerAttack,
@@ -92,6 +96,8 @@ public partial class SrpGameController
         ClearOverlayLayer(OverlayMove);
         ClearOverlayLayer(OverlayAttack);
         ClearOverlayLayer(OverlayOverwatch);
+        ClearOverlayLayer(OverlayCover);
+        ClearOverlayLayer(OverlayInteraction);
         ClearOverlayLayer(OverlaySkill);
         ClearOverlayLayer(OverlayParryTelegraph);
         ClearOverlayLayer(OverlayHover);
@@ -138,6 +144,85 @@ public partial class SrpGameController
             if (!SrpOverwatch.IsTileInLineOfSight(_state, unit, x, y, range))
                 continue;
             SetOverlayTile(OverlayOverwatch, x, y, new Color(0.2f, 0.35f, 1f));
+        }
+    }
+
+    void HighlightCoverTiles(SrpUnitRuntime unit)
+    {
+        ClearOverlayLayer(OverlayCover);
+        if (_state == null || unit == null || unit.eliminated)
+            return;
+
+        if (unit.coverActive && _state.HasAdjacentCoverSource(unit, unit.coverSourceX, unit.coverSourceY))
+        {
+            SetOverlayTile(OverlayCover, unit.coverSourceX, unit.coverSourceY, new Color(0.45f, 0.95f, 0.25f));
+            foreach (var off in unit.footprintOffsets)
+                SetOverlayTile(OverlayCover, unit.anchorX + off.x, unit.anchorY + off.y, new Color(0.38f, 0.75f, 0.24f));
+            return;
+        }
+
+        int[] dx = { 1, -1, 0, 0 };
+        int[] dy = { 0, 0, 1, -1 };
+        foreach (var off in unit.footprintOffsets)
+        {
+            int x = unit.anchorX + off.x;
+            int y = unit.anchorY + off.y;
+            HighlightCoverSegmentsAt(x, y);
+            for (int i = 0; i < 4; i++)
+            {
+                int nx = x + dx[i];
+                int ny = y + dy[i];
+                if (_state.IsCoverTile(nx, ny))
+                    SetOverlayTile(OverlayCover, nx, ny, new Color(0.45f, 0.95f, 0.25f));
+            }
+        }
+    }
+
+    void HighlightCoverSegmentsAt(int x, int y)
+    {
+        if (_state?.CoverSegments == null)
+            return;
+        foreach (var segment in _state.CoverSegments)
+        {
+            if (segment == null || segment.x != x || segment.y != y)
+                continue;
+            SetOverlayTile(OverlayCover, x, y, GetCoverSegmentTint(segment));
+        }
+    }
+
+    static Color GetCoverSegmentTint(SrpCoverSegmentData segment)
+    {
+        switch (segment.edge)
+        {
+            case SrpCoverEdge.East:
+                return new Color(0.55f, 1.0f, 0.25f);
+            case SrpCoverEdge.South:
+                return new Color(0.35f, 0.9f, 0.22f);
+            case SrpCoverEdge.West:
+                return new Color(0.65f, 0.9f, 0.25f);
+            case SrpCoverEdge.North:
+            default:
+                return new Color(0.45f, 0.95f, 0.25f);
+        }
+    }
+
+    void HighlightInteractionTiles(SrpUnitRuntime unit)
+    {
+        ClearOverlayLayer(OverlayInteraction);
+        if (_state == null || _state.InteractionPoints == null)
+            return;
+
+        foreach (var point in _state.InteractionPoints)
+        {
+            if (point == null || !_state.InBounds(point.x, point.y))
+                continue;
+            bool canInteract = unit != null && _state.CanUnitInteractWith(unit, point);
+            Color tint = point.activated
+                ? new Color(0.45f, 0.38f, 0.18f)
+                : canInteract
+                    ? new Color(1.0f, 0.9f, 0.20f)
+                    : new Color(0.85f, 0.65f, 0.15f);
+            SetOverlayTile(OverlayInteraction, point.x, point.y, tint);
         }
     }
 

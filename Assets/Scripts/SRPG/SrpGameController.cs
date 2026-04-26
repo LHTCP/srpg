@@ -26,10 +26,10 @@ public partial class SrpGameController : MonoBehaviour
 
     [Header("HUD")]
     [Tooltip("왼쪽 컨트롤 패널 폭(캔버스 단위).")]
-    public float leftPanelWidth = 630f;
+    public float leftPanelWidth = 360f;
 
     [Tooltip("오른쪽 로그 패널 폭(캔버스 단위).")]
-    public float rightPanelWidth = 630f;
+    public float rightPanelWidth = 520f;
 
     [Tooltip("시작 시 오른쪽 로그 패널 표시 여부.")]
     public bool startWithLogVisible = true;
@@ -57,6 +57,8 @@ public partial class SrpGameController : MonoBehaviour
     bool _dangerAreaVisible;
     string _hoverStatusHint = string.Empty;
     int _hoverUnitId = -1;
+    int _hoverTileX = -1;
+    int _hoverTileY = -1;
 
     bool _gameOver;
 
@@ -272,6 +274,7 @@ public partial class SrpGameController : MonoBehaviour
                 PushUndo();
                 u.anchorX = x;
                 u.anchorY = y;
+                u.ClearCover();
                 _state.RebuildEngagements();
                 bool disengaged = wasEngaged && !_state.IsUnitEngaged(u.id);
                 _remainingMove -= moveCost;
@@ -312,6 +315,8 @@ public partial class SrpGameController : MonoBehaviour
                     LogLine($"공격 불가: {u.displayName}은 이번 활성화에서 이미 공격을 사용했습니다.");
                 else if (dist > u.attackRange)
                     LogLine($"공격 불가: 사거리 밖 대상입니다. (거리 {dist}, 사거리 {u.attackRange})");
+                else if (!u.HasAmmoForAttack())
+                    LogLine($"공격 불가: {u.displayName} 탄약 없음. 재장전 필요");
                 else if (!EnsureApAvailable(u, "공격"))
                     return;
                 else
@@ -327,8 +332,13 @@ public partial class SrpGameController : MonoBehaviour
     {
         if (_gameOver)
             return;
+        _hoverTileX = x;
+        _hoverTileY = y;
         if (_phase != Phase.UnitActive || !_selectedId.HasValue)
+        {
+            UpdateHud();
             return;
+        }
 
         ClearOverlayLayer(OverlayHover);
         ClearOverlayLayer(OverlayDangerBlocked);
@@ -377,6 +387,11 @@ public partial class SrpGameController : MonoBehaviour
     {
         if (_gameOver)
             return;
+        if (_hoverTileX == x && _hoverTileY == y)
+        {
+            _hoverTileX = -1;
+            _hoverTileY = -1;
+        }
         ClearOverlayLayer(OverlayHover);
         ClearOverlayLayer(OverlayDangerBlocked);
         _hoverStatusHint = string.Empty;
@@ -392,6 +407,8 @@ public partial class SrpGameController : MonoBehaviour
             return;
 
         _hoverUnitId = unitId;
+        _hoverTileX = unit.anchorX;
+        _hoverTileY = unit.anchorY;
         RenderUnitHoverOverlays(unit);
         _hoverStatusHint = $"유닛 미리보기: {unit.displayName} 공격범위/ZOC 표시";
         UpdateHud();
@@ -402,6 +419,8 @@ public partial class SrpGameController : MonoBehaviour
         if (_hoverUnitId != unitId)
             return;
         _hoverUnitId = -1;
+        _hoverTileX = -1;
+        _hoverTileY = -1;
         ClearOverlayLayer(OverlayUnitHoverRange);
         ClearOverlayLayer(OverlayUnitHoverZoc);
         _hoverStatusHint = string.Empty;
@@ -430,6 +449,7 @@ public partial class SrpGameController : MonoBehaviour
         u.hasMovedThisActivation = false;
         u.hasAttackedThisActivation = false;
         u.hasUsedSkillThisActivation = false;
+        u.hasReloadedThisActivation = false;
         _phase = Phase.UnitActive;
         RefreshActiveHighlights(u);
         UpdateHud();
@@ -455,6 +475,8 @@ public partial class SrpGameController : MonoBehaviour
             HighlightOverwatchTiles(u);
             HighlightParryTelegraphForAttackTargets(u);
         }
+        HighlightCoverTiles(u);
+        HighlightInteractionTiles(u);
         RebuildDangerAndIntentOverlays();
     }
 
@@ -464,6 +486,8 @@ public partial class SrpGameController : MonoBehaviour
     {
         _attackIds.Clear();
         if (atk.actionPoints <= 0)
+            return;
+        if (!atk.HasAmmoForAttack())
             return;
         foreach (var o in _state.Units)
         {
@@ -648,7 +672,7 @@ public partial class SrpGameController : MonoBehaviour
 
             LogLine(
                 $"오버워치 사격: {watcher.displayName}({watcher.id}) → {target.displayName}({target.id}) | " +
-                $"피해 PG-{outcome.damageToPg} HP-{outcome.damageToHp} | 반응 사격 소모");
+                $"피해 PG-{outcome.damageToPg} HP-{outcome.damageToHp} | 반응 사격 소모 | 탄약 {watcher.ammo}/{watcher.maxAmmo}");
             LogDefenseBuffers(target, outcome);
             LogReactionOutcome(target, outcome);
             if (outcome.becameGroggy)
@@ -686,7 +710,20 @@ public partial class SrpGameController : MonoBehaviour
 
     void DoAttack(SrpUnitRuntime atk, SrpUnitRuntime def)
     {
+        if (!atk.HasAmmoForAttack())
+        {
+            LogLine($"공격 불가: {atk.displayName} 탄약 없음. 재장전 필요");
+            UpdateHud();
+            return;
+        }
         PushUndo();
+        if (!atk.SpendAmmoForAttack())
+        {
+            _undo.Pop();
+            LogLine($"공격 불가: {atk.displayName} 탄약 없음. 재장전 필요");
+            UpdateHud();
+            return;
+        }
         var outcome = SrpCombatResolver.ApplyAttack(_state, atk, def);
         SrpSkills.OnAttackResolved(atk, def, outcome, _state, LogLine);
         if (outcome.damageToHp > 0 || outcome.damageToPg > 0)
@@ -694,10 +731,11 @@ public partial class SrpGameController : MonoBehaviour
         atk.hasAttackedThisActivation = true;
         _hasAttackedThisTurn = true;
         atk.actionPoints = Mathf.Max(0, atk.actionPoints - 1);
+        string ammoText = atk.UsesAmmo ? $" | 탄약 {atk.ammo}/{atk.maxAmmo}" : string.Empty;
         LogLine(
             $"공격: {atk.displayName}({atk.id}) → {def.displayName}({def.id}) | " +
             $"피해 PG-{outcome.damageToPg} HP-{outcome.damageToHp} | " +
-            $"처단:{outcome.wasExecution} 그로기:{outcome.becameGroggy}");
+            $"처단:{outcome.wasExecution} 그로기:{outcome.becameGroggy}{ammoText}");
         LogDefenseBuffers(def, outcome);
         LogReactionOutcome(def, outcome);
         if (outcome.becameGroggy)
@@ -724,6 +762,8 @@ public partial class SrpGameController : MonoBehaviour
     {
         if (defender == null)
             return;
+        if (outcome.coverBufferApplied)
+            LogLine($"엄폐 완충: {defender.displayName} 원거리 사격 감쇠 HP-{outcome.reducedHpByCover} PG-{outcome.reducedPgByCover}");
         if (outcome.sustainedDefenseBufferApplied)
             LogLine($"수비 완충: {defender.displayName} 후속 공격 감쇠 HP-{outcome.reducedHpBySustainedDefense} PG-{outcome.reducedPgBySustainedDefense}");
         if (outcome.tankMultiEngagementBufferApplied)
@@ -881,6 +921,273 @@ public partial class SrpGameController : MonoBehaviour
 
     public bool IsDangerAreaVisible => _dangerAreaVisible;
 
+    bool CanSetSelectedStance(SrpUnitRuntime unit)
+    {
+        return !_gameOver
+            && _phase == Phase.UnitActive
+            && unit != null
+            && !unit.eliminated
+            && !unit.hasMovedThisActivation
+            && !unit.hasAttackedThisActivation
+            && !unit.hasUsedSkillThisActivation
+            && !unit.hasReloadedThisActivation
+            && !unit.overwatchArmed;
+    }
+
+    bool TrySetSelectedStance(SrpStance stance, bool logFailure)
+    {
+        if (!_selectedId.HasValue)
+            return false;
+        var unit = GetUnit(_selectedId.Value);
+        if (!CanSetSelectedStance(unit))
+        {
+            if (logFailure && unit != null)
+                LogLine($"태세 변경 불가: {unit.displayName} | 행동 전까지만 변경 가능");
+            UpdateHud();
+            return false;
+        }
+        if (unit.stance == stance)
+            return true;
+
+        PushUndo();
+        unit.stance = stance;
+        LogLine($"태세 변경: {unit.displayName} → {DescribeStance(stance)}");
+        RefreshActiveHighlights(unit);
+        RefreshUnitViews();
+        UpdateHud();
+        return true;
+    }
+
+    bool TrySetSelectedFacing(SrpFacing facing, bool logFailure)
+    {
+        if (!_selectedId.HasValue)
+            return false;
+        var unit = GetUnit(_selectedId.Value);
+        if (_gameOver || _phase != Phase.UnitActive || unit == null || unit.eliminated)
+        {
+            if (logFailure)
+                LogLine("방향 변경 불가: 현재 행동 유닛이 없습니다.");
+            UpdateHud();
+            return false;
+        }
+        if (unit.facing == facing)
+            return true;
+
+        PushUndo();
+        unit.facing = facing;
+        LogLine($"방향 변경: {unit.displayName} → {DescribeFacing(facing)}");
+        RefreshActiveHighlights(unit);
+        RefreshUnitViews();
+        UpdateHud();
+        return true;
+    }
+
+    bool CanReloadSelectedUnit(SrpUnitRuntime unit)
+    {
+        return !_gameOver
+            && _phase == Phase.UnitActive
+            && unit != null
+            && !unit.eliminated
+            && unit.actionPoints > 0
+            && unit.CanReload();
+    }
+
+    bool TryReloadSelectedUnit(bool logFailure)
+    {
+        if (!_selectedId.HasValue)
+            return false;
+        var unit = GetUnit(_selectedId.Value);
+        if (!CanReloadSelectedUnit(unit))
+        {
+            if (logFailure && unit != null)
+            {
+                string reason = unit.weaponClass != SrpWeaponClass.Firearm
+                    ? "총기 유닛만 재장전 가능"
+                    : unit.actionPoints <= 0
+                        ? "AP 부족"
+                        : "탄약이 이미 가득 참";
+                LogLine($"재장전 불가: {unit.displayName} | {reason}");
+            }
+            UpdateHud();
+            return false;
+        }
+
+        PushUndo();
+        unit.ReloadAmmo();
+        unit.actionPoints = Mathf.Max(0, unit.actionPoints - 1);
+        unit.hasReloadedThisActivation = true;
+        LogLine($"재장전: {unit.displayName} | 탄약 {unit.ammo}/{unit.maxAmmo} | AP-1");
+        RefreshActiveHighlights(unit);
+        UpdateHud();
+        return true;
+    }
+
+    bool CanTakeCoverSelectedUnit(SrpUnitRuntime unit)
+    {
+        return !_gameOver
+            && _phase == Phase.UnitActive
+            && unit != null
+            && !unit.eliminated
+            && unit.actionPoints > 0
+            && !unit.coverActive
+            && _state != null
+            && _state.HasAdjacentCover(unit);
+    }
+
+    bool TryTakeCoverSelectedUnit(bool logFailure)
+    {
+        if (!_selectedId.HasValue)
+            return false;
+        var unit = GetUnit(_selectedId.Value);
+        if (!CanTakeCoverSelectedUnit(unit))
+        {
+            if (logFailure && unit != null)
+            {
+                string reason = unit.coverActive
+                    ? "이미 엄폐 중"
+                    : unit.actionPoints <= 0
+                        ? "AP 부족"
+                        : "인접 엄폐물 없음";
+                LogLine($"엄폐 불가: {unit.displayName} | {reason}");
+            }
+            UpdateHud();
+            return false;
+        }
+
+        if (!_state.TryGetAdjacentCover(unit, out int coverX, out int coverY))
+        {
+            UpdateHud();
+            return false;
+        }
+
+        PushUndo();
+        unit.SetCover(_state.RoundNumber, coverX, coverY);
+        unit.actionPoints = Mathf.Max(0, unit.actionPoints - 1);
+        LogLine($"엄폐: {unit.displayName} | 엄폐물 ({coverX},{coverY}) | AP-1");
+        RefreshActiveHighlights(unit);
+        UpdateHud();
+        return true;
+    }
+
+    bool CanInteractSelectedUnit(SrpUnitRuntime unit)
+    {
+        return !_gameOver
+            && _phase == Phase.UnitActive
+            && unit != null
+            && !unit.eliminated
+            && unit.actionPoints > 0
+            && _state != null
+            && _state.TryGetAdjacentInteraction(unit, out _);
+    }
+
+    bool TryInteractSelectedUnit(bool logFailure)
+    {
+        if (!_selectedId.HasValue)
+            return false;
+        var unit = GetUnit(_selectedId.Value);
+        if (!CanInteractSelectedUnit(unit))
+        {
+            if (logFailure && unit != null)
+            {
+                string reason = unit.actionPoints <= 0
+                    ? "AP 부족"
+                    : "인접 활성화 가능 지점 없음";
+                LogLine($"상호작용 불가: {unit.displayName} | {reason}");
+            }
+            UpdateHud();
+            return false;
+        }
+
+        PushUndo();
+        if (!_state.TryResolveInteractionAction(unit, out var point))
+        {
+            _undo.Pop();
+            UpdateHud();
+            return false;
+        }
+        string label = string.IsNullOrEmpty(point.displayName) ? point.id : point.displayName;
+        LogLine($"상호작용: {unit.displayName} → {label}({point.x},{point.y}) | AP-1");
+        RefreshActiveHighlights(unit);
+        UpdateHud();
+        return true;
+    }
+
+    bool TryOverclockSelectedSkill(bool logFailure)
+    {
+        if (!_selectedId.HasValue)
+            return false;
+        var unit = GetUnit(_selectedId.Value);
+        if (_gameOver || _phase != Phase.UnitActive || unit == null || unit.eliminated)
+        {
+            if (logFailure)
+                LogLine("오버클럭 불가: 현재 행동 유닛이 없습니다.");
+            UpdateHud();
+            return false;
+        }
+        if (!FindFirstOverclockableSkill(unit, out var data, out var runtime))
+        {
+            if (logFailure)
+                LogLine($"오버클럭 불가: {unit.displayName} | 회복 가능한 쿨다운/충전 없음");
+            UpdateHud();
+            return false;
+        }
+
+        PushUndo();
+        bool applied = SrpSkills.TryOverclockSkill(unit, data, runtime, LogLine);
+        if (!applied)
+        {
+            _undo.Pop();
+            UpdateHud();
+            return false;
+        }
+
+        RefreshActiveHighlights(unit);
+        UpdateHud();
+        return true;
+    }
+
+    bool FindFirstOverclockableSkill(SrpUnitRuntime unit, out SrpSkillData data, out SrpSkillRuntime runtime)
+    {
+        data = null;
+        runtime = null;
+        if (unit == null || _state == null)
+            return false;
+
+        foreach (var sr in unit.skillRuntimes)
+        {
+            if (sr == null || !_state.SkillLookup.TryGetValue(sr.skillId, out var skill))
+                continue;
+            if (!SrpSkills.CanOverclockSkill(unit, skill, sr))
+                continue;
+            data = skill;
+            runtime = sr;
+            return true;
+        }
+        return false;
+    }
+
+    static string DescribeStance(SrpStance stance)
+    {
+        return stance == SrpStance.Defensive ? "수비" : "공격";
+    }
+
+    static string DescribeFacing(SrpFacing facing)
+    {
+        switch (facing)
+        {
+            case SrpFacing.North:
+                return "북";
+            case SrpFacing.East:
+                return "동";
+            case SrpFacing.South:
+                return "남";
+            case SrpFacing.West:
+                return "서";
+            default:
+                return "?";
+        }
+    }
+
     int GetFocusedOwner()
     {
         if (_selectedId.HasValue)
@@ -1023,7 +1330,48 @@ public partial class SrpGameController : MonoBehaviour
     {
         foreach (var kv in _moveCostMap)
         {
+            if (TestIsInteractionPointTile(kv.Key.x, kv.Key.y))
+                continue;
             OnTileHoverEnter(kv.Key.x, kv.Key.y);
+            return true;
+        }
+        return false;
+    }
+
+    bool TestIsInteractionPointTile(int x, int y)
+    {
+        if (_state == null || _state.InteractionPoints == null)
+            return false;
+        foreach (var point in _state.InteractionPoints)
+        {
+            if (point != null && point.x == x && point.y == y)
+                return true;
+        }
+        return false;
+    }
+
+    public bool TestTryHoverFirstAttackTarget()
+    {
+        foreach (int id in _attackIds)
+        {
+            var unit = GetUnit(id);
+            if (unit == null)
+                continue;
+            OnUnitHoverEnter(unit.id);
+            return true;
+        }
+        return false;
+    }
+
+    public bool TestTryHoverFirstInteractionPoint()
+    {
+        if (_state == null || _state.InteractionPoints == null)
+            return false;
+        foreach (var point in _state.InteractionPoints)
+        {
+            if (point == null)
+                continue;
+            OnTileHoverEnter(point.x, point.y);
             return true;
         }
         return false;

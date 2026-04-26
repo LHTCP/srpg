@@ -14,6 +14,8 @@ public static class SrpCombatResolver
     const int SustainedDefenseGrd = 1;
     const int TankMultiEngagementDef = 1;
     const int TankMultiEngagementGrd = 1;
+    const int CoverDef = 2;
+    const int CoverGrd = 1;
     const int DodgeSuccessChancePercent = 50;
     const int SideAttackHpBonus = 1;
     const int SideAttackPgBonus = 1;
@@ -32,10 +34,13 @@ public static class SrpCombatResolver
         public int reducedPgBySustainedDefense;
         public int reducedHpByTank;
         public int reducedPgByTank;
+        public int reducedHpByCover;
+        public int reducedPgByCover;
         public SrpReactionKind reactionKind;
         public bool reactionSpentRp;
         public bool sustainedDefenseBufferApplied;
         public bool tankMultiEngagementBufferApplied;
+        public bool coverBufferApplied;
         public bool wasDodged;
         public bool dodgeFailed;
         public bool wasParried;
@@ -152,6 +157,7 @@ public static class SrpCombatResolver
         ApplyDirectionalVulnerability(attacker, defender, ref hpDamage, ref pgDamage);
         ApplyConstantMitigation(defender, ref hpDamage, ref pgDamage, ref outcome);
         ApplySustainedDefenseBuffers(state, defender, ref hpDamage, ref pgDamage, ref outcome);
+        ApplyCoverBuffer(state, attacker, defender, ref hpDamage, ref pgDamage, ref outcome);
         ApplyReactionIfAvailable(state, attacker, defender, attackSkill, ref hpDamage, ref pgDamage, ref outcome);
         RecordDefensivePressure(state, defender);
         return outcome;
@@ -175,8 +181,8 @@ public static class SrpCombatResolver
             switch (attacker.weaponClass)
             {
                 case SrpWeaponClass.Firearm:
-                    hpDamage = raw + 2;
-                    pgDamage = Mathf.Max(1, raw / 4);
+                    hpDamage = raw * 2 + 6;
+                    pgDamage = Mathf.Max(1, raw / 5);
                     break;
                 case SrpWeaponClass.Magic:
                     hpDamage = Mathf.Max(1, raw / 2);
@@ -196,6 +202,7 @@ public static class SrpCombatResolver
             ApplyDirectionalVulnerability(attacker, defender, ref hpDamage, ref pgDamage);
             ApplyConstantMitigation(defender, ref hpDamage, ref pgDamage, ref o);
             ApplySustainedDefenseBuffers(state, defender, ref hpDamage, ref pgDamage, ref o);
+            ApplyCoverBuffer(state, attacker, defender, ref hpDamage, ref pgDamage, ref o);
             ApplyReactionIfAvailable(state, attacker, defender, attackSkill, ref hpDamage, ref pgDamage, ref o);
         }
 
@@ -290,6 +297,61 @@ public static class SrpCombatResolver
         outcome.reducedHpByTank += beforeHp - hpDamage;
         outcome.reducedPgByTank += beforePg - pgDamage;
         outcome.tankMultiEngagementBufferApplied = outcome.reducedHpByTank > 0 || outcome.reducedPgByTank > 0;
+    }
+
+    static void ApplyCoverBuffer(
+        SrpBattleState state,
+        SrpUnitRuntime attacker,
+        SrpUnitRuntime defender,
+        ref int hpDamage,
+        ref int pgDamage,
+        ref AttackOutcome outcome)
+    {
+        if (!TryGetCoverMitigation(state, attacker, defender, out int coverDef, out int coverGrd))
+            return;
+
+        int beforeHp = hpDamage;
+        int beforePg = pgDamage;
+        hpDamage = Mathf.Max(0, hpDamage - coverDef);
+        pgDamage = Mathf.Max(0, pgDamage - coverGrd);
+        outcome.reducedHpByCover += beforeHp - hpDamage;
+        outcome.reducedPgByCover += beforePg - pgDamage;
+        outcome.coverBufferApplied = outcome.reducedHpByCover > 0 || outcome.reducedPgByCover > 0;
+    }
+
+    static bool TryGetCoverMitigation(
+        SrpBattleState state,
+        SrpUnitRuntime attacker,
+        SrpUnitRuntime defender,
+        out int coverDef,
+        out int coverGrd)
+    {
+        coverDef = 0;
+        coverGrd = 0;
+        if (state == null || attacker == null || defender == null || !defender.coverActive)
+            return false;
+        if (attacker.weaponClass != SrpWeaponClass.Firearm)
+            return false;
+        if (state.ChebyshevAnchor(attacker, defender) <= 1)
+            return false;
+
+        if (state.HasCoverBetween(attacker, defender, out var segment)
+            && state.HasAdjacentCoverSource(defender, segment.x, segment.y))
+        {
+            coverDef = segment.coverDef > 0 ? segment.coverDef : CoverDef;
+            coverGrd = segment.coverGrd > 0 ? segment.coverGrd : CoverGrd;
+            return true;
+        }
+
+        if (state.IsCoverTile(defender.coverSourceX, defender.coverSourceY)
+            && state.HasAdjacentCoverSource(defender, defender.coverSourceX, defender.coverSourceY))
+        {
+            coverDef = CoverDef;
+            coverGrd = CoverGrd;
+            return true;
+        }
+
+        return false;
     }
 
     static void RecordDefensivePressure(SrpBattleState state, SrpUnitRuntime defender)

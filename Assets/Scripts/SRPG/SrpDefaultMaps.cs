@@ -21,7 +21,8 @@ public static class SrpDefaultMaps
     /// M1 통합 QA 프리셋.
     /// - 속도 기반 턴 순환
     /// - 총기(HP 압박) / 근접(PG 압박) 비교
-    /// - 장애물로 인한 HUD 상태 변화 확인
+    /// - 장애물/유닛 차단을 통한 오버워치 사선 확인
+    /// - 스킬 자원, 패링 텔레그래프, 측후면 노출 확인
     /// </summary>
     public static SrpMapFileV1 CreateM1QaIntegrated()
     {
@@ -57,7 +58,7 @@ public static class SrpDefaultMaps
                 weaponClass = SrpWeaponClass.Firearm,
                 stance = SrpStance.Aggressive,
                 facing = SrpFacing.East,
-                skillIds = new string[0],
+                skillIds = new[] { "heal_light" },
                 maxSkills = 4,
                 tags = 0,
             },
@@ -76,7 +77,7 @@ public static class SrpDefaultMaps
                 weaponClass = SrpWeaponClass.Melee,
                 stance = SrpStance.Defensive,
                 facing = SrpFacing.West,
-                skillIds = new string[0],
+                skillIds = new[] { "heart_spike" },
                 maxSkills = 4,
                 tags = (int)(SrpUnitTags.ParryUser | SrpUnitTags.Tank),
             },
@@ -95,7 +96,7 @@ public static class SrpDefaultMaps
                 weaponClass = SrpWeaponClass.Melee,
                 stance = SrpStance.Aggressive,
                 facing = SrpFacing.East,
-                skillIds = new string[0],
+                skillIds = new[] { "cleave" },
                 maxSkills = 4,
                 tags = 0,
             },
@@ -114,7 +115,7 @@ public static class SrpDefaultMaps
                 weaponClass = SrpWeaponClass.Magic,
                 stance = SrpStance.Aggressive,
                 facing = SrpFacing.East,
-                skillIds = new string[0],
+                skillIds = new[] { "heal_light" },
                 maxSkills = 4,
                 tags = 0,
             },
@@ -133,6 +134,45 @@ public static class SrpDefaultMaps
             new SrpPlacementData { templateId = "breaker", owner = 1, x = 10, y = 1, footprint = new SrpOffset[0] },
         };
 
+        var interactionPoints = new[]
+        {
+            new SrpInteractionPointData
+            {
+                id = "qa_console",
+                displayName = "전술 단말",
+                x = 2,
+                y = 2,
+                owner = -1,
+                requiredOwner = 0,
+                singleUse = true,
+                activated = false,
+            },
+        };
+
+        var coverSegments = new[]
+        {
+            new SrpCoverSegmentData
+            {
+                x = 1,
+                y = 2,
+                edge = SrpCoverEdge.East,
+                shape = SrpCoverShape.Linear,
+                coverDef = 3,
+                coverGrd = 1,
+                blocksLineOfSight = false,
+            },
+            new SrpCoverSegmentData
+            {
+                x = 9,
+                y = 5,
+                edge = SrpCoverEdge.West,
+                shape = SrpCoverShape.Linear,
+                coverDef = 3,
+                coverGrd = 1,
+                blocksLineOfSight = false,
+            },
+        };
+
         return new SrpMapFileV1
         {
             version = 2,
@@ -143,6 +183,8 @@ public static class SrpDefaultMaps
             playerOrder = new[] { 0, 1 },
             templates = templates,
             placements = placements,
+            interactionPoints = interactionPoints,
+            coverSegments = coverSegments,
         };
     }
 
