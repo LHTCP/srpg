@@ -1,0 +1,21 @@
+{
+  "workflow": {
+    "integrationStyle": "small-pr-continuous-integration",
+    "preferPrPerTask": true,
+    "defaultIssueLanguage": "ko",
+    "defaultPrLanguage": "ko",
+    "defaultCommitLanguage": "ko"
+  },
+  "workspace": {
+    "mainRepoPath": "D:/WorkDir/LHTCP/srpg",
+    "worktreeRoot": "D:/WorkDir/LHTCP/worktrees"
+  },
+  "git": {
+    "autoSafeDirectory": true,
+    "protectMainBranchLocally": true
+  },
+  "notes": [
+    "이 파일은 예시다.",
+    "실사용 값은 project.local.json에 작성하고 Git에는 올리지 않는다."
+  ]
+}

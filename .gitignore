@@ -47,3 +47,6 @@ crashlytics-build.properties
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local-only workflow preferences
+project.local.json

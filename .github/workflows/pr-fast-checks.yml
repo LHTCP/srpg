@@ -1,0 +1,17 @@
+name: PR 빠른 체크
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  repo-sanity:
+    name: 저장소 구조 및 문서 검증
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 검증 스크립트 실행
+        run: bash ./scripts/validate-repo.sh
