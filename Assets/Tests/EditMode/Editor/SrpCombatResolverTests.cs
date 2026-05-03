@@ -2,8 +2,8 @@ using NUnit.Framework;
 
 public class SrpCombatResolverTests
 {
-    [Test]
-    public void ApplyAttack_ConsumesApBeforeHpDamage()
+    [TestCase(TestName = "공격하면 AP 피해를 먼저 적용하고 남은 피해만 HP에 적용한다")]
+    public void ApplyAttack_ApFirst()
     {
         var attacker = Unit(attackPower: 7);
         var defender = Unit(hp: 20, ap: 5);
@@ -16,8 +16,8 @@ public class SrpCombatResolverTests
         Assert.That(defender.hp, Is.EqualTo(18));
     }
 
-    [Test]
-    public void ApplyAttack_HpDamageBuildsPostureAndCanCauseGroggy()
+    [TestCase(TestName = "HP 피해가 발생하면 자세가 누적되고 최대치에 도달하면 그로기가 된다")]
+    public void ApplyAttack_HpDamageBuildsPosture()
     {
         var attacker = Unit(attackPower: 6);
         var defender = Unit(hp: 20, ap: 0, posture: 2, maxPosture: 5);
@@ -31,8 +31,8 @@ public class SrpCombatResolverTests
         Assert.That(defender.posture, Is.EqualTo(5));
     }
 
-    [Test]
-    public void ApplyAttack_GroggyDefenderReceivesExecutionAndResetsPosture()
+    [TestCase(TestName = "그로기 대상은 처단 피해를 받고 그로기와 자세가 초기화된다")]
+    public void ApplyAttack_GroggyExecution()
     {
         var attacker = Unit(attackPower: 8);
         var defender = Unit(hp: 20, ap: 6, posture: 5, maxPosture: 5);
