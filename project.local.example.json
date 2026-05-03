@@ -5,6 +5,7 @@
     "defaultIssueLanguage": "ko",
     "defaultPrLanguage": "ko",
     "defaultCommitLanguage": "ko",
+    "englishCommitStyle": "imperative",
     "preferSelfReviewCommentsForNonObviousChanges": true,
     "preferVerboseCommentsForShellAndCiScripts": true
   },
