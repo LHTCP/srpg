@@ -55,7 +55,8 @@ Add pawn promotion check in ChessGameManager
 
 ## 머지 방식과 로컬 정리
 
-- 기본 선호는 squash merge다. 작은 PR 단위 지속 통합에서는 `main` 히스토리를 PR 단위로 읽기 쉽게 유지할 수 있다.
+- 머지 방식 선호는 로컬/팀 설정을 따른다. 로컬 선호 예시는 [local-preferences.md](local-preferences.md)와 `project.local.example.json`을 본다.
+- squash merge는 작은 PR 단위 지속 통합에서 `main` 히스토리를 PR 단위로 읽기 쉽게 유지할 수 있다.
 - squash merge 후에는 로컬 feature 브랜치의 커밋 SHA가 `main`에 그대로 포함되지 않으므로 `git branch -d`가 실패할 수 있다.
 - 이 경우 `git diff --stat main..feature/<name>`가 비어 있는지 확인한 뒤 `git branch -D feature/<name>`로 정리한다.
 - 일반 merge commit을 사용한 경우에는 feature 브랜치 커밋이 `main`에 포함되므로 보통 `git branch -d feature/<name>`로 정리된다.

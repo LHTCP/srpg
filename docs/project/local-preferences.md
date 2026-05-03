@@ -24,6 +24,7 @@
 - 실사용 파일: `project.local.json`
 
 `project.local.json`은 `.gitignore`에 포함되어 있으므로 저장소에 올라가지 않는다.
+현재 저장소에는 예시 파일만 있고, 실제 `project.local.json`은 각 로컬 환경에서 필요할 때 만든다.
 
 ## 시작 방법
 
@@ -38,6 +39,7 @@
   "workflow": {
     "integrationStyle": "small-pr-continuous-integration",
     "preferPrPerTask": true,
+    "preferredMergeMethod": "squash",
     "defaultIssueLanguage": "ko",
     "defaultPrLanguage": "ko",
     "defaultCommitLanguage": "ko"
@@ -64,9 +66,9 @@
 
 이런 값은 각각 GitHub Secrets, 저장소 문서, 워크플로 파일 쪽에서 관리한다.
 
-## 이 프로젝트에서의 권장 기조
+## 현재 로컬 선호 예시
 
-현재 프로젝트에서는 다음 로컬 취향이 잘 맞는다.
+현재 예시 설정은 다음 취향을 담고 있다.
 
 - 작은 작업 단위 PR 선호
 - squash merge 선호
