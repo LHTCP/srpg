@@ -52,6 +52,8 @@ Unity 테스트 워크플로가 안정화된 뒤 추가 후보:
 
 플랫폼 빌드 워크플로는 무겁기 때문에 초기에는 required check로 두지 않는다. 릴리스 또는 수동 실행 기준을 먼저 정한다.
 
+`Unity EditMode 테스트` 워크플로는 초기에는 수동 실행(`workflow_dispatch`)으로 둔다. `UNITY_LICENSE` 시크릿 설정, 최초 실행 성공 여부, 실행 시간, artifact/cache 사용량을 확인한 뒤 required check 승격 여부를 결정한다.
+
 ## 비용 리뷰 포인트
 
 public 저장소의 standard GitHub-hosted runner는 무료로 사용할 수 있지만, 다음 변경은 비용 또는 플랜 한도에 영향을 줄 수 있다.

@@ -1,0 +1,42 @@
+name: Unity EditMode 테스트
+
+on:
+  workflow_dispatch:
+
+jobs:
+  editmode-tests:
+    name: EditMode 테스트 실행
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Unity Library 캐시 복원
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-Unity-6000.3.13f1-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: |
+            Library-${{ runner.os }}-Unity-6000.3.13f1-
+
+      - name: EditMode 테스트 실행
+        id: unity-tests
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          unityVersion: 6000.3.13f1
+          testMode: EditMode
+          artifactsPath: artifacts
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      # 테스트 결과는 실패 시 원인 확인에 필요하지만, 보관 기간이 길어지면 저장소 비용/한도에 영향을 줄 수 있다.
+      - name: 테스트 결과 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-editmode-test-results
+          path: ${{ steps.unity-tests.outputs.artifactsPath }}
+          retention-days: 7
