@@ -2,6 +2,7 @@
   "workflow": {
     "integrationStyle": "small-pr-continuous-integration",
     "preferPrPerTask": true,
+    "preferredMergeMethod": "squash",
     "defaultIssueLanguage": "ko",
     "defaultPrLanguage": "ko",
     "defaultCommitLanguage": "ko",

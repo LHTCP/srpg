@@ -53,6 +53,16 @@ Add pawn promotion check in ChessGameManager
 - 플랫폼별 빌드처럼 무거운 변경은 빠른 검증 PR과 분리한다.
 - 이슈와 PR 본문 언어는 로컬/팀 설정을 따른다. 이 프로젝트의 현재 로컬 선호 예시는 한국어다.
 
+## 머지 방식과 로컬 정리
+
+- 머지 방식 선호는 로컬/팀 설정을 따른다. 로컬 선호 예시는 [local-preferences.md](local-preferences.md)와 `project.local.example.json`을 본다.
+- squash merge는 작은 PR 단위 지속 통합에서 `main` 히스토리를 PR 단위로 읽기 쉽게 유지할 수 있다.
+- squash merge 후에는 로컬 feature 브랜치의 커밋 SHA가 `main`에 그대로 포함되지 않으므로 `git branch -d`가 실패할 수 있다.
+- 이 경우 `git diff --stat main..feature/<name>`가 비어 있는지 확인한 뒤 `git branch -D feature/<name>`로 정리한다.
+- 일반 merge commit을 사용한 경우에는 feature 브랜치 커밋이 `main`에 포함되므로 보통 `git branch -d feature/<name>`로 정리된다.
+- 커밋 단위 히스토리를 보존해야 하는 큰 작업은 squash 대신 일반 merge를 선택할 수 있다.
+- 원격 브랜치를 GitHub에서 삭제했다면 로컬에서는 `git fetch --prune origin`으로 원격 추적 브랜치를 정리한다.
+
 ## 셀프리뷰 코멘트
 
 - 비자명한 라인 변경은 가능하면 PR에 셀프리뷰 라인 코멘트를 남긴다.

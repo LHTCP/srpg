@@ -9,6 +9,7 @@
 예:
 
 - 작업 하나당 작은 PR 하나로 바로 지속 통합
+- 선호 머지 방식
 - 이슈 / PR / 커밋 메시지 언어 선호
 - 워크트리 루트 경로 고정
 - 로컬에서 `main` 직접 작업 금지
@@ -23,6 +24,7 @@
 - 실사용 파일: `project.local.json`
 
 `project.local.json`은 `.gitignore`에 포함되어 있으므로 저장소에 올라가지 않는다.
+현재 저장소에는 예시 파일만 있고, 실제 `project.local.json`은 각 로컬 환경에서 필요할 때 만든다.
 
 ## 시작 방법
 
@@ -37,6 +39,7 @@
   "workflow": {
     "integrationStyle": "small-pr-continuous-integration",
     "preferPrPerTask": true,
+    "preferredMergeMethod": "squash",
     "defaultIssueLanguage": "ko",
     "defaultPrLanguage": "ko",
     "defaultCommitLanguage": "ko"
@@ -47,6 +50,7 @@
 ## 권장 용도
 
 - PR 단위 선호
+- 머지 방식 선호
 - 언어 선호
 - 워크트리 루트 경로
 - 로컬 브랜치 보호 습관
@@ -62,17 +66,19 @@
 
 이런 값은 각각 GitHub Secrets, 저장소 문서, 워크플로 파일 쪽에서 관리한다.
 
-## 이 프로젝트에서의 권장 기조
+## 현재 로컬 선호 예시
 
-현재 프로젝트에서는 다음 로컬 취향이 잘 맞는다.
+현재 예시 설정은 다음 취향을 담고 있다.
 
 - 작은 작업 단위 PR 선호
+- squash merge 선호
 - GitHub 중심 통합
 - 이슈 / PR / 커밋 메시지는 한국어 선호
 - 영어 커밋 메시지를 쓰는 경우 명령형 선호
 - `worktrees/` 기반 병렬 작업
 - 비자명한 라인 변경에는 셀프리뷰 코멘트 남기기
 - 셸/CI 스크립트는 다음 사람이 의도를 바로 알 수 있게 주석을 넉넉히 남기기
+- squash merge 후에는 diff가 비어 있는지 확인하고 로컬 feature 브랜치를 정리하기
 
 ## 에이전트와의 관계
 
