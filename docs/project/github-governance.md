@@ -63,8 +63,11 @@ public 저장소의 standard GitHub-hosted runner는 무료로 사용할 수 있
 - cache 용량 증가
 - artifact/cache 보관 기간 증가
 - 빌드 매트릭스 확대
+- GitHub LFS bandwidth/storage를 쓰도록 LFS 원격 설정 변경
 
 이 항목을 바꾸는 PR은 셀프리뷰 코멘트나 PR 본문에 비용 검토 내용을 남긴다.
+
+현재 저장소는 `.lfsconfig`로 커스텀 LFS 서버를 사용한다. 이 경우 GitHub Actions standard runner 실행 시간 자체와 별개로, LFS 다운로드는 커스텀 서버의 네트워크 접근성, 인증, 트래픽 한도를 함께 확인한다.
 
 ## Unity 에디터 확인 경계
 

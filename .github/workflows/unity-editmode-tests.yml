@@ -12,8 +12,15 @@ jobs:
     steps:
       - name: 저장소 체크아웃
         uses: actions/checkout@v4
-        with:
-          lfs: true
+
+      - name: LFS 오브젝트 가져오기
+        # actions/checkout의 lfs:true는 .lfsconfig 적용 전에 GitHub LFS를 먼저 조회할 수 있어,
+        # 커스텀 LFS 서버를 쓰는 이 저장소에서는 체크아웃 이후 명시적으로 pull한다.
+        # 참고: GitHub LFS 다운로드는 GitHub LFS bandwidth 대상이지만, 현재 .lfsconfig는 커스텀 LFS 서버를 가리킨다.
+        # https://docs.github.com/billing/managing-billing-for-git-large-file-storage/about-billing-for-git-large-file-storage
+        run: |
+          git lfs install --local
+          git lfs pull
 
       - name: Unity Library 캐시 복원
         uses: actions/cache@v4
@@ -42,5 +49,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unity-editmode-test-results
-          path: ${{ steps.unity-tests.outputs.artifactsPath }}
+          path: artifacts
+          if-no-files-found: warn
           retention-days: 7
