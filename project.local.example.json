@@ -18,6 +18,12 @@
     "autoSafeDirectory": true,
     "protectMainBranchLocally": true
   },
+  "agent": {
+    "preferExplicitAssumptions": true,
+    "preferSurgicalChanges": true,
+    "avoidSpeculativeAbstractions": true,
+    "preferVerifiableSuccessCriteria": true
+  },
   "notes": [
     "이 파일은 예시다.",
     "실사용 값은 project.local.json에 작성하고 Git에는 올리지 않는다."
