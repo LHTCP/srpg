@@ -18,7 +18,17 @@ jobs:
         # 커스텀 LFS 서버를 쓰는 이 저장소에서는 체크아웃 이후 명시적으로 pull한다.
         # 참고: GitHub LFS 다운로드는 GitHub LFS bandwidth 대상이지만, 현재 .lfsconfig는 커스텀 LFS 서버를 가리킨다.
         # https://docs.github.com/billing/managing-billing-for-git-large-file-storage/about-billing-for-git-large-file-storage
+        env:
+          LFS_USERNAME: ${{ secrets.LFS_USERNAME }}
+          LFS_PASSWORD: ${{ secrets.LFS_PASSWORD }}
         run: |
+          if [ -z "${LFS_USERNAME:-}" ] || [ -z "${LFS_PASSWORD:-}" ]; then
+            echo "::error::커스텀 LFS 서버 인증을 위해 LFS_USERNAME, LFS_PASSWORD repository secret이 필요합니다."
+            exit 1
+          fi
+
+          git config --global credential.helper store
+          printf "protocol=https\nhost=toyboxxx-nvme.myasustor.com\nusername=%s\npassword=%s\n\n" "$LFS_USERNAME" "$LFS_PASSWORD" | git credential approve
           git lfs install --local
           git lfs pull
 
