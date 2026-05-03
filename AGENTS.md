@@ -6,8 +6,10 @@ Unity 6 기반 전술/SRPG 전환 중인 프로젝트. **주 플로우는 SRPG**
 
 ## 환경
 
-- **Unity 에디터**: 6000.0.45f1 (`ProjectSettings/ProjectVersion.txt` 기준)
+- **Unity 에디터**: 6000.3.13f1 (`ProjectSettings/ProjectVersion.txt` 기준)
 - **실행**: Unity에서 프로젝트를 연 뒤 씬을 열고 Play. 체스 씬 설정은 [docs/chess/Unity_설정가이드.md](docs/chess/Unity_설정가이드.md), SRPG는 [docs/srpg/SRPG_README.md](docs/srpg/SRPG_README.md).
+- **공통 개발 기준**: [docs/project/setup.md](docs/project/setup.md), [docs/project/workflow.md](docs/project/workflow.md), [docs/project/worktrees.md](docs/project/worktrees.md)
+- **로컬 취향 설정(선택)**: `project.local.json`이 있으면 공통 규칙과 충돌하지 않는 범위에서 참고
 
 ## 하위 에이전트
 
@@ -24,7 +26,10 @@ SRPG 코드는 6개 도메인(전투·HUD·렌더링·메이커·데이터·로�
 | 목적 | 위치 |
 |------|------|
 | 문서 목록·맵 | [docs/README.md](docs/README.md) |
+| 개발 환경·재현성 기준 | [docs/project/setup.md](docs/project/setup.md) |
 | Git·브랜치·PR | [docs/project/workflow.md](docs/project/workflow.md) |
+| 멀티 워크트리 운영 | [docs/project/worktrees.md](docs/project/worktrees.md) |
+| 로컬 전용 취향 설정 | [docs/project/local-preferences.md](docs/project/local-preferences.md) |
 | 문서 작성 규칙 | [docs/project/documentation-standards.md](docs/project/documentation-standards.md) |
 | Cursor AI 규칙 | `.cursor/rules/*.mdc` |
 | 체스 가이드 | [docs/chess/체스게임_완전가이드.md](docs/chess/체스게임_완전가이드.md) |
