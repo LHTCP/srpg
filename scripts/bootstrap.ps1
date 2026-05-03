@@ -12,6 +12,7 @@ $worktreeRoot = Join-Path $workspaceRoot "worktrees"
 Write-Host "[srpg] 저장소 루트: $repoRoot"
 Write-Host "[srpg] 워크스페이스 루트: $workspaceRoot"
 
+# 워크트리는 저장소 밖, 같은 워크스페이스 루트 아래에 모아 병렬 작업 충돌을 줄인다.
 if (-not $SkipWorktreeRoot) {
     if (-not (Test-Path -LiteralPath $worktreeRoot)) {
         New-Item -ItemType Directory -Path $worktreeRoot | Out-Null
@@ -21,6 +22,8 @@ if (-not $SkipWorktreeRoot) {
     }
 }
 
+# 일부 로컬/에이전트 환경에서는 체크아웃 소유자가 달라 Git이 저장소 접근을 막는다.
+# 이 설정은 현재 사용자 전역 Git 설정에만 적용된다.
 if (-not $SkipGitSafeDirectory) {
     $safeDirectories = git config --global --get-all safe.directory 2>$null
 

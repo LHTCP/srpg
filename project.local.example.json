@@ -5,7 +5,8 @@
     "defaultIssueLanguage": "ko",
     "defaultPrLanguage": "ko",
     "defaultCommitLanguage": "ko",
-    "preferSelfReviewCommentsForNonObviousChanges": true
+    "preferSelfReviewCommentsForNonObviousChanges": true,
+    "preferVerboseCommentsForShellAndCiScripts": true
   },
   "workspace": {
     "mainRepoPath": "D:/WorkDir/LHTCP/srpg",
