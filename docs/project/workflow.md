@@ -1,6 +1,7 @@
 # Git 워크플로
 
 이 문서는 **통합 규칙**을 다룬다. 로컬 개발 환경은 [setup.md](setup.md), 병렬 작업 디렉터리 운영은 [worktrees.md](worktrees.md)를 본다.
+GitHub 이슈, PR 템플릿, 브랜치 보호 기준은 [github-governance.md](github-governance.md)를 본다.
 
 ## 브랜치 이름
 
@@ -52,6 +53,7 @@ Add pawn promotion check in ChessGameManager
 - 문서·정책 PR과 코드·CI PR을 섞어 키우지 않는다.
 - 플랫폼별 빌드처럼 무거운 변경은 빠른 검증 PR과 분리한다.
 - 이슈와 PR 본문 언어는 로컬/팀 설정을 따른다. 이 프로젝트의 현재 로컬 선호 예시는 한국어다.
+- PR 템플릿과 브랜치 보호 기준은 [github-governance.md](github-governance.md)를 따른다.
 
 ## 머지 방식과 로컬 정리
 
