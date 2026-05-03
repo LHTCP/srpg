@@ -4,7 +4,8 @@
     "preferPrPerTask": true,
     "defaultIssueLanguage": "ko",
     "defaultPrLanguage": "ko",
-    "defaultCommitLanguage": "ko"
+    "defaultCommitLanguage": "ko",
+    "preferSelfReviewCommentsForNonObviousChanges": true
   },
   "workspace": {
     "mainRepoPath": "D:/WorkDir/LHTCP/srpg",
