@@ -22,12 +22,20 @@
 - 영어를 쓰는 경우: 명령형 문장을 권장한다.
 - 필요 시 본문에 이유·에디터에서 확인할 일을 적는다.
 
-예:
+한국어 예:
 
 ```
 체스 폰 승급 조건 검사 추가
 
 - 인스펙터에 새 필드 추가 시 씬에서 재할당 필요
+```
+
+영어 예:
+
+```
+Add pawn promotion check in ChessGameManager
+
+- Reassign scene references if new inspector fields are added
 ```
 
 ## Pull request 전 확인 (Unity)
