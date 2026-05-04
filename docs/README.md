@@ -8,6 +8,9 @@
 | ---- | ---- |
 | [AGENTS.md](../AGENTS.md) | 사람·에이전트 공통 진입점 |
 | [project/workflow.md](project/workflow.md) | Git·브랜치·PR·첫 커밋 |
+| [project/setup.md](project/setup.md) | 로컬 개발 환경·재현성 기준 |
+| [project/worktrees.md](project/worktrees.md) | 멀티 브랜치·멀티 에이전트 워크트리 운영 |
+| [project/github-governance.md](project/github-governance.md) | GitHub 이슈·PR·브랜치 보호 운영 기준 |
 | [project/documentation-standards.md](project/documentation-standards.md) | 문서 위치·갱신 규칙 |
 
 ## 프로젝트 공통 (`docs/project/`)
@@ -15,7 +18,16 @@
 | 문서 | 설명 |
 | ---- | ---- |
 | [workflow.md](project/workflow.md) | Git 워크플로 |
+| [setup.md](project/setup.md) | 개발 환경·Git 안전 설정·클라우드 호환 원칙 |
+| [worktrees.md](project/worktrees.md) | `git worktree` 운영 규칙 |
+| [local-preferences.md](project/local-preferences.md) | Git 미추적 로컬 작업 취향 설정 |
+| [github-governance.md](project/github-governance.md) | GitHub 이슈·PR 템플릿과 브랜치 보호 기준 |
 | [documentation-standards.md](project/documentation-standards.md) | 문서 전용 폴더 구조·작성 규칙 |
+
+프로젝트 스크립트:
+
+- `scripts/bootstrap.ps1`: Windows 초기 부트스트랩
+- `scripts/bootstrap.sh`: macOS/Linux 초기 부트스트랩
 
 ## SRPG (`docs/srpg/`)
 

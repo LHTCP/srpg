@@ -1,0 +1,64 @@
+name: Unity EditMode 테스트
+
+on:
+  # 참고: workflow_dispatch는 워크플로 파일이 기본 브랜치에 있어야 수동 실행 이벤트를 받는다.
+  # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatch
+  workflow_dispatch:
+
+jobs:
+  editmode-tests:
+    name: EditMode 테스트 실행
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: LFS 오브젝트 가져오기
+        # actions/checkout의 lfs:true는 .lfsconfig 적용 전에 GitHub LFS를 먼저 조회할 수 있어,
+        # 커스텀 LFS 서버를 쓰는 이 저장소에서는 체크아웃 이후 명시적으로 pull한다.
+        # 참고: GitHub LFS 다운로드는 GitHub LFS bandwidth 대상이지만, 현재 .lfsconfig는 커스텀 LFS 서버를 가리킨다.
+        # https://docs.github.com/billing/managing-billing-for-git-large-file-storage/about-billing-for-git-large-file-storage
+        env:
+          LFS_ACCOUNT_ID: ${{ secrets.LFS_ACCOUNT_ID }}
+          LFS_ACCOUNT_PASSWORD: ${{ secrets.LFS_ACCOUNT_PASSWORD }}
+        run: |
+          if [ -z "${LFS_ACCOUNT_ID:-}" ] || [ -z "${LFS_ACCOUNT_PASSWORD:-}" ]; then
+            echo "::error::커스텀 LFS 서버 인증을 위해 LFS_ACCOUNT_ID, LFS_ACCOUNT_PASSWORD repository secret이 필요합니다."
+            exit 1
+          fi
+
+          git config --global credential.helper store
+          printf "protocol=https\nhost=toyboxxx-nvme.myasustor.com\nusername=%s\npassword=%s\n\n" "$LFS_ACCOUNT_ID" "$LFS_ACCOUNT_PASSWORD" | git credential approve
+          git lfs install --local
+          git lfs pull
+
+      - name: Unity Library 캐시 복원
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-Unity-6000.3.13f1-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: |
+            Library-${{ runner.os }}-Unity-6000.3.13f1-
+
+      - name: EditMode 테스트 실행
+        id: unity-tests
+        # 참고: GameCI Test Runner는 Unity 라이선스 시크릿과 testMode/artifactsPath 입력을 지원한다.
+        # https://game.ci/docs/github/test-runner/
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          unityVersion: 6000.3.13f1
+          testMode: EditMode
+          artifactsPath: artifacts
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      # 테스트 결과는 실패 시 원인 확인에 필요하지만, 보관 기간이 길어지면 저장소 비용/한도에 영향을 줄 수 있다.
+      - name: 테스트 결과 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-editmode-test-results
+          path: artifacts
+          if-no-files-found: warn
+          retention-days: 7
