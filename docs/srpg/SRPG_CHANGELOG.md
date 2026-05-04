@@ -1,5 +1,19 @@
 # SRPG v1 전환 이력
 
+## 2026-04-27
+
+- 신규 대화 11~22 정책 잠금/문서 정렬
+  - `SRPG_NEW_DIALOG_POLICY_LOCK.md` 기준 범위를 06~22로 확장
+  - 공통 DEF 제거 방향, GRD(PG 감쇠) 전용화, 중대/경미 HP 피해 분류 정책 추가
+  - 탱커 `완벽한 수비`, 패링 성공 보상, 공용 전투 태그, `노출` 용어 정책, 초기 4인 역할 구조를 확정 항목으로 추가
+  - `SRPG_전투규칙_기준서_v2`, `SRPG_GDD`, `SRPG_TDD`, `SRPG_PHASE2_CODE_BACKLOG`, `SRPG_BACKLOG`, `SRPG_GDD_TEST_TRACEABILITY`, `SRPG_README`를 새 정책 기준으로 갱신
+  - 문서 전용 변경이므로 Unity 테스트는 실행하지 않음
+- 23 대화/추가 논의 총기 HP-PG 파급 정책 문서화
+  - `SRPG_NEW_DIALOG_POLICY_LOCK.md` 기준 범위를 06~23으로 확장
+  - 총격으로 실제 받은 HP 피해량의 50%를 PG 피해로 추가 적용하는 v0.2 기준 추가
+  - 50% 비율, 반올림, 최소값, GRD 적용 순서는 밸런스 검사와 전투 시뮬레이션 후 조정 가능하도록 `TBD-009`로 분리
+  - 다음 코드 후보에 총기 HP-PG 파급 보정을 추가
+
 ## 2026-04-26
 
 - Phase2 전투 코어 1차 코드 착수
@@ -128,7 +142,7 @@
   - 검증 통과: EditMode `59 passed / 0 failed`, PlayMode `5 passed / 0 failed`
 - Phase2 총기 1발 고화력 + 방향성 엄폐 설계 완료
   - 명시 `maxAmmo`가 없는 총기 기본 탄창을 1발로 낮춤: `SrpUnitRuntime`
-  - 총기 기본 공격을 HP 고화력/낮은 PG 압박 공식으로 조정: `SrpCombatResolver`
+  - 총기 기본 공격을 HP 고화력/낮은 PG 압박 브릿지로 조정: `SrpCombatResolver`
   - 기본 탄창 1발, 고화력 HP 피해, 비총기 탄약 예외, HUD `1/1` 표기 회귀 테스트 추가
   - 선형/방향성 엄폐는 `SrpCoverSegmentData` 초안과 edge 단계별 구현 방침으로 문서화
   - 검증 통과: EditMode `61 passed / 0 failed`, PlayMode `5 passed / 0 failed`

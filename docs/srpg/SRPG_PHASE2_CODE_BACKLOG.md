@@ -11,13 +11,13 @@
 
 ## 0. 현재 착수 상태
 
-2026-04-26 기준 Phase2 1차 전투 코어 기반 작업, 교전 이탈 비용 브릿지, 교전 이탈 기회공격 1차 구현, 스킬 자원 기본 모델, 패링 조건/텔레그래프 1차 구현, 반응행동 파이프라인 1차 구현, 수비 지속 완충/탱커 다중 대응 브릿지, 메이커 메타데이터 UI 확장, 중간 점검 보정, 유닛 시각 방향성 개선, 교전/둘러싸임 검증 프리셋 보강, RP/HUD 노출 정책 정리, 기획 대조 P1 보정, HUD/로그 가독성 동기화, 오버워치 사선/횟수/해제 상세 규칙, 테스트 프리셋 v2 + HUD 레이아웃 개편, 전투 직접 조작 UI 보강, 오버클럭 성능 증폭, 재장전 AP 행동 1차 구현, 엄폐 AP 행동 1차 구현, 상호작용 AP 행동 1차 구현, 개발용 전술 HUD 개선을 완료했다.
+2026-04-27 기준 Phase2 1차 전투 코어 기반 작업, 교전 이탈 비용 브릿지, 교전 이탈 기회공격 1차 구현, 스킬 자원 기본 모델, 패링 조건/텔레그래프 1차 구현, 반응행동 파이프라인 1차 구현, 수비 지속 완충/탱커 다중 대응 브릿지, 메이커 메타데이터 UI 확장, 중간 점검 보정, 유닛 시각 방향성 개선, 교전/둘러싸임 검증 프리셋 보강, RP/HUD 노출 정책 정리, 기획 대조 P1 보정, HUD/로그 가독성 동기화, 오버워치 사선/횟수/해제 상세 규칙, 테스트 프리셋 v2 + HUD 레이아웃 개편, 전투 직접 조작 UI 보강, 오버클럭 성능 증폭, 재장전 AP 행동 1차 구현, 엄폐 AP 행동 1차 구현, 상호작용 AP 행동 1차 구현, 개발용 전술 HUD 개선, 총기 1발 고화력 + 방향성 엄폐 설계, 방향성 엄폐 1차 구현, 11~23 대화 정책 잠금/문서 정렬을 완료했다.
 
 완료 범위:
 
 - `SrpBattleState.cs`: 교전 상태 저장 구조(`Engagements`)와 클론 안전성 추가
 - `SrpUnitRuntime.cs`: 반응행동 종류/마지막 반응 상태 기록 필드 추가
-- `SrpCombatResolver.cs`: 상태 기반 공격 해결 오버로드, DEF/GRD 감쇠, 수비 태세 Guard 반응 RP 소비 훅, RP 기반 기회공격 해석 추가
+- `SrpCombatResolver.cs`: 상태 기반 공격 해결 오버로드, 기존 DEF/GRD 감쇠 브릿지, 수비 태세 Guard 반응 RP 소비 훅, RP 기반 기회공격 해석 추가
 - `SrpTurnOrder.cs`: 라운드 AP/RP 리셋 정책 분리
 - `SrpGameController.cs`: 상태 기반 전투 해결, 피격 패시브 훅, 교전 재계산, 교전 이탈 로그 힌트, 기회공격 실행 연결
 - `SrpPathfinder.cs`: 교전 중 적 인접 상태를 벗어나는 이동에 임시 이탈 비용 추가
@@ -81,9 +81,12 @@
 - 현재 상호작용은 맵의 `SrpInteractionPointData`에 인접한 유닛이 AP 1로 활성화하는 1차 행동이다. `requiredOwner < 0`이면 누구나 가능하고, 아니면 해당 owner만 가능하다. 복잡한 시나리오 스크립트와 맵 메이커 전용 편집 UI는 후속으로 남긴다.
 - 현재 Parry/Dodge는 피해 무효화 브릿지로 구현했다. 최종 회피 확률식, 패링 보상/실패 패널티 수치는 `TBD-003`, `TBD-005` 후속으로 남긴다.
 - 현재 Dodge는 임시 확률형 브릿지로 성공/실패만 분기한다. 최종 확률식과 스탯/방향 가중치는 `TBD-003` 후속으로 남긴다.
-- 현재 방향 방어 불리는 측후면 추가 피해 브릿지로만 반영한다. 최종 DEF/GRD 수치표와 방향별 공식은 `TBD-002` 후속으로 남긴다.
+- 현재 방향 방어 불리는 측후면 추가 피해 브릿지로만 반영한다. 공통 DEF 제거, GRD의 PG 전용화, 경미 HP 피해 공식은 `TBD-002` 후속으로 남긴다.
+- 현재 총기 기본 공격은 HP 고화력/낮은 PG 압박 브릿지다. 새 v0.2 정책은 실제 받은 HP 피해량의 50%를 PG 피해로 추가 파급해야 하며, 최종 비율과 적용 순서는 `TBD-009` 후속 검증 대상으로 둔다.
 - 현재 명시형 `ReactionShot`은 AP 예약/RP 발동, 8방향 직선 사선, 장애물/유닛 차단, 예약 1회당 1회 발동, 라운드 리셋 해제를 1차 상세 규칙으로 사용한다. 여러 오버워치 후보의 우선순위와 추가 특수 지형 상호작용은 `TBD-004` 후속으로 남긴다.
-- 현재 탱커 다중 대응은 `Tank` 태그와 다중 교전 수 기반 감쇠 브릿지다. 탱커 전용 패시브 최종 형태/수치는 `TBD-006` 후속으로 남긴다.
+- 현재 탱커 다중 대응은 `Tank` 태그와 다중 교전 수 기반 감쇠 브릿지다. 새 정책의 `완벽한 수비`는 수비 태세/PG 미붕괴/후방 아님 조건에서 경미 HP 피해를 무효화하는 방향으로 후속 구현한다.
+- 현재 패링은 피해 무효화 브릿지까지 구현했다. 새 정책의 패링 보상은 PG 대량 피해와 `균형 붕괴` 태그 부여까지 확장해야 한다.
+- 현재 공용 전투 태그(`표식`, `균형 붕괴`, `사살 지시`) 런타임 계약은 미구현이다. `노출`은 디버프가 아니라 포지션 상태로만 구현한다.
 
 검증:
 
@@ -94,10 +97,25 @@
 
 다음 착수 후보:
 
-- P1/P2: 방향성 엄폐 후속 구현
-  - 다음 단계: 오버워치/사선 차단과 연동
-  - 이후 단계: 맵 메이커 편집 UI
-- P1/P2: 마법/전장 개입 스킬 콘텐츠 검토
+- P1: 총기 HP-PG 파급 보정
+  - 총격으로 실제 받은 HP 피해량의 50%를 PG 피해로 추가 적용
+  - 엄폐/방향성 엄폐 후 최종 HP 피해량 기준으로 산정하는지, GRD 적용 여부와 반올림/최소값을 테스트로 고정
+  - 이후 밸런스 검사/시뮬레이션에서 비율 조정 가능하게 상수화
+- P1: 공용 전투 태그 런타임 계약
+  - `표식`, `균형 붕괴`, `사살 지시` 저장/갱신/표시
+  - 태그 중첩보다 갱신을 기본으로 구현
+  - `노출`은 디버프가 아니라 엄폐/사선 기반 포지션 상태로만 판정
+- P1: 패링 성공 보상 확장
+  - 공격 무효 외 대상 PG 대량 피해와 `균형 붕괴` 부여
+  - 큰 HP 반격/전체 쿨타임 초기화는 비범위
+- P1: `완벽한 수비` 1차 구현
+  - 중대/경미 HP 피해 분류
+  - 수비 태세, PG 미붕괴, 후방 아님 조건에서 경미 HP 피해 무효
+  - 기존 Tank 태그/다중 교전 완충 브릿지와 충돌 없는 순서 정리
+- P2: 초기 4인 대표 스킬/패시브 데이터 갱신
+  - 주인공, 탱커, 사격수, 마도사의 역할 검증용 스킬/패시브 최소 세트
+- P2: 방향성 엄폐 후속 구현
+  - 오버워치/사선 차단과 맵 메이커 편집 UI 순서로 분리
 
 ## 0-1. 완료: 기획 대조 P1 보정
 
@@ -416,7 +434,7 @@
 | 우선순위 | 파일 | 작업 | 요구사항 ID |
 | --- | --- | --- | --- |
 | P1-11-1 | `Assets/Scripts/SRPG/SrpUnitRuntime.cs` | 명시 `maxAmmo`가 없는 총기 유닛의 기본 탄창을 1발로 변경 | `RQ-002` |
-| P1-11-2 | `Assets/Scripts/SRPG/SrpCombatResolver.cs` | 총기 기본 공격을 HP 고화력/낮은 PG 압박 공식으로 조정 | `RQ-002`, `RQ-004` |
+| P1-11-2 | `Assets/Scripts/SRPG/SrpCombatResolver.cs` | 총기 기본 공격을 HP 고화력/낮은 PG 압박 브릿지로 조정 | `RQ-002`, `RQ-004` |
 | P1-11-3 | `Assets/Tests/EditMode/Editor/SrpM1CoreTests.cs`, `Assets/Tests/PlayMode/SrpM1PlayModeTests.cs` | 기본 탄창 1발, 고화력 HP 피해, 비총기 탄약 예외, HUD `1/1` 표기 회귀 테스트 | `RQ-002` |
 | P1-11-4 | `docs/srpg/SRPG_TDD.md`, `docs/srpg/SRPG_PHASE2_CODE_BACKLOG.md`, `docs/srpg/SRPG_BACKLOG.md`, `docs/srpg/SRPG_README.md`, `docs/srpg/SRPG_CHANGELOG.md` | 방향성 엄폐 데이터 계약과 후속 구현 단계 문서화 | `TBD-001`, `TBD-004` |
 
@@ -476,7 +494,8 @@
 | --- | --- | --- | --- |
 | 1 | `Assets/Scripts/SRPG/SrpGameController.cs`, `Assets/Scripts/SRPG/SrpCombatResolver.cs` | 반응 이벤트 파이프라인 훅, 태세별 반응 우선순위 연결(완료) | `RQ-003`, `RQ-005`, `RQ-006`, `RQ-007` |
 | 2 | `Assets/Scripts/SRPG/SrpBattleState.cs`, `Assets/Scripts/SRPG/SrpUnitRuntime.cs` | 교전/반응/수비 완충 상태 저장 구조 확장, 클론 안전성 점검(완료) | `RQ-003`, `RQ-010` |
-| 3 | `Assets/Scripts/SRPG/SrpCombatResolver.cs` | DEF/GRD 상시 감쇠 + 반응행동 적용 순서 구현 | `RQ-004`, `TBD-002`, `TBD-003` |
+| 3 | `Assets/Scripts/SRPG/SrpCombatResolver.cs` | 기존 DEF/GRD 감쇠 브릿지를 GRD(PG 감쇠) + 경미/중대 HP 피해 분류로 재정렬 | `RQ-004`, `RQ-013`, `TBD-002` |
+| 3-1 | `Assets/Scripts/SRPG/SrpCombatResolver.cs` | 총격으로 실제 받은 HP 피해량의 50%를 PG 피해로 추가 적용하고 비율/반올림을 상수화 | `RQ-022`, `TBD-009` |
 | 4 | `Assets/Scripts/SRPG/SrpTurnOrder.cs` | 라운드 리셋 시 RP 정책 일관성 검증 | `RQ-001`, `RQ-003` |
 | 5 | `Assets/Scripts/SRPG/SrpPathfinder.cs` | 교전 이탈/포지셔닝 패널티 비용 기반 브릿지 추가(완료) | `RQ-010` |
 | 6 | `Assets/Scripts/SRPG/SrpGameController.cs` | 교전 이탈 기회공격/반응 이벤트 파이프라인 연결(완료) | `RQ-003`, `RQ-010` |
@@ -488,6 +507,8 @@
 | 7 | `Assets/Scripts/SRPG/SrpSkills.cs` | 쿨다운/충전 기본 모델 반영, 오버클럭 진입점 정의(완료) | `RQ-011`, `RQ-012` |
 | 8 | `Assets/Scripts/SRPG/SrpSkillData.cs` | 스킬 데이터 스키마에 쿨다운/충전/오버클럭 메타 추가(완료) | `RQ-011`, `RQ-012` |
 | 9 | `Assets/Scripts/SRPG/SrpUnitTags.cs`, `Assets/Scripts/SRPG/SrpSkillData.cs`, `Assets/Scripts/SRPG/SrpCombatResolver.cs` | 패링 가능자/공격 메타와 정면 근접 판정 헬퍼 추가(완료) | `RQ-008`, `RQ-009`, `TBD-005` |
+| 9-1 | `Assets/Scripts/SRPG/SrpUnitRuntime.cs`, `Assets/Scripts/SRPG/SrpSkills.cs`, `Assets/Scripts/SRPG/SrpCombatResolver.cs` | 공용 전투 태그(`표식`, `균형 붕괴`, `사살 지시`) 저장/갱신/소모 계약 추가 | `RQ-019`, `TBD-007` |
+| 9-2 | `Assets/Scripts/SRPG/SrpCombatResolver.cs` | 패링 성공 시 대상 PG 대량 피해와 `균형 붕괴` 태그 부여 | `RQ-018`, `RQ-019`, `TBD-005`, `TBD-007` |
 | 10 | `Assets/Scripts/SRPG/SrpMapFile.cs` | 전투 규칙 버전 필드 및 호환 정책 점검 | `TBD-002`, `TBD-006` |
 | 11 | `Assets/Scripts/SRPG/SrpDataIO.cs` | 신규 스키마 기본값/하위 호환 처리 | `RQ-011`, `TBD-002` |
 
@@ -506,6 +527,8 @@
 | 15 | `Assets/Scripts/SRPG/SrpLobbyController.cs` | 규칙 버전/프리셋 표기 및 QA 진입 옵션 정리 | `RQ-001`, `RQ-011` |
 | 16 | `Assets/Scripts/SRPG/SrpSkillMakerController.cs` | 쿨다운/충전/오버클럭/패링 필드 편집 지원(완료) | `RQ-009`, `RQ-011`, `RQ-012` |
 | 17 | `Assets/Scripts/SRPG/SrpUnitMakerController.cs` | v2 스탯/전투 enum/패링 전용자/탱커 플래그 편집 지원(완료) | `RQ-008`, `RQ-010`, `TBD-006` |
+| 17-1 | `Assets/Scripts/SRPG/SrpUnitRuntime.cs`, `Assets/Scripts/SRPG/SrpCombatResolver.cs`, `Assets/Scripts/SRPG/SrpDefaultUnits.cs` | `완벽한 수비` 1차 구현과 Tank 태그 브릿지 정렬 | `RQ-014`, `TBD-006` |
+| 17-2 | `Assets/Scripts/SRPG/SrpDefaultUnits.cs`, `Assets/Scripts/SRPG/SrpDefaultSkills.cs`, `Assets/Scripts/SRPG/SrpDefaultMaps.cs` | 초기 4인 역할/대표 스킬/패시브 검증 데이터 갱신 | `RQ-015`, `RQ-017`, `RQ-021`, `TBD-008` |
 | 18 | `Assets/Scripts/SRPG/SrpMapPreset.cs`, `Assets/Scripts/SRPG/SrpDefaultMaps.cs`, `Assets/Scripts/SRPG/SrpLobbyController.cs` | 교전/둘러싸임 검증용 내장 프리셋 보강(완료) | `RQ-010` |
 
 ## 5. 보류 전제
