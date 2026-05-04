@@ -1,387 +1,179 @@
-# SRPG 기술 설계 문서 (TDD)
+# SRPG 기술 설계 문서 (TDD) v2.0
 
-버전 0.5 — 13단계(맵 편의성 개선) 이후 코드 기준.
+상위 기준:
 
----
+- `docs/srpg/SRPG_전투규칙_기준서_v2.md`
+- `docs/srpg/new/SRPG_NEW_DIALOG_POLICY_LOCK.md`
 
-## 1. 아키텍처 개요
+## 1. 설계 목표
 
-```
-SrpLobbyController (MonoBehaviour)  — 로비 씬: 맵/프리셋 선택, 메이커 진입
-  └── SrpGameSettings (static)       — 씬 간 설정 전달 (SelectedPreset, CustomMap, 씬 상수 5개)
+- GDD v2 규칙을 구현 가능한 모듈 계약으로 분해한다.
+- 문서 1차 개편에서 확정한 계약을 기준으로 2차 구현과 중간 점검 보정을 진행한다.
+- 전투/데이터/HUD/렌더링 경계를 유지해 단계별 리스크를 낮춘다.
 
-SrpGameController (MonoBehaviour) ← partial class 3파일
-  │  SrpGameController.cs           — 핵심 필드·Awake·카메라·입력·스킬타게팅·전투·게임 흐름
-  │  SrpGameController.Rendering.cs — 그리드·유닛 뷰·타일 색상
-  │  SrpGameController.Hud.cs       — HUD 생성·로그·스킬 슬롯·Tooltip·UpdateHud
-  │
-  ├── SrpBattleState           — 시뮬레이션 상태(그리드, 유닛, 턴, SkillLookup)
-  │     ├── SrpUnitRuntime     — 유닛 인스턴스 (skillRuntimes 포함)
-  │     └── SrpPathfinder      — Dijkstra 이동 탐색
-  ├── SrpCombatResolver        — 전투 해석(AP·HP·PG·처단)
-  ├── SrpSkills                — 데이터 기반 스킬 효과 해석 (패시브·액티브)
-  ├── SrpSkillData             — 스킬/유닛 데이터 모델 + enum + DB 래퍼
-  ├── SrpDefaultMaps           — 내장 맵 3종
-  ├── SrpDefaultSkills         — 기본 스킬 4종 시드
-  ├── SrpDefaultUnits          — 기본 유닛 3종 시드
-  ├── SrpMapIO                 — 맵 JSON 저장/로드
-  ├── SrpDataIO                — 스킬/유닛 DB JSON 저장/로드
-  ├── SrpDevTools              — 개발자 도구 (F3 패널)
-  └── SrpFontWarmup            — TMP 한글 글리프 사전 로드
+## 2. 모듈 아키텍처
 
-SrpSkillMakerController (MonoBehaviour) — 스킬 에디터 씬
-SrpUnitMakerController  (MonoBehaviour) — 유닛 에디터 씬
-SrpMapMakerController   (MonoBehaviour) — 맵 에디터 씬
+```text
+SrpGameController
+  ├─ SrpBattleState
+  ├─ SrpTurnOrder
+  ├─ SrpCombatResolver
+  ├─ SrpSkills
+  ├─ SrpPathfinder
+  ├─ SrpGameController.Hud
+  └─ SrpGameController.Rendering
 ```
 
-- **시뮬레이션 분리**: `SrpBattleState`는 Unity 의존성이 없어 테스트·되감기에 유리.
-- **partial class 분리**: `SrpGameController`는 한 MonoBehaviour지만 관심사별로 3개 파일로 나뉜다.
-- **뷰**: `SrpGameController.Rendering.cs`가 Cube(타일) + Cylinder(유닛) Primitive 생성·갱신 담당.
-- **입력**: `SrpTileView.OnMouseDown` → `SrpGameController.OnTileClicked(x, y)`. 타일만 콜라이더 보유.
-- **영속화**: `JsonUtility` 기반. 맵(`SrpMapFileV1`), 스킬 DB(`SrpSkillDatabase`), 유닛 DB(`SrpUnitDatabase`).
-
----
-
-## 2. 직사각형 그리드
-
-- 좌표: `x ∈ [0, width)`, `y ∈ [0, height)`.
-- 타일 평탄 배열: `walkable[y * width + x]`.
-- 유닛 점유 조회: `SrpBattleState.GetOccupant(x, y)` — footprint 전체 칸 탐색.
-
----
-
-## 3. 맵·유닛 JSON 스키마 v1
-
-```json
-{
-  "version": 1,
-  "name": "string",
-  "width": 10,
-  "height": 8,
-  "walkable": [ true, false, "..." ],
-  "playerOrder": [ 0, 1 ],
-  "allowedSkillIds": [],
-  "templates": [
-    {
-      "id": "knight",
-      "displayName": "기사",
-      "moveRange": 5,
-      "attackRange": 1,
-      "attackPower": 12,
-      "maxHp": 40,
-      "maxAp": 15,
-      "maxPosture": 80,
-      "skillIds": ["heart_spike"],
-      "maxSkills": 4,
-      "frozenHeart": 0,
-      "tags": 0,
-      "footprintWidth": 1,
-      "footprintHeight": 1
-    }
-  ],
-  "placements": [
-    {
-      "templateId": "knight",
-      "owner": 0,
-      "x": 1,
-      "y": 2,
-      "footprint": [],
-      "disabledSkillIds": []
-    }
-  ]
-}
-```
-
-- `tags`: 비트마스크 — `Boss = 1`, `Large = 2`.
-- `footprint`: 상대 좌표 `{dx, dy}` 목록. 비어 있으면 `footprintWidth × footprintHeight`로 자동 생성.
-- `disabledSkillIds`: 배치 단위로 특정 스킬 비활성화.
-- `allowedSkillIds`: 맵 전역 스킬 화이트리스트 (빈 배열이면 제한 없음).
-
----
-
-## 4. 이동 탐색 (SrpPathfinder)
-
-- **알고리즘**: 단순 Dijkstra (최솟값을 List 선형 탐색으로 추출 — 소규모 맵에서 충분).
-- **비용 모델**: 기본 1/칸. 적 유닛이 4방향 인접한 칸 진입 시 +1 (ZOC).
-- **API**:
-  - `GetReachableAnchors(state, unit)` — 도달 가능 위치 목록(기존 호환).
-  - `GetReachableWithCosts(state, unit, maxCost)` — `Dictionary<Vector2Int, int>` 위치→비용 맵. 잔여 이동력을 `maxCost`로 제한 가능.
-
----
-
-## 5. 전투 해석 순서 (SrpCombatResolver)
-
-1. 공격자·방어자 거리 검증 (`ChebyshevAnchor ≤ attackRange`).
-2. 방어자 **그로기** 여부 확인.
-   - 그로기: AP 무시, HP 직접 차감(처단). PG 0·그로기 해제.
-   - 일반: `min(damage, AP)` → AP 차감. 나머지 → HP 차감. HP 피해의 50% → PG 증가.
-3. PG ≥ maxPosture 이면 그로기 상태 진입.
-4. HP ≤ 0 이면 사망 플래그 설정.
-
-`AttackOutcome` 구조체로 결과 반환: `damageToAp`, `damageToHp`, `wasExecution`, `defenderDied`, `postureGained`, `becameGroggy`.
-
----
-
-## 6. 스킬 시스템 (SrpSkillData + SrpSkills)
-
-### 데이터 모델
-
-```
-SrpSkillData
-  ├── id, displayName, description
-  ├── skillType: Active | Passive
-  ├── trigger: OnActivate | OnTurnStart | OnAttackHit | OnTakeDamage
-  ├── targetType: None | Self | SingleEnemy | SingleAlly | AreaEnemy | AreaAlly
-  ├── range, areaSize
-  ├── endsActivation: bool
-  ├── cooldown: int
-  └── effects: SrpSkillEffect[]
-        ├── type: Damage | Heal | BuffStat | DebuffStat | FrozenHeart | Cleave
-        ├── stat: string (hp, ap, attackPower, moveRange, attackRange, self)
-        ├── value: int
-        └── duration: int
-```
-
-### 런타임
-
-- `SrpSkillRuntime`: 유닛별 스킬 인스턴스. `skillId` + `cooldownRemaining`.
-- `SrpUnitRuntime.skillRuntimes`: 유닛이 보유한 스킬 런타임 목록.
-
-### 실행 흐름
-
-| 트리거 | 호출 시점 | 메서드 |
-|--------|-----------|--------|
-| `OnTurnStart` (패시브) | 유닛 첫 활성화 시 | `SrpSkills.TryApplyPassiveTurnStart` |
-| `OnAttackHit` (패시브) | 공격 적중 후 | `SrpSkills.OnAttackResolved` |
-| `OnTakeDamage` (패시브) | 피격 시 | `SrpSkills.OnTakeDamage` |
-| `OnActivate` (액티브) | 스킬 버튼 → 타게팅 → 확정 | `SrpSkills.ResolveActiveSkill` |
-
-### 액티브 스킬 타게팅
-
-1. HUD 스킬 버튼 클릭 → `BeginSkillTargeting(data, runtime)`.
-2. `targetType == Self`면 즉시 발동.
-3. 그 외: `Phase = SelectingSkillTarget`, 대상 타일 보라색 하이라이트.
-4. 대상 타일 클릭 → `SrpSkills.ResolveActiveSkill` 실행 → 쿨다운 설정.
-5. `endsActivation`이면 유닛 행동 종료, 아니면 `UnitActive`로 복귀.
-
-### 쿨다운
-
-- 턴 종료 시 `SrpSkills.TickCooldownsForPlayer` — 해당 플레이어 유닛의 모든 스킬 `cooldownRemaining--`.
-- `cooldownRemaining > 0`이면 스킬 사용 불가.
-
----
-
-## 7. 턴·상태 관리 (SrpGameController — 3파일 partial class)
-
-### Phase enum
-
-```csharp
-enum Phase { Idle, UnitActive, SelectingSkillTarget }
-```
-
-- `Idle`: 유닛 미선택. "플레이어 턴 종료" 버튼 활성.
-- `UnitActive`: 유닛 활성화 중. 이동/공격/스킬 사용 가능. "유닛 완료" 버튼 활성.
-- `SelectingSkillTarget`: 액티브 스킬 대상 선택 중. 타일 클릭으로 확정 또는 취소.
-
-### 핵심 필드
-
-| 파일 | 필드 | 타입 | 설명 |
-|------|------|------|------|
-| `.cs` | `_selectedId` | `int?` | 현재 활성 유닛 ID |
-| `.cs` | `_remainingMove` | `int` | 잔여 이동력 |
-| `.cs` | `_hasAttackedThisTurn` | `bool` | 이번 활성화에서 공격 여부 |
-| `.cs` | `_moveCostMap` | `Dictionary<Vector2Int,int>` | 도달 가능 위치→비용 |
-| `.cs` | `_attackIds` | `List<int>` | 공격 가능 적 ID 목록 |
-| `.cs` | `_actedUnitsThisTurn` | `HashSet<int>` | 이번 플레이어 턴 완료 유닛 세트 |
-| `.cs` | `_pendingSkillData` | `SrpSkillData` | 타게팅 중인 스킬 데이터 |
-| `.cs` | `_pendingSkillRuntime` | `SrpSkillRuntime` | 타게팅 중인 스킬 런타임 |
-| `.cs` | `_skillTargetTiles` | `List<Vector2Int>` | 스킬 대상 타일 목록 |
-| `.Rendering.cs` | `_tiles` | `GameObject[,]` | 타일 GameObject 배열 |
-| `.Rendering.cs` | `_unitObjs` | `Dictionary<int,GameObject>` | 유닛 ID → GameObject |
-| `.Hud.cs` | `_log` | `List<string>` | 로그 내역(최대 80줄) |
-
-### 턴 종료 흐름
-
-```
-OnEndTurnSoft()
-  └─ (Idle 상태) 체크
-  └─ AdvancePlayerTurn()
-       └─ _actedUnitsThisTurn.Clear()
-       └─ _state.AdvanceToNextLivingPlayer()
-       └─ SrpSkills.TickCooldownsForPlayer()
-       └─ ResetPassivesForCurrentPlayer()
-       └─ CheckWin()
-       └─ UpdateHud()
-```
-
-> 이중 클릭 방지는 `UpdateHud()` 안의 `_btnEndTurn.interactable = (_phase == Phase.Idle)` 조건으로 처리.
-
----
-
-## 8. 되감기 (Undo)
-
-- `PushUndo()`: `_state.Clone()`을 스택에 저장.
-- `OnUndo()`: 스택에서 팝 → 상태 복원 → 뷰 갱신.
-- `_actedUnitsThisTurn`, 스킬 타게팅 상태도 함께 초기화.
-
----
-
-## 9. HUD (코드 생성 uGUI — TMP)
-
-- `Canvas` + `CanvasScaler` (referenceResolution 1920×1080, matchWidthOrHeight 0.5).
-- 좌패널(`LeftPanel`): 고정 폭(`leftPanelWidth`, 기본 370), 앵커 좌측 전체 높이.
-  - 유닛 정보, 이동력/공격 상태, 스킬 버튼 목록, 액션 버튼(유닛 완료·턴 종료·되감기·로비 복귀).
-- 우패널(`RightPanel`): 고정 폭(`rightPanelWidth`, 기본 370), 앵커 우측 전체 높이.
-  - ScrollRect 기반 로그(최대 80줄). `RectMask2D` 클리핑. 자동 스크롤(2프레임 지연 코루틴).
-- **텍스트**: 전부 `TextMeshProUGUI` (SDF 렌더링). 폰트: Pretendard-Regular SDF (Dynamic).
-- **스킬 Tooltip**: `EventTrigger`(PointerEnter/Exit) + 재사용 팝업 GameObject.
-- `SrpFontWarmup.Warmup()`: 한글 자주 사용 글리프를 Awake에서 사전 로드.
-
----
-
-## 10. 개발자 도구 vs 프로덕션
-
-- **조건**: `Application.isEditor || Debug.isDebugBuild` → SrpDevTools UI 표시.
-- **F3 패널 위치**: 화면 오른쪽 상단(260×168px).
-- **기능**: JSON 저장(파일명 입력), 불러와 즉시 적용, 씬 재시작.
-- **릴리스 빌드**: UI 비표시, 저장 기능 잠금.
-
----
-
-## 11. 데이터 영속화 (IO)
-
-### 저장 경로
-
-| 대상 | 파일 | 경로 |
-|------|------|------|
-| 맵 | `SrpMapIO` | `persistentDataPath/SrpMaps/{name}.json` |
-| 스킬 DB | `SrpDataIO` | `persistentDataPath/SrpData/skills.json` |
-| 유닛 DB | `SrpDataIO` | `persistentDataPath/SrpData/units.json` |
-
-### 직렬화
-
-- `JsonUtility` 사용. `[Serializable]` 필수.
-- 스키마 버전 필드(`version`)로 하위 호환.
-- `LoadSkillsOrDefault()` / `LoadUnitsOrDefault()`: 파일 없으면 `SrpDefaultSkills` / `SrpDefaultUnits`에서 시드 생성.
-- `SrpMapIO.ListMaps()`: `SrpMaps/*.json` 파일명 배열 반환 (드롭다운 목록용).
-
-### 타입 관계
-
-```
-SrpSkillDatabase ─── SrpSkillData[] ─── SrpSkillEffect[]
-SrpUnitDatabase ──── SrpUnitTemplateData[] (skillIds: string[])
-SrpMapFileV1 ─────── SrpUnitTemplateData[] (templates)
-                  └── SrpPlacementData[] (placements, disabledSkillIds)
-SrpBattleState.FromMap(SrpMapFileV1) → 런타임 변환 (SkillLookup 포함)
-```
-
----
-
-## 12. 메이커 시스템 (에디터 씬 3종)
-
-### 공통 패턴
-
-- 각 메이커는 독립 씬 + 독립 MonoBehaviour.
-- UI: 전부 코드 생성 uGUI (TMP). 프리팹 없음.
-- 데이터: `SrpDataIO` / `SrpMapIO`로 JSON 저장/로드.
-- `TMP_InputField`: `caretWidth = 2`, `enabled = false → true` 재활성화로 caret 초기화.
-
-### 스킬 메이커 (`SrpgSkillMaker` 씬)
-
-- `SrpSkillMakerController`: 스킬 CRUD. 효과 배열 편집 (타입·스탯·값·지속).
-- 저장 시 `SrpDataIO.SaveSkills()`.
-
-### 유닛 메이커 (`SrpgUnitMaker` 씬)
-
-- `SrpUnitMakerController`: 유닛 템플릿 CRUD. 스탯 편집, Large 풋프린트(가로×세로), 스킬 할당.
-- 스킬 목록은 `SrpDataIO.LoadSkillsOrDefault()`에서 로드.
-
-### 맵 메이커 (`SrpgMapMaker` 씬)
-
-- `SrpMapMakerController`: 시각 그리드 편집 + 유닛 배치.
-- `EditMode { Terrain, PlaceUnit, RemoveUnit }` 전환.
-- 카메라 확대/축소/패닝 자체 구현.
-- 유닛별 스킬 비활성화(`disabledSkillIds`) 토글.
-- 불러오기: `TMP_Dropdown` + `SrpMapIO.ListMaps()` 목록.
-- 저장 완료 후 드롭다운 목록 자동 갱신.
-
----
-
-## 13. 씬 구조
-
-### 씬 이름 규약
-
-| 씬 | 상수(`SrpGameSettings`) | 컨트롤러 |
-|----|------------------------|----------|
-| 로비 | `LobbyScene = "SrpgLobby"` | `SrpLobbyController` |
-| 전투 | `BattleScene = "SrpgBattle"` | `SrpGameController` |
-| 스킬 메이커 | `SkillMakerScene = "SrpgSkillMaker"` | `SrpSkillMakerController` |
-| 유닛 메이커 | `UnitMakerScene = "SrpgUnitMaker"` | `SrpUnitMakerController` |
-| 맵 메이커 | `MapMakerScene = "SrpgMapMaker"` | `SrpMapMakerController` |
-
-### 씬 전환 흐름
-
-```
-SrpgLobby
-  ├─ 내장 프리셋 선택 → SrpGameSettings.StartBattle(preset) → SrpgBattle
-  ├─ JSON 맵 로드    → SrpGameSettings.StartBattleWithMap(map) → SrpgBattle
-  ├─ 스킬 메이커     → SceneManager.LoadScene("SrpgSkillMaker")
-  ├─ 유닛 메이커     → SceneManager.LoadScene("SrpgUnitMaker")
-  └─ 맵 메이커       → SceneManager.LoadScene("SrpgMapMaker")
-
-SrpgBattle
-  └─ ◀ 로비로 돌아가기 → SrpGameSettings.ReturnToLobby()
-```
-
-### SrpGameSettings 설계
-
-- **정적 클래스**: `DontDestroyOnLoad` 없이 C# static 필드만으로 씬 사이 값 유지.
-- `CustomMap`: `SrpMapFileV1` 참조. `Awake()`에서 소비(읽은 뒤 null로 초기화).
-- `SelectedPreset`: `SrpMapPreset` enum. 로비 선택값이 없으면 기본값 `Skirmish`.
-
----
-
-## 14. 폴더 구조
-
-```
-Assets/Scripts/SRPG/
-├── SrpBattleState.cs              — 시뮬레이션 상태(그리드·유닛·점유·ZOC·SkillLookup)
-├── SrpCombatResolver.cs           — 전투 해석(AP·HP·PG·처단)
-├── SrpDataIO.cs                   — 스킬/유닛 DB JSON IO
-├── SrpDefaultMaps.cs              — 내장 맵 3종 코드 생성
-├── SrpDefaultSkills.cs            — 기본 스킬 4종 시드
-├── SrpDefaultUnits.cs             — 기본 유닛 3종 시드
-├── SrpDevTools.cs                 — 개발자 F3 패널
-├── SrpFontWarmup.cs               — TMP 한글 글리프 사전 로드
-├── SrpGameController.cs           — 핵심 필드·Awake·입력·스킬타게팅·게임 흐름 (partial)
-├── SrpGameController.Rendering.cs — 그리드·유닛 뷰·타일 색상 (partial)
-├── SrpGameController.Hud.cs       — HUD·로그·스킬 UI·Tooltip (partial)
-├── SrpGameSettings.cs             — 씬 간 설정 전달(로비↔전투↔메이커)
-├── SrpLobbyController.cs          — 로비 씬 MonoBehaviour
-├── SrpMapFile.cs                  — JSON 스키마 v1 (풋프린트·스킬제한 포함)
-├── SrpMapIO.cs                    — 맵 저장/로드 + ListMaps
-├── SrpMapMakerController.cs       — 맵 메이커 씬 (그리드 편집·유닛 배치·카메라)
-├── SrpMapPreset.cs                — 프리셋 enum
-├── SrpPathfinder.cs               — 이동 탐색(다익스트라 + ZOC)
-├── SrpSkillData.cs                — 스킬 정의 모델 + enum + 런타임 + DB 래퍼
-├── SrpSkillMakerController.cs     — 스킬 메이커 씬 (CRUD·효과 편집)
-├── SrpSkills.cs                   — 데이터 기반 스킬 효과 해석
-├── SrpTileView.cs                 — 타일 클릭 위임
-├── SrpUnitMakerController.cs      — 유닛 메이커 씬 (스탯·스킬·풋프린트)
-├── SrpUnitRuntime.cs              — 유닛 인스턴스 (스킬 런타임 포함)
-└── SrpUnitTags.cs                 — Boss/Large 비트마스크
-
-Assets/Scripts/Chess/              — 레거시 체스(참고용)
-docs/srpg/                         — 기획·기술·이력 문서
-```
-
-맵 저장 경로(개발): `Application.persistentDataPath/SrpMaps/*.json`
-스킬/유닛 DB 경로: `Application.persistentDataPath/SrpData/`
-
----
-
-## 15. 향후 작업 (Backlog 참조)
-
-- AI 스텁 (무작위 합법 수 → 레벨 검증용).
-- 2인 원격 세션 (액션 커맨드 스트림 기반 동기화).
-- 전투 중 맵 스킬 제한 적용 (`disabledSkillIds` 검증).
+2차 확장/후속 모듈:
+
+- `SrpOverwatch`: AP 예약/RP 발동, 8방향 직선 사선, 장애물/유닛 차단, 1회 발동/해제 규칙 구현 완료
+- `SrpReaction`: 별도 파일 대신 `SrpCombatResolver`의 반응 선택/소비 흐름에 흡수
+- `SrpLineOfSight`: 현재는 `SrpOverwatch` helper로 유지, 다른 시스템이 사선을 공유할 때 별도 모듈 분리 검토
+
+## 3. 핵심 데이터 계약
+
+### 3.1 유닛 런타임 계약
+
+- 기본 필드:
+  - `hp`, `maxHp`
+  - `pg`, `maxPg`
+  - `actionPoints`, `maxActionPoints`
+  - `reactionPoints`, `maxReactionPoints`
+  - `speed`
+  - `stance`
+  - `facing`
+  - `weaponClass`
+- 정책:
+  - AP 기본 2, RP 기본 1
+  - RP는 반응 전용 자원
+  - 공통 `DEF` 런타임 스탯은 새 설계의 목표 상태에서 제거 대상이며, `GRD`는 PG 피해 감쇠 전용으로 정리한다.
+  - `Tank` 태그는 `완벽한 수비` 브릿지 구현에 사용하되, 최종 캐릭터 고유 특성 모델과 통합한다.
+
+### 3.2 전투 상태 계약
+
+- 라운드/현재 행동 유닛/큐 상태를 유지한다.
+- 교전 상태와 반응 대기 이벤트를 상태에서 추적 가능해야 한다.
+- `SrpBattleState`는 Unity 엔진 타입에 의존하지 않는다.
+- 총기 유닛은 런타임 탄약(`ammo/maxAmmo`)을 가지며, 기본 공격/오버워치 발동 시 탄약을 소비한다. 명시 `maxAmmo`가 없는 총기 유닛은 전장식 총기 기본값으로 1발만 장전한다.
+- 유닛은 엄폐 상태(`coverActive/coverRound/coverSourceX/Y`)를 가질 수 있으며, 1차 구현은 인접 비보행 타일과 같은 칸 edge 기반 방향성 엄폐 segment를 엄폐물로 해석한다.
+- 맵은 방향성 엄폐 segment(`SrpCoverSegmentData`)를 가질 수 있으며, 런타임은 클론 가능한 `CoverSegments` 목록으로 보관한다.
+- 맵은 상호작용 포인트(`SrpInteractionPointData`)를 가질 수 있으며, 런타임은 클론 가능한 `InteractionPoints` 목록으로 보관한다. 1차 구현은 상하좌우 인접 유닛이 AP 1로 `singleUse` 포인트를 활성화하고, `requiredOwner < 0`이면 누구나, 아니면 해당 owner만 실행 가능하게 한다.
+
+### 3.3 스킬 계약
+
+- 기본 스킬 모델은 쿨다운/충전 기반.
+- 안정도는 오버클럭 메타 데이터로 연결 가능해야 한다.
+- 오버클럭은 쿨다운 단축, 충전 복구, 다음 스킬 사용 1회 피해/회복 증폭을 지원한다.
+- MP/SP 고정 바 의존 필드는 도입하지 않는다.
+- 공용 전투 태그는 `표식`, `균형 붕괴`, `사살 지시`를 우선 지원한다.
+- 태그는 스킬/패링/적 장교 행동에서 부여하고, 패시브는 태그 대상과 상호작용한다.
+- `노출`은 저장형 디버프가 아니라 엄폐 밖/개활지/사선 노출을 판정하는 포지션 상태로 취급한다.
+
+## 4. 전투 해석 계약
+
+### 4.1 기본 분기
+
+- `Firearm`: HP 압박 중심
+  - 전장식 총기 기본 모델은 1발 고화력이다. 탄약을 소비하며, AP 1 재장전으로 탄약을 최대치까지 회복한다.
+  - 기본 공격은 HP 피해를 크게 주고, 실제 HP 피해량의 50%를 PG 피해로 추가 파급한다.
+  - 50% 비율, 반올림 방식, 최소 PG 피해량, GRD 적용 순서는 밸런스 검사와 전투 시뮬레이션 후 조정 가능하게 둔다.
+  - 엄폐 중인 원거리 대상에게는 HP/PG 피해 완충을 적용한다.
+- `Melee`: PG 붕괴 중심
+- `Magic`: 전장 개입 중심(피해 분배는 스킬별)
+
+### 4.2 방어/반응
+
+- 공통 HP 감쇠 `DEF`는 새 설계의 목표 상태에서 제거한다.
+- `GRD`는 PG 피해 감쇠 전용으로 해석한다.
+- HP 피해는 중대/경미로 분류한다.
+  - 중대: 총격, 처단, 기회공격, HP 직격 스킬, 치명타
+  - 경미: PG가 살아 있어도 새는 약한 근접/압박 피해
+- `완벽한 수비`는 수비 태세, PG 미붕괴, 후방 피격 아님 조건에서 경미 HP 피해를 0으로 만든다.
+- 엄폐 완충은 총기 원거리 공격/오버워치 사격에만 적용하고, 근접/마법/처단에는 적용하지 않는다.
+- 방향성 엄폐 계약:
+  - 기존 비보행 타일 엄폐는 1차 브릿지로 유지한다.
+  - 선형/방향성 엄폐는 `SrpCoverSegmentData` 계약으로 분리한다.
+  - 필드: `x`, `y`, `edge`, `shape`, `coverDef`, `coverGrd`, `blocksLineOfSight`.
+  - `edge`는 타일의 `North/East/South/West` 변을 의미한다.
+  - ㄱ자/ㄷ자 엄폐는 한 칸을 차지하는 오브젝트 안에 여러 edge segment를 조합하는 방식으로 표현한다.
+  - 피해 완충은 공격자와 방어자 사이의 방향/사선이 해당 edge를 통과할 때만 적용한다.
+  - 1차 구현은 원거리 총기 피해 완충에만 연결한다.
+  - 사선 차단은 `blocksLineOfSight`가 true인 segment부터 오버워치/원거리 공격 판정과 통합하는 후속 범위로 둔다.
+- 공격 태세는 회피 시도 우선, 실패 시 백업 없음.
+- 수비 태세는 안정 생존 우선.
+- 패링은 주인공 전용 + 정면 근접 강공/스킬 태그 조건.
+- 패링 성공은 공격 무효 + 대상 PG 대량 피해 + `균형 붕괴` 태그 부여로 확장한다.
+
+### 4.3 교전/방향
+
+- 방향 판정(정면/측면/후면) 인터페이스를 고정한다.
+- 교전 이탈 시 기회공격 훅 포인트를 정의한다.
+
+## 5. 테스트 계약
+
+- 핵심 단위 테스트:
+  - 턴 큐 정렬/진행
+  - 무기 분기 및 PG 붕괴/처단
+  - 태세 선택 효과(공격/수비)
+  - 교전/이탈 규칙
+  - 반응행동 소비 및 우선순위
+- 통합 테스트:
+  - HUD의 상단 헤더/정보 바/좌측 콘솔 분리와 전투 상태 반영
+  - 좌측 전술 콘솔의 태세/방향/오버클럭/재장전/엄폐/상호작용 직접 조작
+  - 하단 현재 유닛 카드와 행동 preview 카드의 숫자+게이지 및 hover 예상 정보 반영
+  - 위험영역/의도/상태 문구 일관성
+  - QA 프리셋이 최신 스킬·태그·오버워치 사선·상호작용·방향성 엄폐 확인 지점을 포함하는지 검증
+
+## 6. 2차 구현 상태와 순서
+
+완료된 1차 기반:
+
+1. 속도 라운드/AP/RP 리셋
+2. 교전 상태 저장/클론
+3. 기존 DEF/GRD 감쇠 브릿지와 수비 Guard 반응
+4. 교전 이탈 비용 브릿지
+5. 교전 이탈 기회공격 1차 구현
+6. 스킬 쿨다운/충전 및 오버클럭 기본 모델
+7. 패링 가능 조건/태그/텔레그래프 1차 구현
+8. Dodge/Parry/명시형 ReactionShot 반응행동 브릿지
+9. 수비 지속 완충/탱커 다중 대응 브릿지
+10. 스킬/유닛 메이커 v2 메타데이터 편집/저장 정합성 확장
+11. 중간 점검 보정: 무기 분류 보존, 스킬 AP/PG 별칭, 스킬 피해 그로기, 맵/배치 스킬 필터
+12. 유닛 시각 방향성 개선: 원기둥을 facing 기반 쐐기형 삼각기둥으로 교체
+13. 교전/둘러싸임 검증 프리셋 보강: `M1EngagementLab` 내장 프리셋 추가
+14. RP/HUD 노출 정책 정리: RP 원시 수치 대신 반응 준비/소모/예약 상태 중심 표기
+15. 기획 대조 P1 보정: 기본공격 패링 제거, Dodge 확률형 시도/실패 브릿지, 측후면 방어 불리 브릿지 추가
+16. HUD/로그 가독성 동기화: 범례/반응/오버워치/스킬 자원/로그 문구 용어 통일 및 PlayMode 스모크 보강
+17. 오버워치 사선/횟수/해제 상세 규칙: 8방향 직선 사선, 장애물/유닛 차단, 예약 1회당 1회 발동, 라운드 리셋 해제
+18. 테스트 프리셋 v2 + HUD 레이아웃 개편: 최신 기능 체험용 `M1QaIntegrated`, 상단 헤더/정보 바/좌측 조작 콘솔 분리
+19. 전투 직접 조작 UI 보강: 태세 선택, 최종 방향 선택, 오버클럭 실행을 좌측 전술 콘솔에 연결
+20. 오버클럭 성능 증폭: 다음 스킬 사용 1회 피해/회복 보너스와 HUD/로그 상태 표기 추가
+21. 재장전 AP 행동 1차 구현: 총기 탄약, 기본공격/오버워치 탄약 소비, 좌측 콘솔 재장전 연결
+22. 엄폐 AP 행동 1차 구현: 인접 장애물 엄폐 판정, 총기/오버워치 엄폐 완충, 좌측 콘솔 엄폐 연결
+23. 상호작용 AP 행동 1차 구현: 맵 상호작용 포인트, AP 1 활성화, owner 제한, 좌측 콘솔 상호작용 연결
+24. 개발용 전술 HUD 개선: 하단 현재 유닛 카드, 대상/행동 preview 카드, HP/PG/AP/탄약 게이지와 hover 예상 정보 추가
+25. 총기 1발 고화력 조정 + 방향성 엄폐 설계: 기본 총기 탄창 1발, HP 고화력 공식, 선형/방향성 엄폐 데이터 계약 초안 정리
+26. 방향성 엄폐 1차 구현: edge 엄폐 데이터/렌더링, 공격자-방어자 방향 기준 총기 피해 완충 연결
+27. 11~22 대화 정책 잠금: 공통 DEF 제거 방향, 중대/경미 HP 피해, `완벽한 수비`, 패링 보상, 공용 전투 태그, 초기 4인 역할 정책 문서화
+28. 23 대화/추가 논의 정책 반영: 총격으로 실제 받은 HP 피해량의 50%를 PG 피해로 추가 파급하는 v0.2 기준 문서화
+
+다음 구현 순서:
+
+1. 총기 HP-PG 파급 보정: 실제 HP 피해량의 50%를 PG 피해로 추가 적용
+2. 공용 전투 태그 런타임 계약: `표식`, `균형 붕괴`, `사살 지시` 저장/갱신/표시
+3. 패링 성공 보상 확장: 공격 무효 외 PG 대량 피해와 `균형 붕괴` 부여
+4. `완벽한 수비` 1차 구현: 경미/중대 HP 피해 분류와 Tank 태그 브릿지 정렬
+5. 초기 4인 대표 스킬/패시브 데이터 갱신: 주인공, 탱커, 사격수, 마도사 역할 검증
+6. 방향성 엄폐 오버워치/사선 차단 연동
+7. 메이커/맵 에디터 UX에서 엄폐 segment와 상호작용 포인트 편집 방식 검토
+
+## 7. 미정 기술 항목
+
+- GRD/경미 HP 피해 계산 공식
+- 총기 HP-PG 파급 비율/반올림/최소값/GRD 적용 순서
+- 회피 확률 계산식
+- 오버워치 고급 우선순위/특수 지형 상호작용
+- 패링 PG 피해량, `균형 붕괴` 지속, 실패 패널티 정량 수치
+- `완벽한 수비`와 기존 탱커 다중 대응 브릿지 통합 방식
+- 공용 전투 태그 수치/지속시간/소모 조건
+- 초기 4인 대표 스킬 수치

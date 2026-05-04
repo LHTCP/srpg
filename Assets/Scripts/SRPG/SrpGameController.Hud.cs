@@ -15,12 +15,26 @@ public partial class SrpGameController
     // ── HUD 전용 필드 ────────────────────────────────────────────────────────
 
     const int MaxLogLines = 80;
+    const int QueuePreviewCount = 5;
+    const float TopHudHeight = 170f;
+    const string OverlayLegendText = "범례: 초록=이동 | 주황=ZOC/주의 | 빨강=공격/위험 | 보라=스킬 | 청록=패링 가능 스킬 | 파랑=오버워치 | 연두=엄폐/방향엄폐 | 노랑=상호작용";
     readonly List<string> _log = new List<string>();
 
     TextMeshProUGUI _txtTurn;
     TextMeshProUGUI _txtStatus;
     TextMeshProUGUI _txtUnit;
     TextMeshProUGUI _txtLog;
+    TextMeshProUGUI _txtActiveCardTitle;
+    TextMeshProUGUI _txtActiveCardMeta;
+    TextMeshProUGUI _txtActiveCardState;
+    TextMeshProUGUI _txtPreviewTitle;
+    TextMeshProUGUI _txtPreviewBody;
+    HudGauge _gaugeActiveHp;
+    HudGauge _gaugeActivePg;
+    HudGauge _gaugeActiveAp;
+    HudGauge _gaugeActiveAmmo;
+    HudGauge _gaugePreviewHp;
+    HudGauge _gaugePreviewPg;
     Button _btnSkipAttack;
     Button _btnEndTurn;
     Button _btnUndo;
@@ -28,8 +42,24 @@ public partial class SrpGameController
     Button _btnToggleLog;
     Button _btnUseSkill;
     Button _btnCancelSkill;
+    Button _btnDangerArea;
+    Button _btnOverwatch;
+    Button _btnReload;
+    Button _btnCover;
+    Button _btnInteract;
+    Button _btnStanceAggressive;
+    Button _btnStanceDefensive;
+    Button _btnFacingNorth;
+    Button _btnFacingEast;
+    Button _btnFacingSouth;
+    Button _btnFacingWest;
+    Button _btnOverclock;
     GameObject _skillListPanel;
-    readonly List<GameObject> _skillListButtons = new List<GameObject>();
+    GameObject _topStatusPanel;
+    GameObject _leftConsolePanel;
+    GameObject _activeUnitCardPanel;
+    GameObject _actionPreviewPanel;
+    readonly List<SkillListEntry> _skillListButtons = new List<SkillListEntry>();
     TextMeshProUGUI _txtLogToggleLabel;
     GameObject _logBody;
     ScrollRect _logScrollRect;
@@ -39,6 +69,22 @@ public partial class SrpGameController
     GameObject _tooltipGo;
     TextMeshProUGUI _tooltipText;
     Canvas _hudCanvas;
+    bool _postUndoHint;
+
+    class SkillListEntry
+    {
+        public GameObject root;
+        public Button button;
+        public TextMeshProUGUI label;
+        public EventTrigger trigger;
+    }
+
+    class HudGauge
+    {
+        public TextMeshProUGUI label;
+        public TextMeshProUGUI value;
+        public Image fill;
+    }
 
     // ── HUD 생성 ─────────────────────────────────────────────────────────────
 
@@ -56,16 +102,62 @@ public partial class SrpGameController
         canvasGo.AddComponent<GraphicRaycaster>();
 
         _hudCanvas = canvas;
+        BuildTopStatusArea(canvasGo.transform);
         BuildLeftPanel(canvasGo.transform);
         BuildRightPanel(canvasGo.transform);
+        BuildBottomTacticalCards(canvasGo.transform);
         BuildTooltip(canvasGo.transform);
         _logVisible = startWithLogVisible;
         ApplyLogVisibility();
     }
 
+    void BuildTopStatusArea(Transform canvasRoot)
+    {
+        var panel = new GameObject("TopStatusPanel", typeof(RectTransform));
+        _topStatusPanel = panel;
+        panel.transform.SetParent(canvasRoot, false);
+        var rt = panel.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(0.5f, 1f);
+        rt.offsetMin = new Vector2(leftPanelWidth + 10f, -TopHudHeight);
+        rt.offsetMax = new Vector2(-(rightPanelWidth + 10f), 0f);
+        panel.AddComponent<Image>().color = new Color(0.05f, 0.06f, 0.09f, 0.82f);
+
+        var vlg = panel.AddComponent<VerticalLayoutGroup>();
+        vlg.padding = new RectOffset(12, 12, 10, 10);
+        vlg.spacing = 6f;
+        vlg.childControlHeight = true;
+        vlg.childControlWidth = true;
+        vlg.childForceExpandHeight = false;
+        vlg.childForceExpandWidth = true;
+
+        _txtTurn = MakeLabel(panel.transform, "BattleHeader", 20, new Color(1f, 0.9f, 0.5f), 38);
+        _txtTurn.alignment = TextAlignmentOptions.MidlineLeft;
+
+        var infoRow = new GameObject("InfoRow", typeof(RectTransform));
+        infoRow.transform.SetParent(panel.transform, false);
+        infoRow.AddComponent<LayoutElement>().flexibleHeight = 1f;
+        var hlg = infoRow.AddComponent<HorizontalLayoutGroup>();
+        hlg.spacing = 8f;
+        hlg.childControlHeight = true;
+        hlg.childControlWidth = true;
+        hlg.childForceExpandHeight = true;
+        hlg.childForceExpandWidth = true;
+
+        var statusBox = MakeInfoBox(infoRow.transform, "BattleInfo", new Color(0.07f, 0.10f, 0.14f, 0.74f));
+        _txtStatus = MakeLabel(statusBox.transform, "Status", 15, new Color(0.75f, 0.9f, 1f), 0);
+        _txtStatus.GetComponent<LayoutElement>().flexibleHeight = 1f;
+
+        var unitBox = MakeInfoBox(infoRow.transform, "UnitInfoBox", new Color(0.09f, 0.08f, 0.12f, 0.74f));
+        _txtUnit = MakeLabel(unitBox.transform, "UnitInfo", 15, Color.white, 0);
+        _txtUnit.GetComponent<LayoutElement>().flexibleHeight = 1f;
+    }
+
     void BuildLeftPanel(Transform canvasRoot)
     {
-        var panel = new GameObject("LeftPanel", typeof(RectTransform));
+        var panel = new GameObject("LeftConsolePanel", typeof(RectTransform));
+        _leftConsolePanel = panel;
         panel.transform.SetParent(canvasRoot, false);
         var rt = panel.GetComponent<RectTransform>();
         rt.anchorMin = new Vector2(0f, 0f);
@@ -82,16 +174,43 @@ public partial class SrpGameController
         vlg.childForceExpandHeight = false;
         vlg.childForceExpandWidth = true;
 
-        _txtTurn = MakeLabel(panel.transform, "TurnInfo", 28, new Color(1f, 0.9f, 0.5f), 40);
+        var title = MakeLabel(panel.transform, "ConsoleTitle", 20, new Color(1f, 0.9f, 0.5f), 34);
+        title.text = "전술 콘솔";
+        title.alignment = TextAlignmentOptions.MidlineLeft;
         MakeSeparator(panel.transform);
-        _txtStatus = MakeLabel(panel.transform, "Status", 22, new Color(0.75f, 0.9f, 1f), 64);
-        MakeSeparator(panel.transform);
-        _txtUnit = MakeLabel(panel.transform, "UnitInfo", 20, Color.white, 120);
+        var stanceTitle = MakeLabel(panel.transform, "StanceTitle", 15, new Color(0.75f, 0.9f, 1f), 22);
+        stanceTitle.text = "태세 선택";
+        var stanceRow = MakeButtonRow(panel.transform, 42f);
+        _btnStanceAggressive = MakeButton(stanceRow.transform, "공격", () => OnSetStanceUi(SrpStance.Aggressive), 42, 18);
+        _btnStanceAggressive.GetComponent<Image>().color = new Color(0.42f, 0.18f, 0.16f, 0.9f);
+        _btnStanceDefensive = MakeButton(stanceRow.transform, "수비", () => OnSetStanceUi(SrpStance.Defensive), 42, 18);
+        _btnStanceDefensive.GetComponent<Image>().color = new Color(0.16f, 0.28f, 0.44f, 0.9f);
+
+        var facingTitle = MakeLabel(panel.transform, "FacingTitle", 15, new Color(0.75f, 0.9f, 1f), 22);
+        facingTitle.text = "최종 방향";
+        var facingRow = MakeButtonRow(panel.transform, 40f);
+        _btnFacingNorth = MakeButton(facingRow.transform, "북", () => OnSetFacingUi(SrpFacing.North), 40, 18);
+        _btnFacingEast = MakeButton(facingRow.transform, "동", () => OnSetFacingUi(SrpFacing.East), 40, 18);
+        _btnFacingSouth = MakeButton(facingRow.transform, "남", () => OnSetFacingUi(SrpFacing.South), 40, 18);
+        _btnFacingWest = MakeButton(facingRow.transform, "서", () => OnSetFacingUi(SrpFacing.West), 40, 18);
+
         MakeSeparator(panel.transform);
         _btnUseSkill = MakeButton(panel.transform, "스킬 사용", OnShowSkillList, 60);
         _btnUseSkill.GetComponent<Image>().color = new Color(0.40f, 0.22f, 0.55f, 0.9f);
-        _btnCancelSkill = MakeButton(panel.transform, "스킬 취소", () => CancelSkillTargeting(), 48, 20);
+        _btnCancelSkill = MakeButton(panel.transform, "스킬 취소", OnCancelSkillUi, 48, 20);
         _btnCancelSkill.GetComponent<Image>().color = new Color(0.55f, 0.25f, 0.20f, 0.9f);
+        _btnOverclock = MakeButton(panel.transform, "오버클럭", OnOverclockUi, 48, 20);
+        _btnOverclock.GetComponent<Image>().color = new Color(0.38f, 0.26f, 0.12f, 0.9f);
+        _btnReload = MakeButton(panel.transform, "재장전", OnReloadUi, 48, 20);
+        _btnReload.GetComponent<Image>().color = new Color(0.18f, 0.38f, 0.28f, 0.9f);
+        _btnCover = MakeButton(panel.transform, "엄폐", OnCoverUi, 48, 20);
+        _btnCover.GetComponent<Image>().color = new Color(0.24f, 0.42f, 0.18f, 0.9f);
+        _btnInteract = MakeButton(panel.transform, "상호작용", OnInteractUi, 48, 20);
+        _btnInteract.GetComponent<Image>().color = new Color(0.45f, 0.36f, 0.12f, 0.9f);
+        _btnOverwatch = MakeButton(panel.transform, "오버워치", OnOverwatchUi, 48, 20);
+        _btnOverwatch.GetComponent<Image>().color = new Color(0.15f, 0.24f, 0.55f, 0.9f);
+        _btnDangerArea = MakeButton(panel.transform, "위험영역 보기", OnToggleDangerAreaUi, 48, 20);
+        _btnDangerArea.GetComponent<Image>().color = new Color(0.25f, 0.22f, 0.15f, 0.9f);
 
         // 스킬 목록 패널 (숨김 시작)
         _skillListPanel = new GameObject("SkillListPanel", typeof(RectTransform));
@@ -108,9 +227,9 @@ public partial class SrpGameController
         _skillListPanel.SetActive(false);
 
         MakeSeparator(panel.transform);
-        _btnSkipAttack = MakeButton(panel.transform, "유닛 완료", OnSkipAttack, 60);
-        _btnEndTurn = MakeButton(panel.transform, "플레이어 턴 종료", OnEndTurnSoft, 60);
-        _btnUndo = MakeButton(panel.transform, "되감기", OnUndo, 60);
+        _btnSkipAttack = MakeButton(panel.transform, "행동 종료", OnSkipAttack, 54, 22);
+        _btnEndTurn = MakeButton(panel.transform, "턴 종료", OnEndTurnSoft, 54, 22);
+        _btnUndo = MakeButton(panel.transform, "되감기", OnUndo, 54, 22);
         MakeSeparator(panel.transform);
         _btnLobby = MakeButton(panel.transform, "◀ 로비로 돌아가기",
             SrpGameSettings.ReturnToLobby, 52, 22);
@@ -207,6 +326,33 @@ public partial class SrpGameController
         _logScrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
     }
 
+    void BuildBottomTacticalCards(Transform canvasRoot)
+    {
+        var activePanel = MakeFloatingPanel(canvasRoot, "ActiveUnitCardPanel",
+            new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0f, 0f),
+            new Vector2(leftPanelWidth + 12f, 12f), new Vector2(455f, 220f),
+            new Color(0.05f, 0.07f, 0.10f, 0.86f));
+        _activeUnitCardPanel = activePanel;
+        _txtActiveCardTitle = MakeLabel(activePanel.transform, "ActiveCardTitle", 18, new Color(1f, 0.9f, 0.5f), 28);
+        _txtActiveCardMeta = MakeLabel(activePanel.transform, "ActiveCardMeta", 14, new Color(0.78f, 0.9f, 1f), 42);
+        _gaugeActiveHp = MakeGauge(activePanel.transform, "HP", new Color(0.85f, 0.22f, 0.18f));
+        _gaugeActivePg = MakeGauge(activePanel.transform, "PG", new Color(0.85f, 0.62f, 0.20f));
+        _gaugeActiveAp = MakeGauge(activePanel.transform, "AP", new Color(0.25f, 0.75f, 1f));
+        _gaugeActiveAmmo = MakeGauge(activePanel.transform, "탄약", new Color(0.45f, 0.95f, 0.45f));
+        _txtActiveCardState = MakeLabel(activePanel.transform, "ActiveCardState", 13, new Color(0.82f, 0.86f, 0.9f), 42);
+
+        var previewPanel = MakeFloatingPanel(canvasRoot, "ActionPreviewPanel",
+            new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f),
+            new Vector2(-(rightPanelWidth + 12f), 12f), new Vector2(500f, 230f),
+            new Color(0.07f, 0.06f, 0.10f, 0.88f));
+        _actionPreviewPanel = previewPanel;
+        _txtPreviewTitle = MakeLabel(previewPanel.transform, "PreviewTitle", 18, new Color(1f, 0.86f, 0.45f), 30);
+        _gaugePreviewHp = MakeGauge(previewPanel.transform, "대상 HP", new Color(0.85f, 0.22f, 0.18f));
+        _gaugePreviewPg = MakeGauge(previewPanel.transform, "대상 PG", new Color(0.85f, 0.62f, 0.20f));
+        _txtPreviewBody = MakeLabel(previewPanel.transform, "PreviewBody", 14, new Color(0.85f, 0.9f, 0.96f), 120);
+        _txtPreviewBody.GetComponent<LayoutElement>().flexibleHeight = 1f;
+    }
+
     // ── HUD 헬퍼 ─────────────────────────────────────────────────────────────
 
     static TextMeshProUGUI MakeLabel(Transform parent, string name, int fontSize, Color color, float minH)
@@ -218,7 +364,8 @@ public partial class SrpGameController
         t.fontSize = fontSize;
         t.color = color;
         t.alignment = TextAlignmentOptions.TopLeft;
-        t.overflowMode = TextOverflowModes.Overflow;
+        t.overflowMode = TextOverflowModes.Ellipsis;
+        t.textWrappingMode = TextWrappingModes.Normal;
         return t;
     }
 
@@ -245,8 +392,121 @@ public partial class SrpGameController
         tx.fontSize = fontSize;
         tx.color = Color.white;
         tx.alignment = TextAlignmentOptions.Center;
+        tx.overflowMode = TextOverflowModes.Ellipsis;
+        tx.textWrappingMode = TextWrappingModes.Normal;
         tx.text = label;
         return b;
+    }
+
+    static GameObject MakeInfoBox(Transform parent, string name, Color color)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        var le = go.AddComponent<LayoutElement>();
+        le.flexibleWidth = 1f;
+        le.flexibleHeight = 1f;
+        go.AddComponent<Image>().color = color;
+        var vlg = go.AddComponent<VerticalLayoutGroup>();
+        vlg.padding = new RectOffset(10, 10, 6, 6);
+        vlg.childControlHeight = true;
+        vlg.childControlWidth = true;
+        vlg.childForceExpandHeight = true;
+        vlg.childForceExpandWidth = true;
+        return go;
+    }
+
+    static GameObject MakeFloatingPanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
+        Vector2 pivot, Vector2 anchoredPosition, Vector2 size, Color color)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = anchorMin;
+        rt.anchorMax = anchorMax;
+        rt.pivot = pivot;
+        rt.anchoredPosition = anchoredPosition;
+        rt.sizeDelta = size;
+        go.AddComponent<Image>().color = color;
+        var vlg = go.AddComponent<VerticalLayoutGroup>();
+        vlg.padding = new RectOffset(12, 12, 10, 10);
+        vlg.spacing = 5f;
+        vlg.childControlHeight = true;
+        vlg.childControlWidth = true;
+        vlg.childForceExpandHeight = false;
+        vlg.childForceExpandWidth = true;
+        return go;
+    }
+
+    static HudGauge MakeGauge(Transform parent, string label, Color fillColor)
+    {
+        var row = new GameObject("Gauge_" + label, typeof(RectTransform));
+        row.transform.SetParent(parent, false);
+        var le = row.AddComponent<LayoutElement>();
+        le.minHeight = 22f;
+        le.preferredHeight = 22f;
+        le.flexibleWidth = 1f;
+        var hlg = row.AddComponent<HorizontalLayoutGroup>();
+        hlg.spacing = 6f;
+        hlg.childControlHeight = true;
+        hlg.childControlWidth = true;
+        hlg.childForceExpandHeight = true;
+        hlg.childForceExpandWidth = false;
+
+        var labelText = MakeGaugeText(row.transform, "Label", label, 13, new Color(0.78f, 0.88f, 0.95f), 56f);
+        var bar = new GameObject("Bar", typeof(RectTransform));
+        bar.transform.SetParent(row.transform, false);
+        var barLe = bar.AddComponent<LayoutElement>();
+        barLe.flexibleWidth = 1f;
+        barLe.minWidth = 80f;
+        bar.AddComponent<Image>().color = new Color(0.05f, 0.06f, 0.08f, 0.95f);
+
+        var fillGo = new GameObject("Fill", typeof(RectTransform));
+        fillGo.transform.SetParent(bar.transform, false);
+        var fillRt = fillGo.GetComponent<RectTransform>();
+        fillRt.anchorMin = Vector2.zero;
+        fillRt.anchorMax = Vector2.one;
+        fillRt.offsetMin = Vector2.zero;
+        fillRt.offsetMax = Vector2.zero;
+        var fill = fillGo.AddComponent<Image>();
+        fill.color = fillColor;
+
+        var valueText = MakeGaugeText(row.transform, "Value", "-", 13, Color.white, 72f);
+        valueText.alignment = TextAlignmentOptions.MidlineRight;
+        return new HudGauge { label = labelText, value = valueText, fill = fill };
+    }
+
+    static TextMeshProUGUI MakeGaugeText(Transform parent, string name, string text, int size, Color color, float width)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        var le = go.AddComponent<LayoutElement>();
+        le.minWidth = width;
+        le.preferredWidth = width;
+        var t = go.AddComponent<TextMeshProUGUI>();
+        t.text = text;
+        t.fontSize = size;
+        t.color = color;
+        t.alignment = TextAlignmentOptions.MidlineLeft;
+        t.overflowMode = TextOverflowModes.Ellipsis;
+        t.textWrappingMode = TextWrappingModes.NoWrap;
+        return t;
+    }
+
+    static GameObject MakeButtonRow(Transform parent, float height)
+    {
+        var row = new GameObject("ButtonRow", typeof(RectTransform));
+        row.transform.SetParent(parent, false);
+        var le = row.AddComponent<LayoutElement>();
+        le.minHeight = height;
+        le.preferredHeight = height;
+        le.flexibleWidth = 1f;
+        var hlg = row.AddComponent<HorizontalLayoutGroup>();
+        hlg.spacing = 6f;
+        hlg.childControlHeight = true;
+        hlg.childControlWidth = true;
+        hlg.childForceExpandHeight = true;
+        hlg.childForceExpandWidth = true;
+        return row;
     }
 
     static void MakeSeparator(Transform parent)
@@ -263,11 +523,10 @@ public partial class SrpGameController
         var u = GetUnit(_selectedId.Value);
         if (u == null) return;
 
-        foreach (var go in _skillListButtons)
-            if (go != null) Destroy(go);
-        _skillListButtons.Clear();
+        HideAllSkillEntries();
 
         bool anySkill = false;
+        int visibleIndex = 0;
         for (int i = 0; i < u.skillRuntimes.Count; i++)
         {
             var sr = u.skillRuntimes[i];
@@ -275,24 +534,154 @@ public partial class SrpGameController
             if (data.skillType != SrpSkillType.Active) continue;
 
             anySkill = true;
-            bool usable = SrpSkills.CanUseActiveSkill(data, sr) && !u.hasUsedSkillThisActivation;
+            bool usable = u.actionPoints > 0
+                && SrpSkills.CanUseActiveSkill(data, sr)
+                && !u.hasUsedSkillThisActivation;
             var capturedData = data;
             var capturedRuntime = sr;
 
-            var btnGo = new GameObject("SkillBtn_" + data.id, typeof(RectTransform));
-            btnGo.transform.SetParent(_skillListPanel.transform, false);
-            btnGo.AddComponent<LayoutElement>().minHeight = 48f;
-            btnGo.AddComponent<Image>().color = usable
+            var entry = GetOrCreateSkillEntry(visibleIndex++);
+            entry.root.name = "SkillBtn_" + data.id;
+            entry.root.GetComponent<Image>().color = usable
                 ? new Color(0.30f, 0.18f, 0.50f, 0.9f)
                 : new Color(0.20f, 0.20f, 0.25f, 0.6f);
-            var btn = btnGo.AddComponent<Button>();
-            btn.interactable = usable;
-            btn.onClick.AddListener(() =>
+            entry.button.interactable = usable;
+            entry.button.onClick.RemoveAllListeners();
+            entry.button.onClick.AddListener(() =>
             {
                 HideTooltip();
                 _skillListPanel.SetActive(false);
                 BeginSkillTargeting(capturedData, capturedRuntime);
             });
+
+            entry.label.fontSize = 18;
+            entry.label.color = usable ? Color.white : new Color(0.6f, 0.6f, 0.6f);
+            string resourceText = BuildSkillResourceText(data, sr);
+            string tagText = BuildSkillTagText(data, sr);
+            entry.label.text = $"{data.displayName}{resourceText}{tagText}";
+            entry.label.alignment = TextAlignmentOptions.MidlineLeft;
+            entry.label.overflowMode = TextOverflowModes.Ellipsis;
+            entry.label.textWrappingMode = TextWrappingModes.Normal;
+
+            string fullTooltip = $"<b>{data.displayName}</b>{resourceText}{tagText}\n{data.description}";
+            if (SrpSkills.UsesCharges(data))
+                fullTooltip += $"\n충전 회복: {Mathf.Max(1, data.chargeRecoveryTurns)} 라운드";
+            if (data.overclockFrozenHeartCost > 0)
+                fullTooltip += $"\n오버클럭: 안정도(FH) {data.overclockFrozenHeartCost} 소모";
+            if (data.overclockPowerBonus > 0)
+                fullTooltip += $"\n오버클럭 증폭: 다음 사용 피해/회복 +{data.overclockPowerBonus}";
+            if (sr.overclockedUsesRemaining > 0)
+                fullTooltip += "\n오버클럭 강화 대기: 다음 사용 1회 강화";
+            if (data.requiresParryTelegraph)
+                fullTooltip += "\n패링 가능 스킬: 대상에게 청록색 텔레그래프 표시";
+            if (data.endsActivation) fullTooltip += "\n(사용 후 활성화 종료)";
+            SetTooltipTrigger(entry.trigger, fullTooltip);
+            entry.root.SetActive(true);
+        }
+
+        if (!anySkill)
+        {
+            var entry = GetOrCreateSkillEntry(0);
+            entry.root.name = "NoSkill";
+            entry.root.GetComponent<Image>().color = new Color(0.12f, 0.12f, 0.15f, 0.7f);
+            entry.button.interactable = false;
+            entry.button.onClick.RemoveAllListeners();
+            entry.label.text = "사용 가능한 액티브 스킬 없음";
+            entry.label.fontSize = 18;
+            entry.label.color = new Color(0.6f, 0.6f, 0.6f);
+            entry.label.alignment = TextAlignmentOptions.Center;
+            entry.label.textWrappingMode = TextWrappingModes.Normal;
+            SetTooltipTrigger(entry.trigger, string.Empty);
+            entry.root.SetActive(true);
+        }
+
+        _skillListPanel.SetActive(true);
+        UpdateHud();
+    }
+
+    void OnCancelSkillUi()
+    {
+        if (_skillListPanel != null && _skillListPanel.activeSelf && _phase == Phase.UnitActive)
+        {
+            HideTooltip();
+            _skillListPanel.SetActive(false);
+            UpdateHud();
+            return;
+        }
+        CancelSkillTargeting();
+    }
+
+    void OnToggleDangerAreaUi()
+    {
+        ToggleDangerArea();
+    }
+
+    void OnSetStanceUi(SrpStance stance)
+    {
+        TrySetSelectedStance(stance, true);
+    }
+
+    void OnSetFacingUi(SrpFacing facing)
+    {
+        TrySetSelectedFacing(facing, true);
+    }
+
+    void OnOverclockUi()
+    {
+        TryOverclockSelectedSkill(true);
+    }
+
+    void OnReloadUi()
+    {
+        TryReloadSelectedUnit(true);
+    }
+
+    void OnCoverUi()
+    {
+        TryTakeCoverSelectedUnit(true);
+    }
+
+    void OnInteractUi()
+    {
+        TryInteractSelectedUnit(true);
+    }
+
+    void OnOverwatchUi()
+    {
+        if (_gameOver || _phase != Phase.UnitActive || !_selectedId.HasValue)
+            return;
+        var unit = GetUnit(_selectedId.Value);
+        if (unit == null)
+            return;
+        var status = SrpOverwatch.GetArmStatus(unit);
+        if (status != SrpOverwatchArmStatus.Ready)
+        {
+            LogLine($"오버워치 불가: {unit.displayName}({unit.id}) | {DescribeOverwatchArmStatus(status)}");
+            UpdateHud();
+            return;
+        }
+
+        PushUndo();
+        if (!SrpOverwatch.Arm(_state, unit))
+        {
+            UpdateHud();
+            return;
+        }
+        LogLine($"오버워치 예약: {unit.displayName}({unit.id}) | 사거리 {unit.overwatchRange} | 행동 소모");
+        RefreshUnitViews();
+        FinishActivation();
+    }
+
+    SkillListEntry GetOrCreateSkillEntry(int index)
+    {
+        while (_skillListButtons.Count <= index)
+        {
+            var btnGo = new GameObject("SkillBtn", typeof(RectTransform));
+            btnGo.transform.SetParent(_skillListPanel.transform, false);
+            btnGo.AddComponent<LayoutElement>().minHeight = 48f;
+            btnGo.AddComponent<Image>().color = new Color(0.30f, 0.18f, 0.50f, 0.9f);
+            var btn = btnGo.AddComponent<Button>();
+            var trigger = btnGo.AddComponent<EventTrigger>();
 
             var lblGo = new GameObject("Lbl", typeof(RectTransform));
             lblGo.transform.SetParent(btnGo.transform, false);
@@ -303,34 +692,32 @@ public partial class SrpGameController
             lrt.offsetMax = new Vector2(-8, 0);
             var tx = lblGo.AddComponent<TextMeshProUGUI>();
             tx.fontSize = 18;
-            tx.color = usable ? Color.white : new Color(0.6f, 0.6f, 0.6f);
-            string cdText = sr.cooldownRemaining > 0 ? $" (CD:{sr.cooldownRemaining})" : "";
-            tx.text = $"{data.displayName}{cdText}";
+            tx.color = Color.white;
             tx.alignment = TextAlignmentOptions.MidlineLeft;
             tx.overflowMode = TextOverflowModes.Ellipsis;
-            tx.enableWordWrapping = true;
+            tx.textWrappingMode = TextWrappingModes.Normal;
 
-            string fullTooltip = $"<b>{data.displayName}</b>{cdText}\n{data.description}";
-            if (data.endsActivation) fullTooltip += "\n(사용 후 활성화 종료)";
-            AddTooltipTrigger(btnGo, fullTooltip);
-
-            _skillListButtons.Add(btnGo);
+            _skillListButtons.Add(new SkillListEntry
+            {
+                root = btnGo,
+                button = btn,
+                label = tx,
+                trigger = trigger,
+            });
         }
+        return _skillListButtons[index];
+    }
 
-        if (!anySkill)
+    void HideAllSkillEntries()
+    {
+        foreach (var entry in _skillListButtons)
         {
-            var noSkill = new GameObject("NoSkill", typeof(RectTransform));
-            noSkill.transform.SetParent(_skillListPanel.transform, false);
-            noSkill.AddComponent<LayoutElement>().minHeight = 36f;
-            var nst = noSkill.AddComponent<TextMeshProUGUI>();
-            nst.text = "사용 가능한 액티브 스킬 없음";
-            nst.fontSize = 18;
-            nst.color = new Color(0.6f, 0.6f, 0.6f);
-            nst.alignment = TextAlignmentOptions.Center;
-            _skillListButtons.Add(noSkill);
+            if (entry == null || entry.root == null)
+                continue;
+            entry.root.SetActive(false);
+            entry.button.onClick.RemoveAllListeners();
+            SetTooltipTrigger(entry.trigger, string.Empty);
         }
-
-        _skillListPanel.SetActive(true);
     }
 
     void BuildTooltip(Transform canvasRoot)
@@ -353,7 +740,7 @@ public partial class SrpGameController
         _tooltipText.fontSize = 18;
         _tooltipText.color = new Color(0.92f, 0.95f, 1f);
         _tooltipText.alignment = TextAlignmentOptions.TopLeft;
-        _tooltipText.enableWordWrapping = true;
+        _tooltipText.textWrappingMode = TextWrappingModes.Normal;
         _tooltipText.richText = true;
         _tooltipText.overflowMode = TextOverflowModes.Overflow;
 
@@ -364,6 +751,16 @@ public partial class SrpGameController
     void AddTooltipTrigger(GameObject target, string text)
     {
         var et = target.AddComponent<EventTrigger>();
+        SetTooltipTrigger(et, text);
+    }
+
+    void SetTooltipTrigger(EventTrigger et, string text)
+    {
+        if (et == null)
+            return;
+        et.triggers.Clear();
+        if (string.IsNullOrEmpty(text))
+            return;
 
         var enterEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
         string capturedText = text;
@@ -418,15 +815,28 @@ public partial class SrpGameController
 
     void LogLine(string msg)
     {
-        _log.Add($"[{DateTime.Now:HH:mm:ss}] {msg}");
-        while (_log.Count > MaxLogLines) _log.RemoveAt(0);
+        string formatted = $"[{DateTime.Now:HH:mm:ss}] {msg}";
+        _log.Add(formatted);
+        bool trimmed = false;
+        while (_log.Count > MaxLogLines)
+        {
+            _log.RemoveAt(0);
+            trimmed = true;
+        }
 
         if (_txtLog != null)
         {
-            var sb = new StringBuilder();
-            foreach (var line in _log)
-                sb.AppendLine(line);
-            _txtLog.text = sb.ToString();
+            if (trimmed || string.IsNullOrEmpty(_txtLog.text))
+            {
+                var sb = new StringBuilder();
+                foreach (var line in _log)
+                    sb.AppendLine(line);
+                _txtLog.text = sb.ToString();
+            }
+            else
+            {
+                _txtLog.text += formatted + "\n";
+            }
         }
         Debug.Log("[SRPG] " + msg);
 
@@ -452,71 +862,901 @@ public partial class SrpGameController
     void UpdateHud()
     {
         if (_txtTurn == null) return;
-        int pid = _state.GetCurrentPlayerId();
-        string mapName = initialMap != null ? initialMap.name : "?";
-
-        _txtTurn.text = _gameOver
-            ? "게임 종료"
-            : $"플레이어 {pid} 차례\n맵: {mapName}";
-
-        string st;
-        if (_phase == Phase.Idle)
+        if (_state == null)
         {
-            st = "아군 유닛을 클릭해 선택";
+            _txtTurn.text = "초기화 중...";
+            _txtStatus.text = "전투 상태를 준비 중입니다.";
+            _txtUnit.text = "— 유닛 정보 없음 —";
+            return;
         }
-        else if (_phase == Phase.SelectingSkillTarget)
-        {
-            string skillName = _pendingSkillData != null ? _pendingSkillData.displayName : "?";
-            st = $"스킬 대상 선택: {skillName}\n보라색 타일을 클릭 (다른 곳 = 취소)";
-        }
-        else
-        {
-            string moveInfo = _remainingMove > 0 ? $"이동력: {_remainingMove}" : "이동 불가";
-            string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능";
-            st = $"{moveInfo} | {atkInfo}\n이동(녹) 또는 공격(적) 선택";
-        }
-        _txtStatus.text = st;
-
-        if (_selectedId.HasValue)
-        {
-            var u = GetUnit(_selectedId.Value);
-            if (u != null)
-            {
-                var sb2 = new System.Text.StringBuilder();
-                sb2.AppendLine($"{u.displayName} (P{u.owner})");
-                sb2.AppendLine($"HP {u.hp}/{u.maxHp}  AP {u.ap}/{u.maxAp}");
-                sb2.AppendLine($"PG {u.posture}/{u.maxPosture}");
-                sb2.Append($"그로기:{u.groggy}  FH:{u.frozenHeart}");
-                if (u.skillIds.Count > 0)
-                {
-                    sb2.Append("\n스킬:");
-                    foreach (var sid in u.skillIds)
-                    {
-                        if (_state.SkillLookup.TryGetValue(sid, out var sd))
-                            sb2.Append($" {sd.displayName}");
-                        else
-                            sb2.Append($" {sid}");
-                    }
-                }
-                _txtUnit.text = sb2.ToString();
-            }
-        }
-        else
-            _txtUnit.text = "— 미선택 —";
+        _txtTurn.text = BuildTurnHudText();
+        _txtStatus.text = BuildStatusHudText();
+        _txtUnit.text = BuildUnitHudText();
+        UpdateBottomTacticalCards();
 
         bool unitActive = !_gameOver && _phase == Phase.UnitActive;
         if (_btnSkipAttack != null)
             _btnSkipAttack.interactable = unitActive;
         if (_btnEndTurn != null)
-            _btnEndTurn.interactable = !_gameOver && _phase == Phase.Idle;
+            _btnEndTurn.interactable = !_gameOver
+                && (_phase == Phase.UnitActive || (_phase == Phase.SelectingSkillTarget && _selectedId.HasValue));
         if (_btnUndo != null)
-            _btnUndo.interactable = _undo.Count > 0 && !_gameOver;
+            _btnUndo.interactable = _undo.Count > 0;
         if (_btnUseSkill != null)
             _btnUseSkill.interactable = unitActive;
         if (_btnCancelSkill != null)
-            _btnCancelSkill.interactable = !_gameOver && _phase == Phase.SelectingSkillTarget;
+            _btnCancelSkill.interactable = !_gameOver
+                && (_phase == Phase.SelectingSkillTarget
+                    || (_phase == Phase.UnitActive && _skillListPanel != null && _skillListPanel.activeSelf));
+        if (_btnDangerArea != null)
+        {
+            _btnDangerArea.interactable = !_gameOver;
+            var label = _btnDangerArea.GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null)
+                label.text = IsDangerAreaVisible ? "위험영역 숨기기" : "위험영역 보기";
+        }
+        if (_btnOverwatch != null)
+        {
+            var active = unitActive && _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+            var status = SrpOverwatch.GetArmStatus(active);
+            _btnOverwatch.interactable = unitActive && status == SrpOverwatchArmStatus.Ready;
+            var label = _btnOverwatch.GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null)
+                label.text = BuildOverwatchButtonLabel(active, status);
+        }
+        UpdateDirectControlButtons(unitActive);
 
         if (_skillListPanel != null && _phase != Phase.UnitActive && _phase != Phase.SelectingSkillTarget)
             _skillListPanel.SetActive(false);
     }
+
+    void UpdateBottomTacticalCards()
+    {
+        var active = GetDisplayedUnit();
+        UpdateActiveUnitCard(active);
+        UpdateActionPreviewCard(active);
+    }
+
+    SrpUnitRuntime GetDisplayedUnit()
+    {
+        SrpUnitRuntime unit = null;
+        if (_selectedId.HasValue)
+            unit = GetUnit(_selectedId.Value);
+        if (unit == null && _state != null && _state.CurrentUnitId > 0)
+            unit = GetUnit(_state.CurrentUnitId);
+        return unit;
+    }
+
+    void UpdateActiveUnitCard(SrpUnitRuntime unit)
+    {
+        if (_txtActiveCardTitle == null)
+            return;
+        if (unit == null)
+        {
+            _txtActiveCardTitle.text = "현재 행동 유닛";
+            _txtActiveCardMeta.text = "선택된 유닛 없음";
+            _txtActiveCardState.text = "현재 행동 유닛을 선택하면 상세 정보가 표시됩니다.";
+            SetGauge(_gaugeActiveHp, 0, 1);
+            SetGauge(_gaugeActivePg, 0, 1);
+            SetGauge(_gaugeActiveAp, 0, 1);
+            SetGauge(_gaugeActiveAmmo, 0, 1, "탄약", "-");
+            return;
+        }
+
+        bool isCurrent = _state != null && _state.CurrentUnitId == unit.id;
+        _txtActiveCardTitle.text = $"{(isCurrent ? "▶ " : string.Empty)}{unit.displayName}({unit.id})";
+        _txtActiveCardMeta.text = $"P{unit.owner} | {unit.weaponClass} | 태세 {unit.stance} | 방향 {unit.facing}";
+        SetGauge(_gaugeActiveHp, unit.hp, unit.maxHp);
+        SetGauge(_gaugeActivePg, unit.pg, unit.maxPg);
+        SetGauge(_gaugeActiveAp, unit.actionPoints, unit.maxActionPoints);
+        if (unit.UsesAmmo)
+            SetGauge(_gaugeActiveAmmo, unit.ammo, unit.maxAmmo, "탄약");
+        else
+            SetGauge(_gaugeActiveAmmo, 0, 1, "탄약", "비총기");
+
+        var parts = new List<string>();
+        parts.Add($"반응: {BuildReactionReadinessText(unit)}");
+        if (unit.frozenHeart > 0)
+            parts.Add($"안정도(FH) {unit.frozenHeart}");
+        if (unit.groggy)
+            parts.Add("그로기");
+        if (unit.coverActive)
+            parts.Add($"엄폐 ({unit.coverSourceX},{unit.coverSourceY})");
+        if (unit.overwatchArmed)
+            parts.Add($"오버워치 사거리 {unit.overwatchRange}");
+        if (_state != null && _state.TryGetAdjacentInteraction(unit, out var point))
+            parts.Add($"상호작용: {GetInteractionLabel(point)}");
+        _txtActiveCardState.text = string.Join(" | ", parts);
+    }
+
+    void UpdateActionPreviewCard(SrpUnitRuntime active)
+    {
+        if (_txtPreviewTitle == null)
+            return;
+
+        var target = GetPreviewTargetUnit();
+        if (target != null)
+        {
+            SetGauge(_gaugePreviewHp, target.hp, target.maxHp);
+            SetGauge(_gaugePreviewPg, target.pg, target.maxPg);
+        }
+        else
+        {
+            SetGauge(_gaugePreviewHp, 0, 1, "대상 HP", "-");
+            SetGauge(_gaugePreviewPg, 0, 1, "대상 PG", "-");
+        }
+
+        var preview = BuildActionPreviewText(active, target);
+        _txtPreviewTitle.text = preview.title;
+        _txtPreviewBody.text = preview.body;
+    }
+
+    static void SetGauge(HudGauge gauge, int current, int max, string label = null, string valueOverride = null)
+    {
+        if (gauge == null)
+            return;
+        if (label != null && gauge.label != null)
+            gauge.label.text = label;
+        int safeMax = Mathf.Max(1, max);
+        float ratio = Mathf.Clamp01((float)Mathf.Max(0, current) / safeMax);
+        if (gauge.fill != null)
+        {
+            var rt = gauge.fill.rectTransform;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = new Vector2(ratio, 1f);
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+            gauge.fill.enabled = ratio > 0f;
+        }
+        if (gauge.value != null)
+            gauge.value.text = valueOverride ?? $"{Mathf.Max(0, current)}/{safeMax}";
+    }
+
+    void UpdateDirectControlButtons(bool unitActive)
+    {
+        var active = unitActive && _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+        bool canSetStance = CanSetSelectedStance(active);
+        if (_btnStanceAggressive != null)
+        {
+            _btnStanceAggressive.interactable = canSetStance && active.stance != SrpStance.Aggressive;
+            SetButtonLabel(_btnStanceAggressive, active != null && active.stance == SrpStance.Aggressive ? "공격*" : "공격");
+        }
+        if (_btnStanceDefensive != null)
+        {
+            _btnStanceDefensive.interactable = canSetStance && active.stance != SrpStance.Defensive;
+            SetButtonLabel(_btnStanceDefensive, active != null && active.stance == SrpStance.Defensive ? "수비*" : "수비");
+        }
+
+        bool canSetFacing = active != null && unitActive;
+        SetFacingButtonState(_btnFacingNorth, active, SrpFacing.North, canSetFacing);
+        SetFacingButtonState(_btnFacingEast, active, SrpFacing.East, canSetFacing);
+        SetFacingButtonState(_btnFacingSouth, active, SrpFacing.South, canSetFacing);
+        SetFacingButtonState(_btnFacingWest, active, SrpFacing.West, canSetFacing);
+
+        if (_btnOverclock != null)
+        {
+            bool canOverclock = active != null && unitActive && FindFirstOverclockableSkill(active, out _, out _);
+            _btnOverclock.interactable = canOverclock;
+            SetButtonLabel(_btnOverclock, canOverclock ? "오버클럭" : "오버클럭 불가");
+        }
+        if (_btnReload != null)
+        {
+            bool canReload = active != null && unitActive && CanReloadSelectedUnit(active);
+            _btnReload.interactable = canReload;
+            SetButtonLabel(_btnReload, BuildReloadButtonLabel(active, canReload));
+        }
+        if (_btnCover != null)
+        {
+            bool canCover = active != null && unitActive && CanTakeCoverSelectedUnit(active);
+            _btnCover.interactable = canCover;
+            SetButtonLabel(_btnCover, BuildCoverButtonLabel(active, canCover));
+        }
+        if (_btnInteract != null)
+        {
+            bool canInteract = active != null && unitActive && CanInteractSelectedUnit(active);
+            _btnInteract.interactable = canInteract;
+            SetButtonLabel(_btnInteract, BuildInteractButtonLabel(active, canInteract));
+        }
+    }
+
+    static string BuildReloadButtonLabel(SrpUnitRuntime unit, bool canReload)
+    {
+        if (unit == null || unit.weaponClass != SrpWeaponClass.Firearm)
+            return "재장전 불가";
+        if (!unit.UsesAmmo)
+            return "재장전 불가";
+        if (unit.ammo >= unit.maxAmmo)
+            return "재장전 완료";
+        return canReload ? $"재장전 {unit.ammo}/{unit.maxAmmo}" : "재장전 불가";
+    }
+
+    static string BuildCoverButtonLabel(SrpUnitRuntime unit, bool canCover)
+    {
+        if (unit == null)
+            return "엄폐 불가";
+        if (unit.coverActive)
+            return "엄폐 중";
+        return canCover ? "엄폐" : "엄폐 불가";
+    }
+
+    static string BuildInteractButtonLabel(SrpUnitRuntime unit, bool canInteract)
+    {
+        if (unit == null)
+            return "상호작용 불가";
+        return canInteract ? "상호작용" : "상호작용 불가";
+    }
+
+    static void SetFacingButtonState(Button button, SrpUnitRuntime active, SrpFacing facing, bool canSetFacing)
+    {
+        if (button == null)
+            return;
+        button.interactable = canSetFacing && active.facing != facing;
+        SetButtonLabel(button, active != null && active.facing == facing ? $"{FacingShortName(facing)}*" : FacingShortName(facing));
+    }
+
+    static void SetButtonLabel(Button button, string text)
+    {
+        if (button == null)
+            return;
+        var label = button.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null)
+            label.text = text;
+    }
+
+    static string FacingShortName(SrpFacing facing)
+    {
+        switch (facing)
+        {
+            case SrpFacing.North:
+                return "북";
+            case SrpFacing.East:
+                return "동";
+            case SrpFacing.South:
+                return "남";
+            case SrpFacing.West:
+                return "서";
+            default:
+                return "?";
+        }
+    }
+
+    string BuildTurnHudText()
+    {
+        if (_state == null)
+            return "초기화 중...";
+        string mapName = initialMap != null ? initialMap.name : "?";
+        var current = _state.CurrentUnitId > 0 ? GetUnit(_state.CurrentUnitId) : null;
+        string currentText = current != null
+            ? $"{current.displayName}({current.id}) SPD:{current.speed}"
+            : "없음";
+        string queueText = BuildQueuePreviewText();
+        return _gameOver
+            ? "게임 종료"
+            : $"라운드 {_state.RoundNumber} | 현재: {currentText} | 대기: {queueText} | 맵: {mapName}";
+    }
+
+    string BuildQueuePreviewText()
+    {
+        if (_state == null)
+            return "-";
+        if (_state.RoundQueue == null || _state.RoundQueue.Count == 0)
+            return "-";
+
+        var queueSb = new StringBuilder();
+        int shown = Mathf.Min(QueuePreviewCount, _state.RoundQueue.Count);
+        for (int i = 0; i < shown; i++)
+        {
+            var qUnit = GetUnit(_state.RoundQueue[i]);
+            if (qUnit == null) continue;
+            if (queueSb.Length > 0)
+                queueSb.Append(" > ");
+            queueSb.Append($"{qUnit.displayName}({qUnit.id})");
+        }
+        if (_state.RoundQueue.Count > shown)
+            queueSb.Append($" ...+{_state.RoundQueue.Count - shown}");
+        return queueSb.ToString();
+    }
+
+    string BuildStatusHudText()
+    {
+        if (_state == null)
+            return "전투 상태를 준비 중입니다.";
+        if (_phase == Phase.Idle)
+        {
+            if (_postUndoHint)
+                return $"되감기 후 상태: 현재 행동 유닛 타일을 다시 클릭하세요\n{OverlayLegendText}";
+            return $"다음 행동 유닛 자동 선택 대기\n{OverlayLegendText}";
+        }
+
+        if (_phase == Phase.SelectingSkillTarget)
+        {
+            string skillName = _pendingSkillData != null ? _pendingSkillData.displayName : "?";
+            return $"스킬 대상 선택: {skillName} | 보라=대상 | 청록=패링 가능 스킬 | 취소 가능\n{OverlayLegendText}";
+        }
+
+        if (!string.IsNullOrEmpty(_hoverStatusHint))
+            return $"행동 단계: {_hoverStatusHint}\n{OverlayLegendText}";
+
+        if (_selectedId.HasValue)
+        {
+            var selected = GetUnit(_selectedId.Value);
+            if (selected != null && selected.actionPoints <= 0)
+                return $"행동 단계: AP 0, 이동/공격/스킬 불가. 행동 종료를 선택하세요\n{OverlayLegendText}";
+        }
+
+        string moveInfo = _remainingMove > 0 ? $"이동력 {_remainingMove}" : "이동력 없음";
+        string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능 (공격 후 턴 종료)";
+        string dangerInfo = IsDangerAreaVisible ? "위험영역 ON" : "위험영역 OFF";
+        string undoInfo = _undo.Count > 0 ? "되감기 가능" : "되감기 없음(행동 확정 후 생성)";
+        return $"행동 단계: {moveInfo} | {atkInfo} | {dangerInfo} | {undoInfo}\n{OverlayLegendText}";
+    }
+
+    string BuildUnitHudText()
+    {
+        if (_state == null)
+            return "— 유닛 정보 없음 —";
+        SrpUnitRuntime unit = null;
+        if (_selectedId.HasValue)
+            unit = GetUnit(_selectedId.Value);
+        if (unit == null && _state.CurrentUnitId > 0)
+            unit = GetUnit(_state.CurrentUnitId);
+        if (unit == null)
+            return "— 유닛 정보 없음 —";
+
+        var sb = new StringBuilder();
+        bool isCurrent = _state.CurrentUnitId == unit.id;
+        sb.AppendLine($"{(isCurrent ? "▶ " : string.Empty)}{unit.displayName} (P{unit.owner}) [{unit.weaponClass}] | HP {unit.hp}/{unit.maxHp} PG {unit.pg}/{unit.maxPg}");
+        sb.AppendLine($"AP {unit.actionPoints}/{unit.maxActionPoints} | 반응: {BuildReactionReadinessText(unit)} | 태세: {unit.stance} | 방향: {unit.facing} | 그로기: {unit.groggy}");
+        if (isCurrent && unit.actionPoints <= 0)
+            sb.AppendLine("상태: AP 소진, 행동 종료 필요");
+        var stateParts = new List<string>();
+        if (unit.HasTag(SrpUnitTags.Tank))
+            stateParts.Add($"탱커 / 교전 수 {_state.CountEngagingEnemies(unit)}");
+        if (unit.stance == SrpStance.Defensive && unit.defensiveHitsRound == _state.RoundNumber)
+            stateParts.Add($"수비 압박 {unit.defensiveHitsTakenThisRound}");
+        if (unit.overwatchArmed)
+            stateParts.Add($"오버워치 사거리 {unit.overwatchRange}");
+        if (unit.UsesAmmo)
+            stateParts.Add($"탄약 {unit.ammo}/{unit.maxAmmo}");
+        if (unit.coverActive)
+            stateParts.Add($"엄폐 중 ({unit.coverSourceX},{unit.coverSourceY})");
+        if (_state.TryGetAdjacentInteraction(unit, out var point))
+            stateParts.Add($"상호작용 가능: {(string.IsNullOrEmpty(point.displayName) ? point.id : point.displayName)}");
+        if (stateParts.Count > 0)
+            sb.AppendLine(string.Join(" | ", stateParts));
+        if (unit.skillIds.Count > 0)
+        {
+            sb.Append("스킬:");
+            for (int i = 0; i < unit.skillIds.Count; i++)
+            {
+                var sid = unit.skillIds[i];
+                if (_state.SkillLookup.TryGetValue(sid, out var sd))
+                {
+                    var runtime = i < unit.skillRuntimes.Count ? unit.skillRuntimes[i] : null;
+                    sb.Append($" {sd.displayName}{BuildSkillResourceText(sd, runtime)}{BuildSkillTagText(sd, runtime)}");
+                }
+                else
+                {
+                    sb.Append($" {sid}");
+                }
+            }
+        }
+        return sb.ToString();
+    }
+
+    SrpUnitRuntime GetPreviewTargetUnit()
+    {
+        if (_state == null)
+            return null;
+        if (_hoverUnitId > 0)
+            return GetUnit(_hoverUnitId);
+        if (_hoverTileX >= 0 && _hoverTileY >= 0)
+            return _state.GetOccupant(_hoverTileX, _hoverTileY);
+        return null;
+    }
+
+    (string title, string body) BuildActionPreviewText(SrpUnitRuntime active, SrpUnitRuntime target)
+    {
+        if (_state == null)
+            return ("행동 Preview", "전투 상태를 준비 중입니다.");
+
+        if (_hoverTileX >= 0 && _hoverTileY >= 0)
+        {
+            if (_phase == Phase.SelectingSkillTarget && _pendingSkillData != null)
+                return BuildSkillPreview(active, target);
+
+            if (TryGetInteractionAt(_hoverTileX, _hoverTileY, out var point))
+                return BuildInteractionPreview(active, point);
+
+            if (active != null && _moveCostMap.TryGetValue(new Vector2Int(_hoverTileX, _hoverTileY), out int moveCost))
+            {
+                int threatCount = CountEnemyAttackersForTile(_hoverTileX, _hoverTileY, active.owner);
+                string risk = threatCount > 0 ? $"예상 위협 {threatCount}명" : "직접 위협 없음";
+                return ("이동 Preview", $"위치 ({_hoverTileX},{_hoverTileY})\n이동 비용 {moveCost} | AP-1\n{risk}");
+            }
+        }
+
+        if (active != null && target != null && target.owner != active.owner && _attackIds.Contains(target.id))
+            return BuildAttackPreview(active, target);
+
+        if (target != null)
+            return ($"대상 정보: {target.displayName}", BuildTargetInfoText(target));
+
+        if (active != null)
+            return ("행동 Preview", "이동/공격/스킬/상호작용 대상 위에 마우스를 올리면 예상 결과가 표시됩니다.");
+
+        return ("행동 Preview", "현재 행동 유닛을 선택하면 preview가 활성화됩니다.");
+    }
+
+    (string title, string body) BuildAttackPreview(SrpUnitRuntime active, SrpUnitRuntime target)
+    {
+        if (!active.HasAmmoForAttack())
+            return ($"공격 Preview: {target.displayName}", "탄약 없음. 재장전 후 공격할 수 있습니다.");
+
+        var clone = _state.Clone();
+        var cloneActive = clone.FindUnitById(active.id);
+        var cloneTarget = clone.FindUnitById(target.id);
+        if (cloneActive == null || cloneTarget == null)
+            return ($"공격 Preview: {target.displayName}", "예상 피해를 계산할 수 없습니다.");
+
+        var outcome = SrpCombatResolver.ApplyAttack(clone, cloneActive, cloneTarget);
+        var parts = new List<string>
+        {
+            $"예상 피해: HP-{outcome.damageToHp} / PG-{outcome.damageToPg}",
+            $"결과 예상: HP {Mathf.Max(0, target.hp - outcome.damageToHp)}/{target.maxHp}, PG {Mathf.Max(0, target.pg - outcome.damageToPg)}/{target.maxPg}",
+            active.UsesAmmo ? "소모: AP-1, 탄약-1" : "소모: AP-1",
+        };
+        if (outcome.wasExecution)
+            parts.Add("처단 공격 예상");
+        if (outcome.becameGroggy)
+            parts.Add("PG 붕괴 예상");
+        if (outcome.wasDodged)
+            parts.Add("대상 회피 성공 가능성 반영");
+        if (outcome.wasParried)
+            parts.Add("대상 패링 가능성 반영");
+        if (outcome.coverBufferApplied)
+            parts.Add($"엄폐 완충 HP-{outcome.reducedHpByCover} PG-{outcome.reducedPgByCover}");
+        return ($"공격 Preview: {target.displayName}", string.Join("\n", parts));
+    }
+
+    (string title, string body) BuildSkillPreview(SrpUnitRuntime active, SrpUnitRuntime target)
+    {
+        string skillName = _pendingSkillData.displayName;
+        var parts = new List<string>
+        {
+            $"스킬: {skillName}",
+            $"대상: {(target != null ? target.displayName : $"({_hoverTileX},{_hoverTileY})")}",
+            $"소모: AP-1 | {BuildSkillResourceText(_pendingSkillData, _pendingSkillRuntime)}",
+            BuildSkillEffectSummary(_pendingSkillData, _pendingSkillRuntime),
+        };
+
+        string delta = TryBuildSkillDeltaPreview(active, target);
+        if (!string.IsNullOrEmpty(delta))
+            parts.Add(delta);
+        return ($"스킬 Preview: {skillName}", string.Join("\n", parts));
+    }
+
+    string TryBuildSkillDeltaPreview(SrpUnitRuntime active, SrpUnitRuntime target)
+    {
+        if (active == null || _pendingSkillData == null || _pendingSkillRuntime == null)
+            return string.Empty;
+        if (_hoverTileX < 0 || _hoverTileY < 0 || !_skillTargetTiles.Contains(new Vector2Int(_hoverTileX, _hoverTileY)))
+            return "현재 타일은 선택 가능한 스킬 대상이 아닙니다.";
+
+        var clone = _state.Clone();
+        var cloneCaster = clone.FindUnitById(active.id);
+        if (cloneCaster == null)
+            return string.Empty;
+        SrpSkillRuntime cloneRuntime = null;
+        foreach (var runtime in cloneCaster.skillRuntimes)
+        {
+            if (runtime != null && runtime.skillId == _pendingSkillRuntime.skillId)
+            {
+                cloneRuntime = runtime;
+                break;
+            }
+        }
+        if (cloneRuntime == null)
+            cloneRuntime = new SrpSkillRuntime(_pendingSkillRuntime.skillId);
+
+        int targetId = target != null ? target.id : cloneCaster.id;
+        var beforeTarget = target != null ? target : active;
+        int beforeHp = beforeTarget.hp;
+        int beforePg = beforeTarget.pg;
+        SrpSkills.ResolveActiveSkill(_pendingSkillData, cloneRuntime, cloneCaster, _hoverTileX, _hoverTileY, clone, null);
+        var afterTarget = clone.FindUnitById(targetId) ?? cloneCaster;
+        int hpDelta = afterTarget.hp - beforeHp;
+        int pgDelta = afterTarget.pg - beforePg;
+        if (hpDelta == 0 && pgDelta == 0)
+            return "예상 수치 변화: 직접 HP/PG 변화 없음";
+        return $"예상 수치 변화: {FormatSignedDelta("HP", hpDelta)} / {FormatSignedDelta("PG", pgDelta)}";
+    }
+
+    (string title, string body) BuildInteractionPreview(SrpUnitRuntime active, SrpInteractionPointData point)
+    {
+        bool canInteract = active != null && _state.CanUnitInteractWith(active, point) && active.actionPoints > 0;
+        string ownerText = point.requiredOwner < 0 ? "누구나 가능" : $"P{point.requiredOwner} 전용";
+        string stateText = point.activated ? "활성화됨" : "미활성";
+        string result = canInteract ? "실행 가능: AP-1, 포인트 활성화" : "현재 유닛으로 실행 불가";
+        return ($"상호작용 Preview: {GetInteractionLabel(point)}",
+            $"위치 ({point.x},{point.y}) | {stateText}\n조건: {ownerText} | singleUse:{point.singleUse}\n{result}");
+    }
+
+    string BuildTargetInfoText(SrpUnitRuntime target)
+    {
+        var parts = new List<string>
+        {
+            $"P{target.owner} | {target.weaponClass} | 태세 {target.stance} | 방향 {target.facing}",
+            $"HP {target.hp}/{target.maxHp} | PG {target.pg}/{target.maxPg}",
+            $"반응: {BuildReactionReadinessText(target)}",
+        };
+        if (target.UsesAmmo)
+            parts.Add($"탄약 {target.ammo}/{target.maxAmmo}");
+        if (target.coverActive)
+            parts.Add($"엄폐 중 ({target.coverSourceX},{target.coverSourceY})");
+        if (target.overwatchArmed)
+            parts.Add($"오버워치 예약 사거리 {target.overwatchRange}");
+        return string.Join("\n", parts);
+    }
+
+    string BuildSkillEffectSummary(SrpSkillData data, SrpSkillRuntime runtime)
+    {
+        if (data == null)
+            return "효과: -";
+        var parts = new List<string>();
+        if (data.effects != null)
+        {
+            foreach (var effect in data.effects)
+                parts.Add($"{effect.type} {effect.stat} {effect.value}");
+        }
+        if (data.cooldown > 0)
+            parts.Add($"쿨다운 {data.cooldown}");
+        if (SrpSkills.UsesCharges(data))
+            parts.Add($"충전 {runtime?.chargesRemaining ?? 0}/{data.maxCharges}");
+        if (data.overclockPowerBonus > 0 && runtime != null && runtime.overclockedUsesRemaining > 0)
+            parts.Add($"강화 대기 +{data.overclockPowerBonus}");
+        return parts.Count > 0 ? "효과: " + string.Join(", ", parts) : "효과: 직접 수치 효과 없음";
+    }
+
+    bool TryGetInteractionAt(int x, int y, out SrpInteractionPointData point)
+    {
+        point = null;
+        if (_state == null || _state.InteractionPoints == null)
+            return false;
+        foreach (var candidate in _state.InteractionPoints)
+        {
+            if (candidate != null && candidate.x == x && candidate.y == y)
+            {
+                point = candidate;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static string GetInteractionLabel(SrpInteractionPointData point)
+    {
+        if (point == null)
+            return "-";
+        return string.IsNullOrEmpty(point.displayName) ? point.id : point.displayName;
+    }
+
+    static string FormatSignedDelta(string label, int delta)
+    {
+        if (delta > 0)
+            return $"{label}+{delta}";
+        if (delta < 0)
+            return $"{label}{delta}";
+        return $"{label}±0";
+    }
+
+    static string BuildSkillResourceText(SrpSkillData data, SrpSkillRuntime runtime)
+    {
+        if (data == null || runtime == null)
+            return string.Empty;
+
+        var parts = new List<string>();
+        if (runtime.cooldownRemaining > 0)
+            parts.Add($"쿨다운:{runtime.cooldownRemaining}");
+        if (SrpSkills.UsesCharges(data))
+            parts.Add($"충전:{runtime.chargesRemaining}/{data.maxCharges}");
+        return parts.Count > 0 ? $" ({string.Join(", ", parts)})" : string.Empty;
+    }
+
+    static string BuildSkillTagText(SrpSkillData data, SrpSkillRuntime runtime = null)
+    {
+        if (data == null)
+            return string.Empty;
+
+        var tags = new List<string>();
+        if (data.isParryable || data.requiresParryTelegraph)
+            tags.Add("패링 가능");
+        if (data.overclockFrozenHeartCost > 0)
+            tags.Add("오버클럭");
+        if (data.overclockPowerBonus > 0)
+            tags.Add($"증폭+{data.overclockPowerBonus}");
+        if (runtime != null && runtime.overclockedUsesRemaining > 0)
+            tags.Add("강화 대기");
+        return tags.Count > 0 ? $" [{string.Join("/", tags)}]" : string.Empty;
+    }
+
+    static string BuildReactionReadinessText(SrpUnitRuntime unit)
+    {
+        if (unit == null || unit.eliminated)
+            return "불가";
+        if (unit.reactionPoints > 0)
+            return unit.overwatchArmed ? "예약 중" : "준비";
+        return "소모됨";
+    }
+
+    static string BuildOverwatchButtonLabel(SrpUnitRuntime unit, SrpOverwatchArmStatus status)
+    {
+        if (unit != null && unit.overwatchArmed)
+            return "오버워치 예약 중";
+        return status == SrpOverwatchArmStatus.Ready ? "오버워치 예약" : "오버워치 불가";
+    }
+
+    static string DescribeOverwatchArmStatus(SrpOverwatchArmStatus status)
+    {
+        switch (status)
+        {
+            case SrpOverwatchArmStatus.Ready:
+                return "예약 가능";
+            case SrpOverwatchArmStatus.AlreadyArmed:
+                return "이미 예약 중";
+            case SrpOverwatchArmStatus.NoUnit:
+                return "선택 유닛 없음";
+            case SrpOverwatchArmStatus.Eliminated:
+                return "전투 불능";
+            case SrpOverwatchArmStatus.NoAction:
+                return "행동 소모";
+            case SrpOverwatchArmStatus.NoReaction:
+                return "반응 소모";
+            case SrpOverwatchArmStatus.NotFirearm:
+                return "총기 유닛만 예약 가능";
+            case SrpOverwatchArmStatus.RangeTooShort:
+                return "원거리 사거리 필요";
+            case SrpOverwatchArmStatus.NoAmmo:
+                return "탄약 없음";
+            default:
+                return "조건 불충족";
+        }
+    }
+
+#if UNITY_INCLUDE_TESTS
+    public bool TestHudReady => _txtTurn != null && _txtStatus != null && _txtUnit != null
+        && _txtActiveCardTitle != null && _txtPreviewTitle != null;
+    public bool TestHasTopStatusPanel => _topStatusPanel != null && _topStatusPanel.activeInHierarchy;
+    public bool TestHasLeftConsolePanel => _leftConsolePanel != null && _leftConsolePanel.activeInHierarchy;
+    public bool TestHasActiveUnitCardPanel => _activeUnitCardPanel != null && _activeUnitCardPanel.activeInHierarchy;
+    public bool TestHasActionPreviewPanel => _actionPreviewPanel != null && _actionPreviewPanel.activeInHierarchy;
+    public string TestTurnHudText => _txtTurn != null ? _txtTurn.text : string.Empty;
+    public string TestStatusHudText => _txtStatus != null ? _txtStatus.text : string.Empty;
+    public string TestUnitHudText => _txtUnit != null ? _txtUnit.text : string.Empty;
+    public string TestActiveUnitCardText
+    {
+        get
+        {
+            var sb = new StringBuilder();
+            if (_txtActiveCardTitle != null) sb.AppendLine(_txtActiveCardTitle.text);
+            if (_txtActiveCardMeta != null) sb.AppendLine(_txtActiveCardMeta.text);
+            if (_gaugeActiveHp?.value != null) sb.AppendLine($"HP {_gaugeActiveHp.value.text}");
+            if (_gaugeActivePg?.value != null) sb.AppendLine($"PG {_gaugeActivePg.value.text}");
+            if (_gaugeActiveAp?.value != null) sb.AppendLine($"AP {_gaugeActiveAp.value.text}");
+            if (_gaugeActiveAmmo?.value != null) sb.AppendLine($"탄약 {_gaugeActiveAmmo.value.text}");
+            if (_txtActiveCardState != null) sb.AppendLine(_txtActiveCardState.text);
+            return sb.ToString();
+        }
+    }
+    public string TestActionPreviewText
+    {
+        get
+        {
+            var sb = new StringBuilder();
+            if (_txtPreviewTitle != null) sb.AppendLine(_txtPreviewTitle.text);
+            if (_gaugePreviewHp?.value != null) sb.AppendLine($"대상 HP {_gaugePreviewHp.value.text}");
+            if (_gaugePreviewPg?.value != null) sb.AppendLine($"대상 PG {_gaugePreviewPg.value.text}");
+            if (_txtPreviewBody != null) sb.AppendLine(_txtPreviewBody.text);
+            return sb.ToString();
+        }
+    }
+    public string TestLogText => _txtLog != null ? _txtLog.text : string.Empty;
+    public string TestSkillListText
+    {
+        get
+        {
+            var sb = new StringBuilder();
+            foreach (var entry in _skillListButtons)
+            {
+                if (entry == null || entry.root == null || !entry.root.activeSelf || entry.label == null)
+                    continue;
+                if (sb.Length > 0)
+                    sb.Append("\n");
+                sb.Append(entry.label.text);
+            }
+            return sb.ToString();
+        }
+    }
+    public string TestOverwatchButtonText
+    {
+        get
+        {
+            if (_btnOverwatch == null)
+                return string.Empty;
+            var label = _btnOverwatch.GetComponentInChildren<TextMeshProUGUI>();
+            return label != null ? label.text : string.Empty;
+        }
+    }
+    public string TestOverclockButtonText => GetButtonText(_btnOverclock);
+    public string TestReloadButtonText => GetButtonText(_btnReload);
+    public string TestCoverButtonText => GetButtonText(_btnCover);
+    public string TestInteractButtonText => GetButtonText(_btnInteract);
+    public string TestStanceAggressiveButtonText => GetButtonText(_btnStanceAggressive);
+    public string TestStanceDefensiveButtonText => GetButtonText(_btnStanceDefensive);
+    public string TestFacingNorthButtonText => GetButtonText(_btnFacingNorth);
+    public string TestFacingEastButtonText => GetButtonText(_btnFacingEast);
+    public string TestFacingSouthButtonText => GetButtonText(_btnFacingSouth);
+    public string TestFacingWestButtonText => GetButtonText(_btnFacingWest);
+
+    static string GetButtonText(Button button)
+    {
+        if (button == null)
+            return string.Empty;
+        var label = button.GetComponentInChildren<TextMeshProUGUI>();
+        return label != null ? label.text : string.Empty;
+    }
+
+    public bool TestShowSkillList()
+    {
+        OnShowSkillList();
+        return _skillListPanel != null && _skillListPanel.activeSelf;
+    }
+
+    public bool TestSetSelectedStance(SrpStance stance)
+    {
+        return TrySetSelectedStance(stance, false);
+    }
+
+    public bool TestSetSelectedFacing(SrpFacing facing)
+    {
+        return TrySetSelectedFacing(facing, false);
+    }
+
+    public bool TestPrepareFirstOverclockableSkill()
+    {
+        var unit = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+        if (unit == null)
+            return false;
+
+        foreach (var runtime in unit.skillRuntimes)
+        {
+            if (runtime == null || !_state.SkillLookup.TryGetValue(runtime.skillId, out var data))
+                continue;
+            if (data.overclockFrozenHeartCost <= 0)
+                continue;
+            SrpSkills.EnsureRuntimeInitialized(data, runtime);
+            unit.frozenHeart = Mathf.Max(unit.frozenHeart, data.overclockFrozenHeartCost);
+            if (SrpSkills.UsesCharges(data) && data.overclockChargeRestore > 0)
+            {
+                runtime.chargesRemaining = Mathf.Max(0, data.maxCharges - 1);
+                runtime.chargeRecoveryRemaining = Mathf.Max(1, data.chargeRecoveryTurns);
+                UpdateHud();
+                return true;
+            }
+            if (data.overclockCooldownReduction > 0)
+            {
+                runtime.cooldownRemaining = Mathf.Max(1, data.overclockCooldownReduction);
+                UpdateHud();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public bool TestOverclockSelectedSkill()
+    {
+        return TryOverclockSelectedSkill(false);
+    }
+
+    public bool TestPrepareSelectedUnitForReload()
+    {
+        var unit = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+        if (unit == null || !unit.UsesAmmo)
+            return false;
+        unit.ammo = Mathf.Max(0, unit.maxAmmo - 1);
+        unit.actionPoints = Mathf.Max(1, unit.actionPoints);
+        UpdateHud();
+        return true;
+    }
+
+    public bool TestReloadSelectedUnit()
+    {
+        return TryReloadSelectedUnit(false);
+    }
+
+    public bool TestPrepareSelectedUnitForCover()
+    {
+        var unit = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+        if (unit == null || _state == null)
+            return false;
+        unit.actionPoints = Mathf.Max(1, unit.actionPoints);
+        unit.ClearCover();
+        if (_state.HasAdjacentCover(unit))
+        {
+            UpdateHud();
+            return true;
+        }
+
+        foreach (var other in _state.Units)
+        {
+            if (other == null || other.eliminated || other.id == unit.id)
+                continue;
+            other.eliminated = true;
+        }
+        for (int y = 0; y < _state.Height; y++)
+        for (int x = 0; x < _state.Width; x++)
+        {
+            if (!_state.CanStandAt(unit, x, y, unit.id))
+                continue;
+            unit.anchorX = x;
+            unit.anchorY = y;
+            if (_state.HasAdjacentCover(unit))
+            {
+                _state.RebuildEngagements();
+                RefreshActiveHighlights(unit);
+                UpdateHud();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public bool TestTakeCoverSelectedUnit()
+    {
+        return TryTakeCoverSelectedUnit(false);
+    }
+
+    public bool TestPrepareSelectedUnitForInteraction()
+    {
+        var unit = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+        if (unit == null || _state == null)
+            return false;
+        unit.actionPoints = Mathf.Max(1, unit.actionPoints);
+        if (_state.TryGetAdjacentInteraction(unit, out _))
+        {
+            UpdateHud();
+            return true;
+        }
+
+        foreach (var point in _state.InteractionPoints)
+            point.activated = false;
+        foreach (var other in _state.Units)
+        {
+            if (other == null || other.eliminated || other.id == unit.id)
+                continue;
+            other.eliminated = true;
+        }
+        for (int y = 0; y < _state.Height; y++)
+        for (int x = 0; x < _state.Width; x++)
+        {
+            if (!_state.CanStandAt(unit, x, y, unit.id))
+                continue;
+            unit.anchorX = x;
+            unit.anchorY = y;
+            if (_state.TryGetAdjacentInteraction(unit, out _))
+            {
+                _state.RebuildEngagements();
+                RefreshActiveHighlights(unit);
+                UpdateHud();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public bool TestInteractSelectedUnit()
+    {
+        return TryInteractSelectedUnit(false);
+    }
+#endif
 }

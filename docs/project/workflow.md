@@ -5,7 +5,7 @@ GitHub 이슈, PR 템플릿, 브랜치 보호 기준은 [github-governance.md](g
 
 ## 브랜치 이름
 
-- 기능: `feature/짧은-설명` (예: `feature/chess-undo`)
+- 기능: `feature/짧은-설명` (예: `feature/prototype-v1`)
 - 수정: `fix/이슈-요약`
 - 문서만: `docs/요약` 허용
 
@@ -34,7 +34,7 @@ GitHub 이슈, PR 템플릿, 브랜치 보호 기준은 [github-governance.md](g
 영어 예:
 
 ```
-Add pawn promotion check in ChessGameManager
+Implement speed-based round order for SRPG v1
 
 - Reassign scene references if new inspector fields are added
 ```

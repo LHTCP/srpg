@@ -7,7 +7,7 @@ using UnityEngine.SceneManagement;
 public static class SrpGameSettings
 {
     /// <summary>전투 씬에서 사용할 내장 프리셋.</summary>
-    public static SrpMapPreset SelectedPreset = SrpMapPreset.Skirmish;
+    public static SrpMapPreset SelectedPreset = SrpMapPreset.M1QaIntegrated;
 
     /// <summary>로비에서 JSON으로 불러온 맵. null이면 SelectedPreset 사용.</summary>
     public static SrpMapFileV1 CustomMap = null;

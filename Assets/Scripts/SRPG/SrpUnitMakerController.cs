@@ -23,13 +23,21 @@ public class SrpUnitMakerController : MonoBehaviour
     TMP_InputField _fldMoveRange;
     TMP_InputField _fldAtkRange;
     TMP_InputField _fldAtkPower;
+    TMP_InputField _fldMaxAmmo;
     TMP_InputField _fldMaxHp;
-    TMP_InputField _fldMaxAp;
-    TMP_InputField _fldMaxPosture;
+    TMP_InputField _fldMaxActionPoints;
+    TMP_InputField _fldMaxReactionPoints;
+    TMP_InputField _fldMaxPg;
+    TMP_InputField _fldSpeed;
     TMP_InputField _fldFrozenHeart;
     TMP_InputField _fldMaxSkills;
     Toggle _togBoss;
     Toggle _togLarge;
+    Toggle _togParryUser;
+    Toggle _togTank;
+    TMP_Dropdown _ddWeaponClass;
+    TMP_Dropdown _ddStance;
+    TMP_Dropdown _ddFacing;
     TMP_InputField _fldFpW;
     TMP_InputField _fldFpH;
     GameObject _fpRow;
@@ -151,17 +159,27 @@ public class SrpUnitMakerController : MonoBehaviour
         _fldMoveRange   = MakeFieldRow(form, "이동력", "5", TMP_InputField.ContentType.IntegerNumber);
         _fldAtkRange    = MakeFieldRow(form, "공격 사거리", "1", TMP_InputField.ContentType.IntegerNumber);
         _fldAtkPower    = MakeFieldRow(form, "공격력", "10", TMP_InputField.ContentType.IntegerNumber);
+        _fldMaxAmmo     = MakeFieldRow(form, "최대 탄약(총기)", "0", TMP_InputField.ContentType.IntegerNumber);
         _fldMaxHp       = MakeFieldRow(form, "최대 HP", "40", TMP_InputField.ContentType.IntegerNumber);
-        _fldMaxAp       = MakeFieldRow(form, "최대 AP", "15", TMP_InputField.ContentType.IntegerNumber);
-        _fldMaxPosture  = MakeFieldRow(form, "최대 자세(PG)", "80", TMP_InputField.ContentType.IntegerNumber);
+        _fldMaxActionPoints = MakeFieldRow(form, "최대 AP(v2)", "2", TMP_InputField.ContentType.IntegerNumber);
+        _fldMaxReactionPoints = MakeFieldRow(form, "최대 RP(v2)", "1", TMP_InputField.ContentType.IntegerNumber);
+        _fldMaxPg = MakeFieldRow(form, "최대 PG(v2)", "18", TMP_InputField.ContentType.IntegerNumber);
+        _fldSpeed = MakeFieldRow(form, "속도", "10", TMP_InputField.ContentType.IntegerNumber);
         _fldFrozenHeart = MakeFieldRow(form, "빙결된 심장(FH)", "0", TMP_InputField.ContentType.IntegerNumber);
         _fldMaxSkills   = MakeFieldRow(form, "최대 스킬 수", "4", TMP_InputField.ContentType.IntegerNumber);
+
+        _ddWeaponClass = MakeDropdown(form, "무기 분류", Enum.GetNames(typeof(SrpWeaponClass)));
+        _ddStance = MakeDropdown(form, "기본 태세", Enum.GetNames(typeof(SrpStance)));
+        _ddFacing = MakeDropdown(form, "기본 방향", Enum.GetNames(typeof(SrpFacing)));
 
         MakeSep(form);
         MakeLabelInLayout(form, "태그", 22, new Color(0.8f, 0.9f, 1f), 28);
         var tagRow = MakeHRow(form, 40);
         _togBoss  = MakeToggleInRow(tagRow.transform, "Boss");
         _togLarge = MakeToggleInRow(tagRow.transform, "Large");
+        var combatTagRow = MakeHRow(form, 40);
+        _togParryUser = MakeToggleInRow(combatTagRow.transform, "ParryUser");
+        _togTank = MakeToggleInRow(combatTagRow.transform, "Tank");
 
         _fpRow = MakeHRow(form, 44).gameObject;
         MakeLabelInLayout(_fpRow.transform, "풋프린트", 20, new Color(0.75f, 0.85f, 0.95f), 40);
@@ -318,14 +336,25 @@ public class SrpUnitMakerController : MonoBehaviour
         _fldMoveRange.text   = u.moveRange.ToString();
         _fldAtkRange.text    = u.attackRange.ToString();
         _fldAtkPower.text    = u.attackPower.ToString();
+        _fldMaxAmmo.text     = u.maxAmmo.ToString();
         _fldMaxHp.text       = u.maxHp.ToString();
-        _fldMaxAp.text       = u.maxAp.ToString();
-        _fldMaxPosture.text  = u.maxPosture.ToString();
+        _fldMaxActionPoints.text = u.maxActionPoints.ToString();
+        _fldMaxReactionPoints.text = u.maxReactionPoints.ToString();
+        _fldMaxPg.text = u.maxPg.ToString();
+        _fldSpeed.text = u.speed.ToString();
         _fldFrozenHeart.text = u.frozenHeart.ToString();
         _fldMaxSkills.text   = u.maxSkills.ToString();
+        _ddWeaponClass.value = (int)u.weaponClass;
+        _ddStance.value = (int)u.stance;
+        _ddFacing.value = (int)u.facing;
+        _ddWeaponClass.RefreshShownValue();
+        _ddStance.RefreshShownValue();
+        _ddFacing.RefreshShownValue();
         _togBoss.isOn  = (u.tags & (int)SrpUnitTags.Boss) != 0;
         bool isLarge = (u.tags & (int)SrpUnitTags.Large) != 0;
         _togLarge.isOn = isLarge;
+        _togParryUser.isOn = (u.tags & (int)SrpUnitTags.ParryUser) != 0;
+        _togTank.isOn = (u.tags & (int)SrpUnitTags.Tank) != 0;
         _fldFpW.text = Mathf.Max(1, u.footprintWidth).ToString();
         _fldFpH.text = Mathf.Max(1, u.footprintHeight).ToString();
         _fpRow.SetActive(isLarge);
@@ -344,15 +373,24 @@ public class SrpUnitMakerController : MonoBehaviour
         int.TryParse(_fldMoveRange.text, out u.moveRange);
         int.TryParse(_fldAtkRange.text, out u.attackRange);
         int.TryParse(_fldAtkPower.text, out u.attackPower);
+        int.TryParse(_fldMaxAmmo.text, out u.maxAmmo);
         int.TryParse(_fldMaxHp.text, out u.maxHp);
-        int.TryParse(_fldMaxAp.text, out u.maxAp);
-        int.TryParse(_fldMaxPosture.text, out u.maxPosture);
+        int.TryParse(_fldMaxActionPoints.text, out u.maxActionPoints);
+        int.TryParse(_fldMaxReactionPoints.text, out u.maxReactionPoints);
+        int.TryParse(_fldMaxPg.text, out u.maxPg);
+        int.TryParse(_fldSpeed.text, out u.speed);
         int.TryParse(_fldFrozenHeart.text, out u.frozenHeart);
         int.TryParse(_fldMaxSkills.text, out u.maxSkills);
+        u.weaponClass = (SrpWeaponClass)_ddWeaponClass.value;
+        u.stance = (SrpStance)_ddStance.value;
+        u.facing = (SrpFacing)_ddFacing.value;
+        SyncV2LegacyStats(u);
 
         u.tags = 0;
         if (_togBoss.isOn)  u.tags |= (int)SrpUnitTags.Boss;
         if (_togLarge.isOn) u.tags |= (int)SrpUnitTags.Large;
+        if (_togParryUser.isOn) u.tags |= (int)SrpUnitTags.ParryUser;
+        if (_togTank.isOn) u.tags |= (int)SrpUnitTags.Tank;
         int.TryParse(_fldFpW.text, out u.footprintWidth);
         int.TryParse(_fldFpH.text, out u.footprintHeight);
         u.footprintWidth  = Mathf.Max(1, u.footprintWidth);
@@ -393,7 +431,7 @@ public class SrpUnitMakerController : MonoBehaviour
             tx.fontSize = 20;
             tx.color = Color.white;
             string label = string.IsNullOrEmpty(u.displayName) ? u.id : u.displayName;
-            tx.text = $"{label} (HP:{u.maxHp})";
+            tx.text = $"{label} HP:{u.maxHp} AP:{u.maxActionPoints} RP:{u.maxReactionPoints} {BuildTagSummary(u.tags)}";
             tx.alignment = TextAlignmentOptions.MidlineLeft;
             _listItems.Add(item);
         }
@@ -423,8 +461,15 @@ public class SrpUnitMakerController : MonoBehaviour
             attackRange = 1,
             attackPower = 10,
             maxHp = 30,
-            maxAp = 10,
-            maxPosture = 80,
+            maxActionPoints = 2,
+            maxReactionPoints = 1,
+            maxPg = 18,
+            maxAp = 2,
+            maxPosture = 18,
+            speed = 10,
+            weaponClass = SrpWeaponClass.Melee,
+            stance = SrpStance.Aggressive,
+            facing = SrpFacing.South,
             maxSkills = 4,
             skillIds = Array.Empty<string>(),
         };
@@ -455,6 +500,29 @@ public class SrpUnitMakerController : MonoBehaviour
         ApplyFromUi();
         SrpDataIO.SaveUnits(_units.ToArray());
         SrpGameSettings.ReturnToLobby();
+    }
+
+    public static void SyncV2LegacyStats(SrpUnitTemplateData unit)
+    {
+        if (unit == null)
+            return;
+        unit.maxActionPoints = Mathf.Max(0, unit.maxActionPoints);
+        unit.maxReactionPoints = Mathf.Max(0, unit.maxReactionPoints);
+        unit.maxPg = Mathf.Max(1, unit.maxPg);
+        unit.speed = Mathf.Max(0, unit.speed);
+        unit.maxAmmo = Mathf.Max(0, unit.maxAmmo);
+        unit.maxAp = unit.maxActionPoints;
+        unit.maxPosture = unit.maxPg;
+    }
+
+    static string BuildTagSummary(int tags)
+    {
+        var parts = new List<string>();
+        if ((tags & (int)SrpUnitTags.Boss) != 0) parts.Add("Boss");
+        if ((tags & (int)SrpUnitTags.Large) != 0) parts.Add("Large");
+        if ((tags & (int)SrpUnitTags.ParryUser) != 0) parts.Add("Parry");
+        if ((tags & (int)SrpUnitTags.Tank) != 0) parts.Add("Tank");
+        return parts.Count > 0 ? "[" + string.Join(",", parts) + "]" : string.Empty;
     }
 
     // ── UI 헬퍼 ───────────────────────────────────────────────────────────────
@@ -563,6 +631,93 @@ public class SrpUnitMakerController : MonoBehaviour
         var row = MakeHRow(parent, 44);
         MakeLabelInLayout(row.transform, label, 20, new Color(0.75f, 0.85f, 0.95f), 40);
         return MakeInputFieldInParent(row.transform, placeholder, contentType);
+    }
+
+    TMP_Dropdown MakeDropdown(Transform parent, string label, string[] options)
+    {
+        var row = MakeHRow(parent, 44);
+        MakeLabelInLayout(row.transform, label, 20, new Color(0.75f, 0.85f, 0.95f), 40);
+        return MakeDropdownInParent(row.transform, options, 0);
+    }
+
+    static TMP_Dropdown MakeDropdownInParent(Transform parent, string[] options, int value)
+    {
+        var go = new GameObject("Dropdown", typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        go.AddComponent<LayoutElement>().flexibleWidth = 1f;
+        go.AddComponent<Image>().color = FieldBg;
+
+        var dd = go.AddComponent<TMP_Dropdown>();
+        dd.ClearOptions();
+        var opts = new List<TMP_Dropdown.OptionData>();
+        foreach (var o in options)
+            opts.Add(new TMP_Dropdown.OptionData(o));
+        dd.AddOptions(opts);
+
+        var captionGo = new GameObject("Label", typeof(RectTransform));
+        captionGo.transform.SetParent(go.transform, false);
+        FillRect(captionGo.GetComponent<RectTransform>(), 8);
+        var captionTx = captionGo.AddComponent<TextMeshProUGUI>();
+        captionTx.fontSize = 18;
+        captionTx.color = Color.white;
+        dd.captionText = captionTx;
+
+        var templateGo = new GameObject("Template", typeof(RectTransform));
+        templateGo.transform.SetParent(go.transform, false);
+        var trt = templateGo.GetComponent<RectTransform>();
+        trt.anchorMin = new Vector2(0f, 0f);
+        trt.anchorMax = new Vector2(1f, 0f);
+        trt.pivot = new Vector2(0.5f, 1f);
+        trt.sizeDelta = new Vector2(0f, 200f);
+        templateGo.AddComponent<Image>().color = new Color(0.14f, 0.16f, 0.20f, 0.98f);
+        var tsr = templateGo.AddComponent<ScrollRect>();
+        tsr.horizontal = false;
+        tsr.vertical = true;
+        tsr.movementType = ScrollRect.MovementType.Clamped;
+
+        var tVp = new GameObject("Viewport", typeof(RectTransform));
+        tVp.transform.SetParent(templateGo.transform, false);
+        FillRect(tVp.GetComponent<RectTransform>(), 0);
+        tVp.AddComponent<RectMask2D>();
+        tsr.viewport = tVp.GetComponent<RectTransform>();
+
+        var tContent = new GameObject("Content", typeof(RectTransform));
+        tContent.transform.SetParent(tVp.transform, false);
+        var tcrt = tContent.GetComponent<RectTransform>();
+        tcrt.anchorMin = new Vector2(0f, 1f);
+        tcrt.anchorMax = new Vector2(1f, 1f);
+        tcrt.pivot = new Vector2(0f, 1f);
+        tcrt.sizeDelta = Vector2.zero;
+        var tVlg = tContent.AddComponent<VerticalLayoutGroup>();
+        tVlg.childControlWidth = true;
+        tVlg.childControlHeight = true;
+        tVlg.childForceExpandWidth = true;
+        tVlg.childForceExpandHeight = false;
+        var tCsf = tContent.AddComponent<ContentSizeFitter>();
+        tCsf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        tsr.content = tcrt;
+
+        var itemGo = new GameObject("Item", typeof(RectTransform));
+        itemGo.transform.SetParent(tContent.transform, false);
+        itemGo.AddComponent<LayoutElement>().minHeight = 36f;
+        itemGo.AddComponent<Image>().color = new Color(0.18f, 0.20f, 0.26f, 0.95f);
+        var toggle = itemGo.AddComponent<Toggle>();
+        toggle.isOn = true;
+
+        var itemLbl = new GameObject("Item Label", typeof(RectTransform));
+        itemLbl.transform.SetParent(itemGo.transform, false);
+        FillRect(itemLbl.GetComponent<RectTransform>(), 6);
+        var itemTx = itemLbl.AddComponent<TextMeshProUGUI>();
+        itemTx.fontSize = 18;
+        itemTx.color = Color.white;
+        dd.itemText = itemTx;
+        toggle.targetGraphic = itemGo.GetComponent<Image>();
+
+        dd.template = trt;
+        templateGo.SetActive(false);
+        dd.value = value;
+        dd.RefreshShownValue();
+        return dd;
     }
 
     static TMP_InputField MakeInputFieldInParent(Transform parent, string placeholder,

@@ -5,7 +5,7 @@
 ## 빠른 링크
 
 | 문서 | 설명 |
-|------|------|
+| ---- | ---- |
 | [AGENTS.md](../AGENTS.md) | 사람·에이전트 공통 진입점 |
 | [project/workflow.md](project/workflow.md) | Git·브랜치·PR·첫 커밋 |
 | [project/setup.md](project/setup.md) | 로컬 개발 환경·재현성 기준 |
@@ -16,7 +16,7 @@
 ## 프로젝트 공통 (`docs/project/`)
 
 | 문서 | 설명 |
-|------|------|
+| ---- | ---- |
 | [workflow.md](project/workflow.md) | Git 워크플로 |
 | [setup.md](project/setup.md) | 개발 환경·Git 안전 설정·클라우드 호환 원칙 |
 | [worktrees.md](project/worktrees.md) | `git worktree` 운영 규칙 |
@@ -29,23 +29,25 @@
 - `scripts/bootstrap.ps1`: Windows 초기 부트스트랩
 - `scripts/bootstrap.sh`: macOS/Linux 초기 부트스트랩
 
-## 체스 (`docs/chess/`)
-
-| 문서 | 설명 |
-|------|------|
-| [Unity_설정가이드.md](chess/Unity_설정가이드.md) | 씬·오브젝트 빠른 설정 |
-| [체스게임_완전가이드.md](chess/체스게임_완전가이드.md) | 게임·구조 상세 |
-
 ## SRPG (`docs/srpg/`)
 
 | 문서 | 설명 |
-|------|------|
-| [SRPG_README.md](srpg/SRPG_README.md) | 씬 구성·실행 방법·조작 안내 |
-| [SRPG_GDD.md](srpg/SRPG_GDD.md) | 게임 디자인(턴 구조·이동·전투·스킬) v0.2 |
-| [SRPG_TDD.md](srpg/SRPG_TDD.md) | 기술 설계·스키마·코드 구조 v0.2 |
-| [SRPG_진행이력.md](srpg/SRPG_진행이력.md) | 구현 단계별 이력·변경 요약 |
-| [SRPG_FUTURE_NETWORK.md](srpg/SRPG_FUTURE_NETWORK.md) | 향후 멀티·AI·슬롯 기획 메모 |
-| [SRPG_BACKLOG.md](srpg/SRPG_BACKLOG.md) | 후속 과제(우선순위 포함) |
-| [SRPG_점검_및_로드맵.md](srpg/SRPG_점검_및_로드맵.md) | 프로젝트 점검 보고서 + 추천 로드맵 |
+| ---- | ---- |
+| [SRPG_README.md](srpg/SRPG_README.md) | v1 프로토타입 실행/검증 가이드 |
+| [SRPG_프로토타입_마스터플랜.md](srpg/SRPG_프로토타입_마스터플랜.md) | M0~M4 단계별 실행 기준 문서 |
+| [SRPG_전투규칙_기준서_v2.md](srpg/SRPG_전투규칙_기준서_v2.md) | 신규 대화 원본 기반 단일 전투 규칙 기준서 |
+| [SRPG_GDD.md](srpg/SRPG_GDD.md) | v2 게임 디자인 문서 |
+| [SRPG_TDD.md](srpg/SRPG_TDD.md) | v2 기술 설계 문서 |
+| [SRPG_레거시_코드_분류.md](srpg/SRPG_레거시_코드_분류.md) | 기존 SRPG 코드 분류(Discard/Rework/Keep/New) |
+| [SRPG_다음미팅_논의사항.md](srpg/SRPG_다음미팅_논의사항.md) | 다음 미팅 필수 의사결정 항목 |
+| [SRPG_BACKLOG.md](srpg/SRPG_BACKLOG.md) | v2 후속 과제 목록 |
+| [SRPG_PHASE2_CODE_BACKLOG.md](srpg/SRPG_PHASE2_CODE_BACKLOG.md) | 코드 2차 착수용 파일 단위 백로그 |
+| [SRPG_CHANGELOG.md](srpg/SRPG_CHANGELOG.md) | v1 전환 이력 |
+| [SRPG_AI_SIMULATION_GUIDE.md](srpg/SRPG_AI_SIMULATION_GUIDE.md) | AI 스텁 하이브리드 시뮬레이션 실행/판정 가이드 |
+| [SRPG_GDD_TEST_TRACEABILITY.md](srpg/SRPG_GDD_TEST_TRACEABILITY.md) | GDD 항목별 자동화 테스트 커버 매핑 |
+| [SRPG_FUTURE_NETWORK.md](srpg/SRPG_FUTURE_NETWORK.md) | 향후 네트워크·AI 메모 |
+| [SRPG_V0_ARCHIVE.md](srpg/SRPG_V0_ARCHIVE.md) | v0 문서 아카이브 안내 |
+| [SRPG_NEW_DIALOG_POLICY_LOCK.md](srpg/new/SRPG_NEW_DIALOG_POLICY_LOCK.md) | 신규 대화(06~10) 확정/미정 잠금표 |
+| [프로젝트-초기-기획서-초안-외.md](srpg/new/프로젝트-초기-기획서-초안-외.md) | 신규 기획 PDF 변환 마크다운 |
 
 새 범주를 추가하면 `docs/<이름>/`를 만들고 이 표에 행을 추가한다.

@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 내장 샘플 맵·템플릿 (코드 생성).
+/// 내장 QA 맵 프리셋.
 /// </summary>
 public static class SrpDefaultMaps
 {
@@ -9,212 +9,320 @@ public static class SrpDefaultMaps
     {
         switch (preset)
         {
-            case SrpMapPreset.TinyDuel:
-                return CreateTinyDuel();
-            case SrpMapPreset.Corridor:
-                return CreateCorridor();
-            case SrpMapPreset.Skirmish:
+            case SrpMapPreset.M1EngagementLab:
+                return CreateM1EngagementLab();
+            case SrpMapPreset.M1QaIntegrated:
             default:
-                return CreateSampleSkirmish();
+                return CreateM1QaIntegrated();
         }
     }
 
-    /// <summary>6×4, 1vs1 기사 — 입력·이동 검증용.</summary>
-    public static SrpMapFileV1 CreateTinyDuel()
+    /// <summary>
+    /// M1 통합 QA 프리셋.
+    /// - 속도 기반 턴 순환
+    /// - 총기(HP 압박) / 근접(PG 압박) 비교
+    /// - 장애물/유닛 차단을 통한 오버워치 사선 확인
+    /// - 스킬 자원, 패링 텔레그래프, 측후면 노출 확인
+    /// </summary>
+    public static SrpMapFileV1 CreateM1QaIntegrated()
     {
-        int w = 6, h = 4;
+        int w = 12, h = 8;
         int n = w * h;
         var walk = new bool[n];
         for (int i = 0; i < n; i++)
             walk[i] = true;
 
-        var knight = new SrpUnitTemplateData
+        // 중앙 2열 엄폐/장애물 벽 + 통로
+        for (int y = 1; y < h - 1; y++)
         {
-            id = "knight",
-            displayName = "기사",
-            moveRange = 5,
-            attackRange = 1,
-            attackPower = 12,
-            maxHp = 40,
-            maxAp = 15,
-            maxPosture = 80,
-            skillIds = new string[0],
-            maxSkills = 4,
-            frozenHeart = 0,
-            tags = 0,
-        };
-
-        return new SrpMapFileV1
-        {
-            version = 1,
-            name = "tiny_duel",
-            width = w,
-            height = h,
-            walkable = walk,
-            playerOrder = new[] { 0, 1 },
-            templates = new[] { knight },
-            placements = new[]
-            {
-                new SrpPlacementData { templateId = "knight", owner = 0, x = 1, y = 1, footprint = new SrpOffset[0] },
-                new SrpPlacementData { templateId = "knight", owner = 1, x = 4, y = 2, footprint = new SrpOffset[0] },
-            },
-        };
-    }
-
-    /// <summary>8×10, 중앙 장애물 띠(ZOC·우회 검증용).</summary>
-    public static SrpMapFileV1 CreateCorridor()
-    {
-        int w = 8, h = 10;
-        int n = w * h;
-        var walk = new bool[n];
-        for (int i = 0; i < n; i++)
-            walk[i] = true;
-        for (int y = 0; y < h; y++)
-        {
-            if (y == 5)
-                continue;
-            walk[3 + y * w] = false;
-            walk[4 + y * w] = false;
+            if (y == 2 || y == 5)
+                continue; // 이동/사격 통로
+            walk[5 + y * w] = false;
+            walk[6 + y * w] = false;
         }
 
         var templates = new[]
         {
             new SrpUnitTemplateData
             {
-                id = "knight",
-                displayName = "기사",
-                moveRange = 5,
-                attackRange = 1,
-                attackPower = 12,
-                maxHp = 40,
-                maxAp = 15,
-                maxPosture = 80,
-                skillIds = new string[0],
-                maxSkills = 4,
-                frozenHeart = 0,
-                tags = 0,
-            },
-            new SrpUnitTemplateData
-            {
-                id = "archer",
-                displayName = "궁수",
+                id = "rifleman",
+                displayName = "사격수",
                 moveRange = 4,
-                attackRange = 3,
-                attackPower = 9,
-                maxHp = 28,
-                maxAp = 8,
-                maxPosture = 60,
-                skillIds = new string[0],
+                attackRange = 4,
+                attackPower = 8,
+                maxHp = 30,
+                maxPg = 16,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 12,
+                weaponClass = SrpWeaponClass.Firearm,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.East,
+                skillIds = new[] { "heal_light" },
                 maxSkills = 4,
-                frozenHeart = 0,
                 tags = 0,
             },
-        };
-
-        return new SrpMapFileV1
-        {
-            version = 1,
-            name = "corridor",
-            width = w,
-            height = h,
-            walkable = walk,
-            playerOrder = new[] { 0, 1 },
-            templates = templates,
-            placements = new[]
-            {
-                new SrpPlacementData { templateId = "knight", owner = 0, x = 1, y = 3, footprint = new SrpOffset[0] },
-                new SrpPlacementData { templateId = "archer", owner = 0, x = 0, y = 7, footprint = new SrpOffset[0] },
-                new SrpPlacementData { templateId = "knight", owner = 1, x = 6, y = 4, footprint = new SrpOffset[0] },
-                new SrpPlacementData { templateId = "archer", owner = 1, x = 7, y = 8, footprint = new SrpOffset[0] },
-            },
-        };
-    }
-
-    public static SrpMapFileV1 CreateSampleSkirmish()
-    {
-        int w = 10, h = 8;
-        int n = w * h;
-        var walk = new bool[n];
-        for (int i = 0; i < n; i++)
-            walk[i] = true;
-        walk[3 + 2 * w] = false;
-        walk[4 + 2 * w] = false;
-        walk[3 + 3 * w] = false;
-        walk[4 + 3 * w] = false;
-
-        var templates = new[]
-        {
             new SrpUnitTemplateData
             {
-                id = "knight",
-                displayName = "기사",
-                moveRange = 5,
+                id = "vanguard",
+                displayName = "탱커",
+                moveRange = 4,
                 attackRange = 1,
-                attackPower = 12,
-                maxHp = 40,
-                maxAp = 15,
-                maxPosture = 80,
+                attackPower = 9,
+                maxHp = 38,
+                maxPg = 24,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 8,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Defensive,
+                facing = SrpFacing.West,
                 skillIds = new[] { "heart_spike" },
                 maxSkills = 4,
-                frozenHeart = 0,
-                tags = 0,
+                tags = (int)(SrpUnitTags.ParryUser | SrpUnitTags.Tank),
             },
             new SrpUnitTemplateData
             {
-                id = "archer",
-                displayName = "궁수",
-                moveRange = 4,
-                attackRange = 3,
-                attackPower = 9,
-                maxHp = 28,
-                maxAp = 8,
-                maxPosture = 60,
-                skillIds = new[] { "fh_bless_ally" },
-                maxSkills = 4,
-                frozenHeart = 5,
-                tags = 0,
-            },
-            new SrpUnitTemplateData
-            {
-                id = "boss_brute",
-                displayName = "브루트 보스",
-                moveRange = 3,
+                id = "breaker",
+                displayName = "근접 투사",
+                moveRange = 5,
                 attackRange = 1,
-                attackPower = 18,
-                maxHp = 80,
-                maxAp = 25,
-                maxPosture = 120,
+                attackPower = 11,
+                maxHp = 32,
+                maxPg = 20,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 10,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.East,
                 skillIds = new[] { "cleave" },
                 maxSkills = 4,
-                frozenHeart = 0,
-                tags = (int)(SrpUnitTags.Boss | SrpUnitTags.Large),
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "mage",
+                displayName = "마도사",
+                moveRange = 4,
+                attackRange = 3,
+                attackPower = 7,
+                maxHp = 26,
+                maxPg = 14,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 9,
+                weaponClass = SrpWeaponClass.Magic,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.East,
+                skillIds = new[] { "heal_light" },
+                maxSkills = 4,
+                tags = 0,
             },
         };
 
         var placements = new[]
         {
-            new SrpPlacementData { templateId = "knight", owner = 0, x = 1, y = 2, footprint = new SrpOffset[0] },
-            new SrpPlacementData { templateId = "archer", owner = 0, x = 0, y = 5, footprint = new SrpOffset[0] },
-            new SrpPlacementData { templateId = "knight", owner = 1, x = 8, y = 3, footprint = new SrpOffset[0] },
-            new SrpPlacementData { templateId = "archer", owner = 1, x = 9, y = 6, footprint = new SrpOffset[0] },
-            new SrpPlacementData
+            // Owner 0
+            new SrpPlacementData { templateId = "rifleman", owner = 0, x = 1, y = 2, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "breaker", owner = 0, x = 2, y = 4, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "mage", owner = 0, x = 1, y = 6, footprint = new SrpOffset[0] },
+
+            // Owner 1
+            new SrpPlacementData { templateId = "rifleman", owner = 1, x = 10, y = 5, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "vanguard", owner = 1, x = 9, y = 3, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "breaker", owner = 1, x = 10, y = 1, footprint = new SrpOffset[0] },
+        };
+
+        var interactionPoints = new[]
+        {
+            new SrpInteractionPointData
             {
-                templateId = "boss_brute",
-                owner = 1,
-                x = 6,
-                y = 4,
-                footprint = new[]
-                {
-                    new SrpOffset { dx = 0, dy = 0 },
-                    new SrpOffset { dx = 1, dy = 0 },
-                },
+                id = "qa_console",
+                displayName = "전술 단말",
+                x = 2,
+                y = 2,
+                owner = -1,
+                requiredOwner = 0,
+                singleUse = true,
+                activated = false,
+            },
+        };
+
+        var coverSegments = new[]
+        {
+            new SrpCoverSegmentData
+            {
+                x = 1,
+                y = 2,
+                edge = SrpCoverEdge.East,
+                shape = SrpCoverShape.Linear,
+                coverDef = 3,
+                coverGrd = 1,
+                blocksLineOfSight = false,
+            },
+            new SrpCoverSegmentData
+            {
+                x = 9,
+                y = 5,
+                edge = SrpCoverEdge.West,
+                shape = SrpCoverShape.Linear,
+                coverDef = 3,
+                coverGrd = 1,
+                blocksLineOfSight = false,
             },
         };
 
         return new SrpMapFileV1
         {
-            version = 1,
-            name = "sample_skirmish",
+            version = 2,
+            name = "m1_qa_integrated",
+            width = w,
+            height = h,
+            walkable = walk,
+            playerOrder = new[] { 0, 1 },
+            templates = templates,
+            placements = placements,
+            interactionPoints = interactionPoints,
+            coverSegments = coverSegments,
+        };
+    }
+
+    /// <summary>
+    /// 교전/둘러싸임 QA 프리셋.
+    /// - 탱커가 두 적에게 인접한 상태로 시작해 다중 교전 완충을 확인한다.
+    /// - 서쪽으로 한 칸 이탈하면 교전 이탈 비용/기회공격을 확인할 수 있다.
+    /// - 사격수는 오버워치 예약과 위험 범위 확인용으로 배치한다.
+    /// </summary>
+    public static SrpMapFileV1 CreateM1EngagementLab()
+    {
+        int w = 8, h = 6;
+        int n = w * h;
+        var walk = new bool[n];
+        for (int i = 0; i < n; i++)
+            walk[i] = true;
+
+        // 좌측 통로와 우측 교전 구역을 느슨하게 분리한다.
+        walk[3 + 0 * w] = false;
+        walk[3 + 1 * w] = false;
+        walk[3 + 4 * w] = false;
+        walk[3 + 5 * w] = false;
+
+        var templates = new[]
+        {
+            new SrpUnitTemplateData
+            {
+                id = "engage_tank",
+                displayName = "교전 탱커",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 8,
+                maxHp = 52,
+                maxPg = 36,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 8,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Defensive,
+                facing = SrpFacing.East,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = (int)(SrpUnitTags.ParryUser | SrpUnitTags.Tank),
+            },
+            new SrpUnitTemplateData
+            {
+                id = "engage_guard",
+                displayName = "지원 근접병",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 7,
+                maxHp = 34,
+                maxPg = 20,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 10,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.East,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "engage_raider",
+                displayName = "포위 돌격병",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 8,
+                maxHp = 30,
+                maxPg = 18,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 11,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.West,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "engage_flanker",
+                displayName = "포위 측면병",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 7,
+                maxHp = 28,
+                maxPg = 18,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 9,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.West,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "engage_overwatch",
+                displayName = "오버워치 사격수",
+                moveRange = 3,
+                attackRange = 4,
+                attackPower = 8,
+                maxHp = 28,
+                maxPg = 16,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 7,
+                weaponClass = SrpWeaponClass.Firearm,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.West,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+        };
+
+        var placements = new[]
+        {
+            // Owner 0: 탱커가 이미 두 적에게 인접해 다중 교전 상태로 시작한다.
+            new SrpPlacementData { templateId = "engage_tank", owner = 0, x = 3, y = 2, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "engage_guard", owner = 0, x = 1, y = 2, footprint = new SrpOffset[0] },
+
+            // Owner 1
+            new SrpPlacementData { templateId = "engage_raider", owner = 1, x = 4, y = 2, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "engage_flanker", owner = 1, x = 3, y = 3, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "engage_overwatch", owner = 1, x = 6, y = 2, footprint = new SrpOffset[0] },
+        };
+
+        return new SrpMapFileV1
+        {
+            version = 2,
+            name = "m1_engagement_lab",
             width = w,
             height = h,
             walkable = walk,
