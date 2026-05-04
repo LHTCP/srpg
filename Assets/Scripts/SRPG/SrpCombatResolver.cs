@@ -21,6 +21,7 @@ public static class SrpCombatResolver
     const int SideAttackPgBonus = 1;
     const int BackAttackHpBonus = 2;
     const int BackAttackPgBonus = 2;
+    const int FirearmHpToPgSpilloverPercent = 50;
 
     public struct AttackOutcome
     {
@@ -182,7 +183,7 @@ public static class SrpCombatResolver
             {
                 case SrpWeaponClass.Firearm:
                     hpDamage = raw * 2 + 6;
-                    pgDamage = Mathf.Max(1, raw / 5);
+                    pgDamage = 0;
                     break;
                 case SrpWeaponClass.Magic:
                     hpDamage = Mathf.Max(1, raw / 2);
@@ -202,6 +203,7 @@ public static class SrpCombatResolver
             ApplyDirectionalVulnerability(attacker, defender, ref hpDamage, ref pgDamage);
             ApplyConstantMitigation(defender, ref hpDamage, ref pgDamage, ref o);
             ApplySustainedDefenseBuffers(state, defender, ref hpDamage, ref pgDamage, ref o);
+            ApplyFirearmHpSpillover(attacker, hpDamage, ref pgDamage);
             ApplyCoverBuffer(state, attacker, defender, ref hpDamage, ref pgDamage, ref o);
             ApplyReactionIfAvailable(state, attacker, defender, attackSkill, ref hpDamage, ref pgDamage, ref o);
         }
@@ -364,6 +366,15 @@ public static class SrpCombatResolver
             defender.defensiveHitsTakenThisRound = 0;
         }
         defender.defensiveHitsTakenThisRound++;
+    }
+
+    static void ApplyFirearmHpSpillover(SrpUnitRuntime attacker, int hpDamage, ref int pgDamage)
+    {
+        if (attacker == null || attacker.weaponClass != SrpWeaponClass.Firearm || hpDamage <= 0)
+            return;
+
+        int spillover = Mathf.FloorToInt(hpDamage * FirearmHpToPgSpilloverPercent / 100f);
+        pgDamage += spillover;
     }
 
     static void ApplyReactionIfAvailable(
