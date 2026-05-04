@@ -43,6 +43,9 @@ sysinfo.txt
 # Crashlytics
 crashlytics-build.properties
 
+# Local test / sim output (not versioned)
+TestResults/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -3,7 +3,6 @@
 /// </summary>
 public enum SrpMapPreset
 {
-    Skirmish = 0,
-    TinyDuel = 1,
-    Corridor = 2,
+    M1QaIntegrated = 0,
+    M1EngagementLab = 1,
 }

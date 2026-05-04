@@ -1,0 +1,255 @@
+# SRPG v1 전환 이력
+
+## 2026-04-27
+
+- 신규 대화 11~22 정책 잠금/문서 정렬
+  - `SRPG_NEW_DIALOG_POLICY_LOCK.md` 기준 범위를 06~22로 확장
+  - 공통 DEF 제거 방향, GRD(PG 감쇠) 전용화, 중대/경미 HP 피해 분류 정책 추가
+  - 탱커 `완벽한 수비`, 패링 성공 보상, 공용 전투 태그, `노출` 용어 정책, 초기 4인 역할 구조를 확정 항목으로 추가
+  - `SRPG_전투규칙_기준서_v2`, `SRPG_GDD`, `SRPG_TDD`, `SRPG_PHASE2_CODE_BACKLOG`, `SRPG_BACKLOG`, `SRPG_GDD_TEST_TRACEABILITY`, `SRPG_README`를 새 정책 기준으로 갱신
+  - 문서 전용 변경이므로 Unity 테스트는 실행하지 않음
+- 23 대화/추가 논의 총기 HP-PG 파급 정책 문서화
+  - `SRPG_NEW_DIALOG_POLICY_LOCK.md` 기준 범위를 06~23으로 확장
+  - 총격으로 실제 받은 HP 피해량의 50%를 PG 피해로 추가 적용하는 v0.2 기준 추가
+  - 50% 비율, 반올림, 최소값, GRD 적용 순서는 밸런스 검사와 전투 시뮬레이션 후 조정 가능하도록 `TBD-009`로 분리
+  - 다음 코드 후보에 총기 HP-PG 파급 보정을 추가
+
+## 2026-04-26
+
+- Phase2 전투 코어 1차 코드 착수
+  - 교전 상태 저장/클론 안전성 추가: `SrpBattleState`
+  - 반응행동 상태 기록 추가: `SrpUnitRuntime`
+  - DEF/GRD 상시 감쇠 및 수비 태세 Guard 반응 훅 추가: `SrpCombatResolver`
+  - 라운드 AP/RP 리셋 정책 분리: `SrpTurnOrder`
+  - 상태 기반 공격 해결, 피격 패시브 훅, 교전 재계산 연결: `SrpGameController`
+  - EditMode 테스트 보강 및 통과: `14 passed / 0 failed`
+- Phase2 교전 이탈/포지셔닝 패널티 비용 기반 브릿지 구현
+  - 교전 중 적 인접 상태를 벗어나는 이동에 임시 추가 비용 적용: `SrpPathfinder`
+  - 이동 후 교전 이탈 여부를 로그 힌트로 표시: `SrpGameController`
+  - 기회공격 구현 이후에도 이동 선택 단계의 위험 힌트로 비용 브릿지 유지
+  - 교전 이탈 비용 고정 입력 테스트 추가 및 EditMode 통과: `15 passed / 0 failed`
+- Phase2 교전 이탈 기회공격/반응 이벤트 1차 구현
+  - 교전 ID 복사 헬퍼 추가: `SrpBattleState`
+  - RP 기반 기회공격 해석 추가: `SrpCombatResolver`
+  - 이동 후 교전 이탈 시 `ReactionShot` 기회공격 연결: `SrpGameController`
+  - 기회공격 발생/미발생 테스트 추가 및 EditMode 통과: `17 passed / 0 failed`
+- Phase2 스킬 자원 기본 모델 구현
+  - 쿨다운/충전/오버클럭 메타 및 런타임 상태 추가: `SrpSkillData`
+  - 쿨다운/충전 소비·회복과 FH 기반 오버클럭 헬퍼 추가: `SrpSkills`
+  - 라운드 스킬 자원 회복 흐름 중앙화: `SrpGameController`
+  - 스킬 목록에 충전 상태 간단 표기 추가: `SrpGameController.Hud`
+  - 쿨다운/충전/오버클럭 테스트 추가 및 EditMode 통과: `21 passed / 0 failed`
+- Phase2 패링 조건/텔레그래프 1차 구현
+  - 패링 가능자 태그와 패링 가능 스킬 메타 추가: `SrpUnitTags`, `SrpSkillData`
+  - 정면/근접/RP/태그 기반 패링 가능 판정 헬퍼 추가: `SrpCombatResolver`
+  - 공격/스킬 타깃에 청록색 패링 가능 오버레이 및 HUD 범례/툴팁 추가: `SrpGameController`, `SrpGameController.Hud`, `SrpGameController.Rendering`
+  - 패링 가능/불가 조건 테스트 추가 및 EditMode 통과: `23 passed / 0 failed`
+- Phase2 반응행동 파이프라인 1차 구현
+  - `AttackOutcome`에 Dodge/Parry 결과 필드 추가 및 반응 선택 순서 확장: `SrpCombatResolver`
+  - Parry/Dodge를 RP 소비 후 피해 무효화 브릿지로 연결: `SrpCombatResolver`, `SrpSkills`
+  - AP 예약/RP 발동 기반 명시형 `ReactionShot` 오버워치 헬퍼 추가: `SrpOverwatch`
+  - 오버워치 예약 상태, 버튼, 범위 오버레이, 발동 로그 연결: `SrpUnitRuntime`, `SrpTurnOrder`, `SrpGameController`, `SrpGameController.Hud`, `SrpGameController.Rendering`
+  - Dodge/Parry/명시형 ReactionShot 테스트 추가 및 EditMode 통과: `26 passed / 0 failed`
+- Phase2 수비 지속 완충/탱커 다중 대응 브릿지 구현
+  - 탱커 전용 태그와 기본 탱커 데이터 연결: `SrpUnitTags`, `SrpDefaultUnits`, `SrpDefaultMaps`
+  - 수비 피격 누적 상태 및 라운드 리셋/클론 반영: `SrpUnitRuntime`, `SrpTurnOrder`
+  - 수비 태세 후속 피격 완충과 탱커 다중 교전 완충 추가: `SrpCombatResolver`
+  - HUD/로그에 탱커 역할, 교전 수, 수비 완충 적용 힌트 추가: `SrpGameController`, `SrpGameController.Hud`, `SrpSkills`
+  - 수비 지속 완충/탱커 다중 대응 테스트 추가 및 EditMode 통과: `28 passed / 0 failed`
+- Phase2 메이커 메타데이터 UI 확장
+  - 스킬 메이커에 충전/오버클럭/패링 메타 입력과 목록 요약 표시 추가: `SrpSkillMakerController`
+  - 유닛 메이커에 v2 AP/RP/PG/속도, 무기/태세/방향, ParryUser/Tank 태그 편집 추가: `SrpUnitMakerController`
+  - 유닛 메이커 저장 시 legacy AP/PG 필드를 v2 AP/PG와 동기화하는 호환 헬퍼 추가: `SrpUnitMakerController`
+  - 스킬/유닛 메타 JSON 보존 및 v2/legacy 동기화 테스트 추가: `SrpMakerMetadataTests`
+  - EditMode 테스트 통과: `31 passed / 0 failed`
+- Phase2 중간 점검 보정
+  - 명시 저장된 `Firearm` 무기 분류를 런타임에서 보존하도록 무기 해석 보정: `SrpBattleState`
+  - 스킬 `Damage` 효과가 PG 0 그로기 흐름을 공용 피해 적용 헬퍼로 처리하도록 수정: `SrpCombatResolver`, `SrpSkills`
+  - 스킬 메이커의 `ap`/`posture` stat 별칭을 실제 AP/PG 런타임 스탯에 연결: `SrpSkills`
+  - 맵 `allowedSkillIds`, 배치 `disabledSkillIds`, 유닛 `maxSkills`를 스폰 시 반영: `SrpBattleState`
+  - 회귀 테스트 추가 및 EditMode 통과: `35 passed / 0 failed`
+- Phase2 유닛 시각 방향성 개선
+  - 전투 유닛 뷰를 원기둥에서 전방 팁이 있는 쐐기형 삼각기둥 메시로 교체: `SrpGameController.Rendering`
+  - `SrpFacing`에 따라 유닛 메시가 North/East/South/West 방향으로 회전하도록 연결: `SrpGameController.Rendering`
+  - 방향 회전 매핑 테스트 추가 및 EditMode 통과: `36 passed / 0 failed`
+- Phase2 교전/둘러싸임 검증 프리셋 보강
+  - 내장 프리셋 `M1EngagementLab` 추가: `SrpMapPreset`, `SrpDefaultMaps`
+  - 로비 프리셋 선택 버튼에 교전/포위 검증 랩 추가: `SrpLobbyController`
+  - 프리셋 기반 다중 교전, 교전 이탈 비용/기회공격, 탱커/수비 완충 테스트 추가: `SrpM1RuleSpecTests`
+  - EditMode 테스트 통과: `39 passed / 0 failed`
+- Phase2 RP/HUD 노출 정책 정리
+  - 전투 HUD에서 RP 원시 수치 대신 반응 준비/소모/예약 상태를 표시: `SrpGameController.Hud`
+  - 오버워치 예약 가능/불가 상태 helper 추가: `SrpOverwatch`
+  - 기회공격/오버워치/방어 반응 로그를 반응 발동 중심 문구로 정리: `SrpGameController`, `SrpSkills`
+  - PlayMode HUD 테스트 기대값을 새 반응 상태 표기에 맞게 보정: `SrpM1PlayModeTests`, `SrpM1AiPlaySampleTests`
+  - 오버워치 상태 helper와 라운드 리셋 회귀 테스트 추가 및 검증 통과: EditMode `41 passed / 0 failed`, PlayMode `4 passed / 0 failed`
+- Phase2 다음 스프린트 사전 기획 정리
+  - HUD/로그 가독성 동기화를 다음 P1 스프린트로 상세화: `SRPG_BACKLOG`, `SRPG_PHASE2_CODE_BACKLOG`
+  - HUD 범례/오버레이/반응 상태/오버워치 버튼/로그 문구/PlayMode 테스트 확장을 작업 단위로 분리
+  - 오버워치 상세 규칙, 탱커 패시브 최종안, 특수 스킬 피해 파이프라인은 후속 비범위로 정리
+- Phase2 기획 대조 P1 보정 완료
+  - 기본공격 패링 제거, Dodge 확률형 시도/실패 흐름, 측후면 방어 불리 브릿지를 P1 보정 범위로 구현 및 문서화
+  - 턴 시작 태세 선택 UI는 아직 미구현 상태로 명시하고 후속 UX 작업으로 분리
+  - 관련 추적 문서 갱신: `SRPG_BACKLOG`, `SRPG_PHASE2_CODE_BACKLOG`, `SRPG_TDD`, `SRPG_GDD_TEST_TRACEABILITY`
+  - EditMode 테스트 통과: `43 passed / 0 failed`
+- Phase2 HUD/로그 가독성 동기화 완료
+  - HUD 범례를 실제 오버레이 의미와 맞춰 단일 문구로 통일: `SrpGameController.Hud`
+  - 반응 상태, 오버워치 버튼, 스킬 목록의 쿨다운/충전/패링 가능/오버클럭 용어 정리
+  - 공격/기회공격/오버워치/스킬/방어 반응 로그를 이벤트 단위 문구로 정리: `SrpGameController`, `SrpSkills`
+  - PlayMode HUD 스모크 테스트를 범례, 반응 상태, 오버워치 버튼, hover 문구, 로그 핵심 문구까지 확장
+  - 검증 통과: EditMode `43 passed / 0 failed`, PlayMode `4 passed / 0 failed`
+- Phase2 오버워치 사선/횟수/해제 상세 규칙 완료
+  - 오버워치 발동을 8방향 직선 사선으로 제한하고 중간 장애물/유닛 차단을 반영: `SrpOverwatch`
+  - 오버워치 범위 오버레이가 실제 발동 가능한 사선 타일만 표시하도록 동기화: `SrpGameController.Rendering`
+  - 예약 1회당 1회 발동, 발동/라운드 리셋 시 예약 해제 정책을 기준서와 백로그에 반영
+  - 사선/차단 회귀 테스트 추가 및 검증 통과: EditMode `45 passed / 0 failed`, PlayMode `4 passed / 0 failed`
+- Phase2 테스트 프리셋 v2 + HUD 레이아웃 개편 완료
+  - `M1QaIntegrated`를 스킬 자원, 패링 가능 스킬, 오버워치 사선, 탱커 확인용 프리셋으로 갱신
+  - HUD를 상단 전투 헤더, 보조 정보 바, 좌측 조작 콘솔, 우측 로그로 분리: `SrpGameController.Hud`
+  - 긴 상태 문구와 버튼/스킬 목록 overflow를 줄이고 PlayMode HUD 스모크 기준을 새 레이아웃으로 갱신
+  - 프리셋 v2 회귀 테스트 추가 및 검증 통과: EditMode `46 passed / 0 failed`, PlayMode `4 passed / 0 failed`
+- Phase2 전투 직접 조작 UI 보강 완료
+  - 좌측 전술 콘솔에 태세 선택, 최종 방향 선택, 오버클럭 실행 버튼 추가: `SrpGameController.Hud`
+  - 태세/방향 변경을 전투 상태와 유닛 회전에 연결하고 오버클럭을 기존 스킬 자원 모델에 연결: `SrpGameController`, `SrpSkills`
+  - 직접 조작 UI PlayMode 테스트와 오버클럭 조건 회귀 테스트 추가
+  - 검증 통과: EditMode `47 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 오버클럭 성능 증폭 완료
+  - 스킬 메타/런타임에 오버클럭 위력 보너스와 다음 사용 1회 강화 상태 추가: `SrpSkillData`
+  - 오버클럭 실행 시 다음 액티브 스킬 피해/회복을 증폭하고 사용 후 상태를 소모: `SrpSkills`
+  - HUD/스킬 목록/로그와 스킬 메이커 목록에 오버클럭 증폭/강화 대기 상태 표시
+  - 검증 통과: EditMode `48 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 재장전 AP 행동 1차 구현 완료
+  - 총기 유닛 전용 탄약/재장전 계약 추가: `SrpUnitRuntime`, `SrpMapFile`, `SrpBattleState`
+  - 기본 공격과 오버워치 예약/발동에 탄약 검사와 소비 연결: `SrpGameController`, `SrpOverwatch`
+  - 좌측 전술 콘솔 재장전 버튼, HUD 탄약 상태, 유닛 메이커 최대 탄약 입력 추가
+  - 검증 통과: EditMode `51 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 엄폐 AP 행동 1차 구현 완료
+  - 유닛 런타임 엄폐 상태와 인접 비보행 타일 엄폐 판정 추가: `SrpUnitRuntime`, `SrpBattleState`
+  - 총기 기본 공격/오버워치 사격에 엄폐 완충을 연결하고 근접/마법/처단 비적용을 고정: `SrpCombatResolver`
+  - 좌측 전술 콘솔 엄폐 버튼, HUD 엄폐 상태, 연두색 엄폐 오버레이 추가: `SrpGameController`, `SrpGameController.Hud`, `SrpGameController.Rendering`
+  - 검증 통과: EditMode `54 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 상호작용 AP 행동 1차 구현 완료
+  - 맵 상호작용 포인트 계약과 런타임 클론/인접 탐색 helper 추가: `SrpMapFile`, `SrpBattleState`
+  - 인접 유닛이 AP 1로 포인트를 활성화하고 owner 제한/singleUse 상태를 처리하도록 전투 입력 연결: `SrpGameController`
+  - 좌측 전술 콘솔 상호작용 버튼, HUD 상태, 노랑색 상호작용 오버레이 추가: `SrpGameController.Hud`, `SrpGameController.Rendering`
+  - `M1QaIntegrated`에 전술 단말 상호작용 포인트를 추가하고 JSON/프리셋/HUD 회귀 테스트 보강
+  - 검증 통과: EditMode `59 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 개발용 전술 HUD 개선 완료
+  - 좌측 하단 현재 유닛 카드와 우측 하단 행동 preview 카드를 코드 생성 uGUI/TMP로 추가: `SrpGameController.Hud`
+  - HP/PG/AP/탄약을 숫자와 단색 게이지로 함께 표시하고, hover 중인 이동/공격/스킬/상호작용 예상 정보를 표시
+  - 유닛/타일 hover 상태를 preview 카드에 연결하되 실제 전투 상태는 변경하지 않는 읽기 전용 흐름으로 제한: `SrpGameController`
+  - PlayMode HUD 회귀 테스트에 하단 카드/preview 카드 검증 추가
+  - 검증 통과: EditMode `59 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 총기 1발 고화력 + 방향성 엄폐 설계 완료
+  - 명시 `maxAmmo`가 없는 총기 기본 탄창을 1발로 낮춤: `SrpUnitRuntime`
+  - 총기 기본 공격을 HP 고화력/낮은 PG 압박 브릿지로 조정: `SrpCombatResolver`
+  - 기본 탄창 1발, 고화력 HP 피해, 비총기 탄약 예외, HUD `1/1` 표기 회귀 테스트 추가
+  - 선형/방향성 엄폐는 `SrpCoverSegmentData` 초안과 edge 단계별 구현 방침으로 문서화
+  - 검증 통과: EditMode `61 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+- Phase2 방향성 엄폐 1차 구현 완료
+  - `SrpCoverSegmentData` 맵 스키마와 런타임 `CoverSegments` 로딩/클론 추가: `SrpMapFile`, `SrpBattleState`
+  - 공격자-방어자 방향이 segment edge를 통과할 때만 원거리 총기 엄폐 완충 적용: `SrpCombatResolver`
+  - 방향성 엄폐 overlay, HUD 범례, `M1QaIntegrated` QA segment 추가: `SrpGameController.Rendering`, `SrpGameController.Hud`, `SrpDefaultMaps`
+  - JSON/프리셋/방향 판정/HUD 회귀 테스트 추가
+  - 검증 통과: EditMode `64 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+
+## 2026-04-25
+
+- 신규 대화 원본(06~10) 기반 문서 우선 개편 착수
+- 신규 기준 문서 추가
+  - `SRPG_전투규칙_기준서_v2.md`
+  - `new/SRPG_NEW_DIALOG_POLICY_LOCK.md`
+- 핵심 문서 정렬(v2)
+  - `SRPG_GDD.md`
+  - `SRPG_TDD.md`
+  - `SRPG_프로토타입_마스터플랜.md`
+- 하위 문서 동기화(v2)
+  - `SRPG_README.md`
+  - `SRPG_BACKLOG.md`
+  - `SRPG_GDD_TEST_TRACEABILITY.md`
+  - `SRPG_M1_QA_TEST_RUNNER_CHECKLIST.md`
+- 코드 2차 착수 준비 문서 추가
+  - `SRPG_PHASE2_CODE_BACKLOG.md`
+- 신규 기획 PDF를 재활용 가능한 마크다운 자산으로 변환
+  - `new/프로젝트-초기-기획서-초안-외.md`
+
+## 2026-04-18
+
+- 신규 기획서 기준 브랜치 `feature/prototype-v1` 생성
+- 체스 코드/문서 폐기
+- v1 기준 문서 세트 작성
+  - `SRPG_프로토타입_마스터플랜.md`
+  - `SRPG_GDD.md`
+  - `SRPG_TDD.md`
+  - `SRPG_README.md`
+  - `SRPG_BACKLOG.md`
+  - `SRPG_레거시_코드_분류.md`
+  - `SRPG_다음미팅_논의사항.md`
+- M0 완료 기준 최종 점검
+  - 체스 코드/문서 트리 제거 상태 재확인 (`Assets/Scripts/Chess`, `docs/chess`)
+  - README/GDD/TDD/BACKLOG/마스터플랜 교차 정합성 보강
+- M1 전투 코어 전환 착수
+  - 속도 기반 턴 큐, AP/RP, HP/PG, 무기 분기 구현 시작
+- M1 1차 구현/검증
+  - `SrpTurnOrder` 도입 및 `SrpGameController` 라운드 큐 흐름 전환
+  - `SrpCombatResolver` 총기/근접/마법 분기 + HP/PG 이원화 반영
+  - EditMode 테스트 `Assets/Tests/EditMode/Editor/SrpM1CoreTests.cs` 추가
+- M1 통합 프리셋 전면 재구성
+  - 내장 프리셋을 `M1 QA 통합 검증` 중심 단일 체계로 전환
+  - 로비 프리셋 선택 UI 및 QA 체크리스트 문구 동기화
+- M1 자동화 테스트 구축
+  - 테스트 관측 API 추가 (`TestHudReady`, `TestTurnHudText`, 라운드/유닛 상태 getter)
+  - PlayMode 자동 테스트 `Assets/Tests/PlayMode/Editor/SrpM1PlayModeTests.cs` 추가
+  - 단일 엔트리 `SrpM1AllTestsEntry` + 카테고리 `SrpM1All` 구성
+  - 메뉴 실행 엔트리 `SRPG > Run M1 Automated QA (Edit+Play)` 추가
+- AI 스텁 하이브리드 시뮬레이션 구축
+  - 정책 인터페이스/기본 정책(랜덤/휴리스틱) 추가
+    - `Assets/Tests/Simulation/SrpAiPolicy.cs`
+    - `Assets/Tests/Simulation/SrpAiPolicies.Basic.cs`
+  - 대량 전투 루프/시드 재현 러너 추가
+    - `Assets/Tests/Simulation/SrpBattleSimRunner.cs`
+  - 지표/임계치/JSON 리포트 파이프라인 추가
+    - `Assets/Tests/Simulation/SrpSimMetrics.cs`
+    - `Assets/Tests/Simulation/SrpSimThresholds.cs`
+    - `Assets/Tests/Simulation/SrpSimReportWriter.cs`
+  - 하이브리드 검증 테스트 및 실행 메뉴 추가
+    - `Assets/Tests/EditMode/Editor/SrpM1AiSimAllEntry.cs`
+    - `Assets/Tests/PlayMode/Editor/SrpM1AiPlaySampleTests.cs`
+    - `Assets/Tests/Editor/SrpAiSimMenu.cs`
+  - 문서 가이드 신규 추가: `docs/srpg/SRPG_AI_SIMULATION_GUIDE.md`
+- AI 정책 매트릭스 자동 비교 추가
+  - EditMode에서 정책 4조합(`HvsR`, `RvsH`, `HvsH`, `RvsR`)을 일괄 실행
+  - 케이스별 리포트 + 통합 요약 리포트(`srpg_ai_sim_matrix_*.json`) 생성
+  - 비교 엔트리: `SrpM1AiSimAllEntry.Run_M1_Ai_Policy_Matrix_Comparison`
+- M1 규칙 단위 테스트 보강
+  - 신규 테스트 `Assets/Tests/EditMode/Editor/SrpM1RuleSpecTests.cs` 추가
+  - ZOC 이동 비용, 태세(공격/수비), 처단 조건을 고정 입력 assert로 검증
+  - `SrpM1AllTestsEntry`에 규칙 테스트 실행 연결
+- GDD-테스트 추적 매핑 문서 추가
+  - `docs/srpg/SRPG_GDD_TEST_TRACEABILITY.md`
+  - GDD 항목별 자동화 커버 상태(완전/부분/미커버)와 후속 액션 명시
+- M1 전투 화면 UI 개선 (코드 기반 HUD 유지 리팩터)
+  - `UpdateHud()`를 텍스트 빌더 분리 구조로 정리해 가독성 개선
+  - 대기 큐 프리뷰 확대 및 유닛 패널(태세/방향/그로기) 가시성 강화
+  - 행동 단계 안내 문구 고도화 + `공격 후 턴 종료` 안내 명시
+  - 무효 클릭 피드백 로그 추가로 입력 실수 교정성 개선
+  - 스킬 목록 항목 재사용/로그 증분 갱신으로 UI 반응성 개선
+  - PlayMode 테스트에 태세/방향 표시 assert 추가
+- M1 기능 안정화/품질 보강
+  - AP 부족 상태에서 스킬 진입/타깃 선택 시 pending 상태를 정리해 입력 잠김을 방지
+  - 스킬 버튼 usable 판정에 AP 조건 반영, 이동 성공 시 `hasMovedThisActivation` 갱신
+  - `Awake()`에서 HUD 패널 폭 하드코딩 제거(인스펙터 값 우선, 0 이하만 안전 기본값 보정)
+  - 테스트 보강: 동일 속도 tie-break(owner/id), 상태 HUD 핵심 문구/상태 일치, ZOC 고정 비용값 assert
+  - 테스트 러너 메뉴 보강: EditMode 실패 시 PlayMode 연쇄 실행 차단 가드 추가
+- M1 전투 UX 확장 (위험도/범위/intent 가시화)
+  - 타일 오버레이를 레이어 재합성 구조로 전환(이동/공격/스킬/위험/의도/hover 분리)
+  - HUD에 `위험영역 보기/숨기기` 토글 추가, 적 공격 범위와 ZOC를 상시 시각화 가능
+  - 이동 타일 hover 시 위험도/진입불가 상태를 즉시 상태 패널에 표시
+  - 유닛 hover 시 해당 유닛의 공격범위/ZOC 미리보기 표시
+  - 적 예상 intent(경량 휴리스틱) 경로/타깃 타일 표시 추가
+  - PlayMode 테스트에 위험영역 토글/hover 상태 문구 검증 추가
+
+## 기록 원칙
+
+- 마일스톤(M0~M4) 단위로 업데이트한다.
+- 기능 목록보다 의사결정/검증 결과를 중심으로 기록한다.

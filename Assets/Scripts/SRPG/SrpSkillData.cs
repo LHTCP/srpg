@@ -52,6 +52,14 @@ public class SrpSkillData
     public int areaSize;
     public bool endsActivation;
     public int cooldown;
+    public int maxCharges;
+    public int chargeRecoveryTurns;
+    public int overclockFrozenHeartCost;
+    public int overclockCooldownReduction;
+    public int overclockChargeRestore;
+    public int overclockPowerBonus;
+    public bool isParryable;
+    public bool requiresParryTelegraph;
     public SrpSkillEffect[] effects = Array.Empty<SrpSkillEffect>();
 }
 
@@ -60,6 +68,10 @@ public class SrpSkillRuntime
 {
     public string skillId;
     public int cooldownRemaining;
+    public int chargesRemaining;
+    public int chargeRecoveryRemaining;
+    public int overclockedUsesRemaining;
+    public bool chargesInitialized;
 
     public SrpSkillRuntime() { }
     public SrpSkillRuntime(string id) { skillId = id; }
@@ -70,6 +82,10 @@ public class SrpSkillRuntime
         {
             skillId = skillId,
             cooldownRemaining = cooldownRemaining,
+            chargesRemaining = chargesRemaining,
+            chargeRecoveryRemaining = chargeRecoveryRemaining,
+            overclockedUsesRemaining = overclockedUsesRemaining,
+            chargesInitialized = chargesInitialized,
         };
     }
 }
