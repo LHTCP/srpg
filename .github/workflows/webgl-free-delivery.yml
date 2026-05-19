@@ -1,0 +1,91 @@
+name: WebGL 무료 Delivery
+
+on:
+  # 첫 무료 Delivery 경로는 비용 예측을 위해 수동 실행으로 시작한다.
+  workflow_dispatch:
+    inputs:
+      deploy_pages:
+        description: "main 브랜치 실행 결과를 GitHub Pages에 배포"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: webgl-pages
+  cancel-in-progress: false
+
+jobs:
+  webgl-build:
+    name: WebGL 빌드와 Pages 배포 준비
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: LFS 오브젝트 가져오기
+        # actions/checkout의 lfs:true는 .lfsconfig 적용 전에 GitHub LFS를 먼저 조회할 수 있어,
+        # 커스텀 LFS 서버를 쓰는 이 저장소에서는 체크아웃 이후 명시적으로 pull한다.
+        env:
+          LFS_ACCOUNT_ID: ${{ secrets.LFS_ACCOUNT_ID }}
+          LFS_ACCOUNT_PASSWORD: ${{ secrets.LFS_ACCOUNT_PASSWORD }}
+        run: |
+          if [ -z "${LFS_ACCOUNT_ID:-}" ] || [ -z "${LFS_ACCOUNT_PASSWORD:-}" ]; then
+            echo "::error::커스텀 LFS 서버 인증을 위해 LFS_ACCOUNT_ID, LFS_ACCOUNT_PASSWORD repository secret이 필요합니다."
+            exit 1
+          fi
+
+          git config --global credential.helper store
+          printf "protocol=https\nhost=toyboxxx-nvme.myasustor.com\nusername=%s\npassword=%s\n\n" "$LFS_ACCOUNT_ID" "$LFS_ACCOUNT_PASSWORD" | git credential approve
+          git lfs install --local
+          git lfs pull
+
+      - name: Unity Library 캐시 복원
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-Unity-6000.3.13f1-WebGL-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: |
+            Library-${{ runner.os }}-Unity-6000.3.13f1-WebGL-
+
+      - name: WebGL 빌드 실행
+        # GameCI unity-builder는 targetPlatform=WebGL을 지원한다.
+        # WebGL 산출물은 build/WebGL 아래에 만들고, Actions artifact와 Pages artifact가 같은 경로를 보게 한다.
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          unityVersion: 6000.3.13f1
+          targetPlatform: WebGL
+          buildsPath: build
+          buildName: WebGL
+
+      - name: WebGL artifact 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: srpg-webgl-${{ github.sha }}
+          path: build/WebGL
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: GitHub Pages 설정
+        if: ${{ github.ref == 'refs/heads/main' && inputs.deploy_pages == 'true' }}
+        uses: actions/configure-pages@v5
+
+      - name: Pages artifact 업로드
+        if: ${{ github.ref == 'refs/heads/main' && inputs.deploy_pages == 'true' }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/WebGL
+
+      - name: GitHub Pages 배포
+        if: ${{ github.ref == 'refs/heads/main' && inputs.deploy_pages == 'true' }}
+        id: deployment
+        uses: actions/deploy-pages@v4
