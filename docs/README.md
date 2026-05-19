@@ -13,6 +13,7 @@
 | [project/issue-workflow.md](project/issue-workflow.md) | 이슈 트리·Parent-Child·Blocks 관계 운영 기준 |
 | [project/github-governance.md](project/github-governance.md) | GitHub 이슈·PR·브랜치 보호 운영 기준 |
 | [project/release-checklist.md](project/release-checklist.md) | 배포 전·후 검증과 rollback/known issue 판단 기준 |
+| [project/cicd-runbook.md](project/cicd-runbook.md) | CI/CD 테스트·빌드·배포 실패 대응 Runbook |
 | [project/documentation-standards.md](project/documentation-standards.md) | 문서 위치·갱신 규칙 |
 
 ## 프로젝트 공통 (`docs/project/`)
@@ -26,6 +27,7 @@
 | [local-preferences.md](project/local-preferences.md) | Git 미추적 로컬 작업 취향 설정 |
 | [github-governance.md](project/github-governance.md) | GitHub 이슈·PR 템플릿과 브랜치 보호 기준 |
 | [release-checklist.md](project/release-checklist.md) | 릴리스 체크리스트와 배포 후 smoke test 기준 |
+| [cicd-runbook.md](project/cicd-runbook.md) | LFS·Unity license·테스트·빌드·artifact/cache 실패 대응 Runbook |
 | [documentation-standards.md](project/documentation-standards.md) | 문서 전용 폴더 구조·작성 규칙 |
 
 프로젝트 스크립트:
