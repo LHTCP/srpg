@@ -6,12 +6,12 @@ iOS/TestFlight 배포를 자동화하려면 어떤 계정, runner, 서명, 비�
 
 ## 결론
 
-iOS/TestFlight는 모바일 배포 중 가장 비용과 운영 부담이 크다. 이번 CI/CD 1차 마일스톤에서는 WebGL/Windows를 먼저 완성하고, iOS는 Apple Developer 계정, App Store Connect 앱, 인증서/provisioning profile, macOS runner 비용을 확인한 뒤 별도 마일스톤으로 진행하는 편이 안전하다.
+iOS/TestFlight는 모바일 배포 중 가장 비용과 운영 부담이 크다. Apple Developer Program은 공식 문서 기준 연 US$99 멤버십이 필요하고, 자동화에는 macOS runner와 signing 운영도 따라온다. 이번 CI/CD 1차 마일스톤에서는 무료 Delivery 경로인 WebGL/Windows를 먼저 완성하고, iOS는 Apple Developer 계정, App Store Connect 앱, 인증서/provisioning profile, macOS runner 비용을 확인한 뒤 별도 마일스톤으로 진행하는 편이 안전하다.
 
 추천 순서:
 
-1. WebGL 또는 Windows로 “바로 플레이” 경로를 먼저 만든다.
-2. Apple Developer Program 참여와 bundle identifier를 확정한다.
+1. WebGL Pages 또는 Windows artifact로 “무료 바로 플레이” 경로를 먼저 만든다.
+2. Apple Developer Program 참여 비용과 bundle identifier를 확정한다.
 3. 로컬 Mac에서 Xcode archive/TestFlight 업로드가 되는지 먼저 검증한다.
 4. 이후 GitHub Actions macOS runner 또는 자체 Mac runner 자동화를 검토한다.
 
@@ -62,7 +62,7 @@ fastlane은 App Store Connect API key를 사용해 Apple 배포 작업을 자동
 
 ## 비용과 리스크
 
-- Apple Developer Program 비용이 필요하다.
+- Apple Developer Program 연 US$99 비용이 필요하다.
 - macOS runner 비용과 대기 시간이 생길 수 있다.
 - signing certificate/profile 만료와 키체인 처리가 실패 지점이 된다.
 - public repo에서 secret 노출은 GitHub가 마스킹하지만, fork PR 실행 정책을 특히 조심한다.
@@ -77,6 +77,7 @@ fastlane은 App Store Connect API key를 사용해 Apple 배포 작업을 자동
 
 ## 참고 문서
 
+- Apple Developer Program: https://developer.apple.com/programs/
 - TestFlight: https://developer.apple.com/testflight
 - App Store Connect API: https://developer.apple.com/documentation/AppStoreConnectAPI
 - Xcode App Store Connect upload: https://help.apple.com/xcode/mac/current/en.lproj/dev442d7f2ca.html
