@@ -6,13 +6,14 @@ Google Play internal testing 또는 internal app sharing을 이 프로젝트의 
 
 ## 결론
 
-Android는 모바일 배포 중 iOS보다 먼저 검토할 만하다. 다만 WebGL/Windows보다 선행하기에는 keystore, Play Console 앱 등록, tester opt-in, AAB 업로드 자동화가 필요하므로 Phase 4의 별도 결정 이슈에서 진행 여부를 확정한다.
+Android는 모바일 배포 중 iOS보다 먼저 검토할 만하다. 다만 WebGL/Windows보다 선행하기에는 keystore, Play Console 앱 등록, tester opt-in, AAB 업로드 자동화가 필요하고, Google Play Console 개발자 계정 등록에는 공식 문서 기준 US$25 1회 비용이 있다. 따라서 이번 무료 우선 스프린트의 최소 Delivery 조건에는 넣지 않고, Phase 4의 별도 결정 이슈에서 진행 여부를 확정한다.
 
 추천 순서:
 
-1. CI에서 Android AAB를 수동 workflow artifact로 먼저 생성한다.
-2. keystore와 package name/version code 정책을 문서화한다.
-3. Play Console 내부 테스트 트랙 업로드는 fastlane 연결 확인 후 추가한다.
+1. WebGL Pages 또는 Windows artifact로 무료 Delivery 경로를 먼저 완성한다.
+2. CI에서 Android AAB를 수동 workflow artifact로 생성할 필요가 있는지 결정한다.
+3. keystore와 package name/version code 정책을 문서화한다.
+4. Play Console 내부 테스트 트랙 업로드는 비용 승인과 fastlane 연결 확인 후 추가한다.
 
 ## 필요한 계정과 저장소 설정
 
@@ -47,6 +48,7 @@ GameCI Android 배포 문서는 fastlane을 사용해 Google Play internal track
 ## 비용과 리스크
 
 - public repo의 standard GitHub-hosted runner 실행 시간 자체는 무료 범위지만 artifact/cache/storage는 별도 한도와 비용 검토가 필요하다.
+- Google Play Console 개발자 계정 등록에는 US$25 1회 비용이 필요하다.
 - Android 빌드는 Unity import와 Gradle 단계 때문에 WebGL보다 시간이 길 수 있다.
 - keystore 유출은 치명적이므로 secret과 권한 범위를 좁힌다.
 - Play Console 앱 등록과 내부 테스트 링크 운영은 개발 외 운영 작업을 동반한다.
@@ -61,6 +63,7 @@ GameCI Android 배포 문서는 fastlane을 사용해 Google Play internal track
 
 ## 참고 문서
 
+- Google Play Console 시작하기: https://support.google.com/googleplay/android-developer/answer/6112435
 - Google Play internal testing: https://support.google.com/googleplay/android-developer/answer/9845334
 - GameCI Android deployment: https://game.ci/docs/github/deployment/android/
 - fastlane Google Play internal app sharing: https://docs.fastlane.tools/actions/upload_to_play_store_internal_app_sharing/
