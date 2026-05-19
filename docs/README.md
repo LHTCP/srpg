@@ -23,6 +23,7 @@
 | [local-preferences.md](project/local-preferences.md) | Git 미추적 로컬 작업 취향 설정 |
 | [github-governance.md](project/github-governance.md) | GitHub 이슈·PR 템플릿과 브랜치 보호 기준 |
 | [documentation-standards.md](project/documentation-standards.md) | 문서 전용 폴더 구조·작성 규칙 |
+| [ios-testflight-research.md](project/ios-testflight-research.md) | iOS/TestFlight 배포 조사 |
 
 프로젝트 스크립트:
 
