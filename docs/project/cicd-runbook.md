@@ -7,7 +7,9 @@
 - 실패한 workflow run의 URL, 브랜치, 커밋 SHA, 실패 job/step 이름을 먼저 기록한다.
 - 로그에서 최초 실패 지점을 찾는다. 뒤따르는 artifact 업로드 실패나 정리 step 실패는 2차 증상일 수 있다.
 - secret 값은 로그, 이슈, PR 본문에 직접 쓰지 않는다.
+- 이번 무료 우선 스프린트에서는 GitHub Actions public repo standard runner, GitHub Pages, 짧은 retention의 Actions artifact/GitHub Release asset 안에서 Delivery를 먼저 닫는다.
 - 비용 또는 보관 정책에 영향을 줄 수 있는 cache, artifact, runner 변경은 PR 본문이나 셀프리뷰에 근거를 남긴다.
+- Apple Developer Program, Google Play Console, S3+CloudFront처럼 명시적 비용 또는 사용량 과금이 있는 경로는 별도 decision/approval 없이 기본 완료조건에 넣지 않는다.
 - 배포 실패가 반복되면 임시 우회보다 재현 가능한 문서·workflow 수정 PR을 우선 만든다.
 
 ## 빠른 분류
