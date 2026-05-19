@@ -2,6 +2,7 @@
 
 이 문서는 **통합 규칙**을 다룬다. 로컬 개발 환경은 [setup.md](setup.md), 병렬 작업 디렉터리 운영은 [worktrees.md](worktrees.md)를 본다.
 GitHub 이슈, PR 템플릿, 브랜치 보호 기준은 [github-governance.md](github-governance.md)를 본다.
+이슈 트리, Parent-Child, Blocks 관계 운영은 [issue-workflow.md](issue-workflow.md)를 본다.
 
 ## 브랜치 이름
 
@@ -49,6 +50,7 @@ Implement speed-based round order for SRPG v1
 ## Pull request 운영
 
 - 큰 작업은 엄브렐라 이슈 아래에서 작은 PR로 나눈다.
+- 엄브렐라, 리서치, 의사결정, 구현 이슈 분해 기준은 [issue-workflow.md](issue-workflow.md)를 따른다.
 - PR 하나는 한 주제를 다루고, 리뷰 가능한 크기를 유지한다.
 - 문서·정책 PR과 코드·CI PR을 섞어 키우지 않는다.
 - 플랫폼별 빌드처럼 무거운 변경은 빠른 검증 PR과 분리한다.
