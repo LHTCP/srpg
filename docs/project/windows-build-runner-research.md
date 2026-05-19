@@ -6,10 +6,11 @@
 
 초기 추천안은 다음과 같다.
 
-1. 1차 Windows 빌드는 `ubuntu-latest` + `game-ci/unity-builder@v4` + `targetPlatform: StandaloneWindows64`로 시작한다.
-2. Windows 실행 검증은 빌드 job과 분리하여 `windows-latest` smoke job에서 artifact를 내려받아 짧게 실행한다.
-3. 프로젝트가 IL2CPP Windows 빌드로 전환되면 빌드 job도 `windows-2022` 또는 `windows-latest`로 옮긴다.
-4. Windows 빌드는 초기 required check로 두지 않고, 수동 실행 또는 release 후보 브랜치/태그 기준으로 먼저 안정화한다.
+1. 이번 무료 우선 스프린트에서는 GitHub Actions public repo standard runner와 Actions artifact/GitHub Release asset 안에서 닫히는 Windows Delivery를 목표로 한다.
+2. 1차 Windows 빌드는 `ubuntu-latest` + `game-ci/unity-builder@v4` + `targetPlatform: StandaloneWindows64`로 시작한다.
+3. Windows 실행 검증은 빌드 job과 분리하여 `windows-latest` smoke job에서 artifact를 내려받아 짧게 실행한다.
+4. 프로젝트가 IL2CPP Windows 빌드로 전환되면 빌드 job도 `windows-2022` 또는 `windows-latest`로 옮긴다.
+5. Windows 빌드는 초기 required check로 두지 않고, 수동 실행 또는 release 후보 브랜치/태그 기준으로 먼저 안정화한다.
 
 이 접근은 public 저장소의 standard runner 무료 범위를 활용하면서도, 실제 Windows 실행 가능성은 Windows runner에서 확인하는 절충안이다.
 
@@ -127,6 +128,7 @@ Unity standalone player는 `-batchmode`, `-nographics` 같은 command line argum
 1. WebGL 배포 workflow 안정화
 2. Windows artifact 생성 workflow 추가
 3. Windows smoke 검증 job 추가
-4. release 태그 기준 Windows zip을 Release asset으로 승격
+4. 무료 범위 안에서 보관 가능한 짧은 retention의 Actions artifact를 먼저 사용
+5. 수동 release 태그 기준 Windows zip을 GitHub Release asset으로 승격
 
 따라서 issue #30의 결정값은 “초기 Windows build는 Linux runner cross-build, 실행 검증은 Windows runner smoke job, IL2CPP 전환 시 Windows runner build로 승격”으로 둔다.
