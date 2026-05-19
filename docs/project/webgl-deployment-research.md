@@ -4,9 +4,11 @@
 
 ## 결론
 
+이번 스프린트의 최소 Delivery 조건은 "추가 유료 계정 없이 최신 빌드를 플레이할 수 있는 링크"로 둔다. 따라서 1차 목표는 GitHub Actions public repo 무료 standard runner와 GitHub Pages 조합으로 닫고, S3+CloudFront는 비용 승인 이후의 승격 후보로만 다룬다.
+
 1차 빠른 검증 링크는 GitHub Pages로 시작하는 것을 추천한다. GitHub 저장소와 Actions만으로 닫힌 루프를 만들기 쉽고, public repo에서는 진입 비용이 가장 낮다. 단, GitHub Pages는 Unity WebGL의 `Content-Encoding` 세부 제어가 약하므로 초기에는 Unity의 Decompression Fallback을 켠 빌드를 대상으로 삼는 것이 안전하다.
 
-운영성 있는 공개 플레이 링크는 S3+CloudFront를 우선 후보로 둔다. Unity WebGL의 gzip/Brotli 네이티브 압축 헤더, 캐시 TTL, invalidation, 커스텀 도메인/TLS를 가장 명확하게 제어할 수 있기 때문이다. 대신 AWS 비용과 권한, 배포 스크립트, CloudFront invalidation 운영이 추가된다.
+운영성 있는 공개 플레이 링크는 비용 승인을 전제로 S3+CloudFront를 후보로 둔다. Unity WebGL의 gzip/Brotli 네이티브 압축 헤더, 캐시 TTL, invalidation, 커스텀 도메인/TLS를 가장 명확하게 제어할 수 있기 때문이다. 대신 AWS 계정, 사용량 과금, 권한, 배포 스크립트, CloudFront invalidation 운영이 추가되므로 이번 무료 우선 스프린트의 완료조건에는 넣지 않는다.
 
 Cloudflare Pages는 편리한 프리뷰/배포 경험이 장점이지만, Free plan 기준 단일 파일 25 MiB 제한이 Unity WebGL 빌드 산출물과 충돌할 가능성이 높다. 빌드 산출물이 충분히 작거나 큰 파일을 R2 등으로 분리할 때만 1차 후보로 올린다.
 
@@ -14,7 +16,7 @@ Cloudflare Pages는 편리한 프리뷰/배포 경험이 장점이지만, Free p
 
 | 항목 | GitHub Pages | Cloudflare Pages | S3+CloudFront |
 | ---- | ---- | ---- | ---- |
-| public repo 비용 | public repo에서 사용 가능. Pages 사이트 1 GB, 월 100 GB soft bandwidth 등 제한 확인 필요 | Free plan에서 월 500 builds, 20,000 files, 단일 asset 25 MiB 제한 | S3 storage/request/data transfer, CloudFront request/data transfer/invalidation 비용 관리 필요 |
+| public repo 비용 | public repo의 GitHub Free에서 사용 가능. Pages 사이트 1 GB, 월 100 GB soft bandwidth 등 제한 확인 필요 | Free plan에서 월 500 builds, 20,000 files, 단일 asset 25 MiB 제한 | S3 storage/request/data transfer, CloudFront request/data transfer/invalidation 비용 관리 필요 |
 | WebGL 압축 | 임의 `Content-Encoding` 헤더 제어가 어렵다. Decompression Fallback 빌드가 안전 | `_headers` 파일로 헤더 제어 가능. 단, 단일 asset 25 MiB 제한이 병목 가능 | 파일별 `Content-Encoding`, `Content-Type`, cache metadata를 가장 직접적으로 제어 가능 |
 | 배포 속도 | GitHub Actions에서 Pages artifact 업로드로 단순. 첫 도입 빠름 | Wrangler direct upload 또는 Git 연동 가능. preview deployment 경험 좋음 | S3 sync + CloudFront invalidation이 필요해 설정은 무겁지만 운영 제어력 높음 |
 | 캐시 | Pages 캐시는 세부 제어가 제한적. 파일명 해시/버전 디렉터리 전략 필요 | `_headers`로 일부 캐시 헤더 제어 가능 | CloudFront TTL, Cache-Control, invalidation을 명시적으로 운영 가능 |
@@ -62,14 +64,15 @@ Unity 공식 문서 기준 gzip은 기본 옵션이고 Brotli보다 파일은 �
 1. WebGL 빌드 산출물 크기와 최대 단일 파일 크기를 측정한다.
 2. 단일 파일이 25 MiB를 넘는지 확인한다.
 3. 첫 공개 플레이 링크는 GitHub Pages + Decompression Fallback로 만든다.
-4. 로딩 속도, 파일 크기, 캐시 문제가 확인되면 S3+CloudFront로 승격한다.
-5. Cloudflare Pages는 preview deployment 가치가 크거나 산출물이 25 MiB 이하일 때만 별도 PoC를 진행한다.
+4. GitHub Pages 링크가 이번 스프린트의 무료 Delivery 완료조건을 만족하는지 확인한다.
+5. 로딩 속도, 파일 크기, 캐시 문제가 확인되고 비용 승인이 있으면 S3+CloudFront로 승격한다.
+6. Cloudflare Pages는 preview deployment 가치가 크거나 산출물이 25 MiB 이하일 때만 별도 PoC를 진행한다.
 
 ## 후속 이슈 제안
 
 - WebGL 빌드 산출물 크기 측정 스크립트 추가
 - GitHub Pages WebGL 배포 PoC
-- S3+CloudFront 배포 PoC와 비용 가드레일 문서화
+- S3+CloudFront 배포 PoC와 비용 가드레일 문서화(비용 승인 이후)
 - WebGL 압축 방식 결정: Decompression Fallback, gzip, Brotli
 - 최신 플레이 링크 갱신 방식 결정: main 자동 배포, 수동 workflow, release tag
 
