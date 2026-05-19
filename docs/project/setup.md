@@ -75,7 +75,7 @@
 수동으로 등록해야 한다면 현재 머신에서만 아래처럼 신뢰 디렉터리를 등록한다.
 
 ```powershell
-git config --global --add safe.directory D:/WorkDir/LHTCP/srpg
+git config --global --add safe.directory <workspace-root>/srpg
 ```
 
 워크트리를 추가로 만들면 해당 경로도 같은 방식으로 등록할 수 있다.
