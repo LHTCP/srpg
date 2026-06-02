@@ -53,7 +53,7 @@ public class SrpSkillMakerController : MonoBehaviour
     static readonly Color UnselColor   = new Color(0.16f, 0.20f, 0.28f, 0.85f);
     static readonly Color AccentYellow = new Color(1f, 0.92f, 0.45f);
 
-    static readonly string[] StatOptions = { "self", "hp", "ap", "attackPower", "moveRange", "attackRange", "posture" };
+    static readonly string[] StatOptions = { "self", "hp", "ap", "attackPower", "moveRange", "attackRange", "posture", "marked", "balanceBroken", "killOrder" };
 
     // ── 생명주기 ──────────────────────────────────────────────────────────────
 

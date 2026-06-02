@@ -16,7 +16,7 @@ public partial class SrpGameController : MonoBehaviour
     public SrpMapFileV1 initialMap;
 
     [Tooltip("initialMap이 비어 있을 때 로드할 내장 프리셋.")]
-    public SrpMapPreset startPreset = SrpMapPreset.M1QaIntegrated;
+    public SrpMapPreset startPreset = SrpMapPreset.M1OpeningPrototype;
 
     [Header("Camera")]
     public bool frameCameraOnStart = true;
@@ -79,9 +79,10 @@ public partial class SrpGameController : MonoBehaviour
             initialMap            = SrpGameSettings.CustomMap;
             SrpGameSettings.CustomMap = null;
         }
-        else
+        else if (SrpGameSettings.HasSelectedPreset)
         {
             startPreset = SrpGameSettings.SelectedPreset;
+            SrpGameSettings.HasSelectedPreset = false;
         }
 
         bool mapEmpty = initialMap == null
@@ -659,36 +660,32 @@ public partial class SrpGameController : MonoBehaviour
         if (target == null || target.eliminated)
             return false;
 
-        foreach (var watcher in _state.Units)
+        var watcher = SrpOverwatch.SelectTriggerWatcher(_state, target);
+        if (watcher == null)
+            return false;
+
+        if (!SrpOverwatch.TryTrigger(_state, watcher, target, out var outcome))
+            return false;
+        SrpSkills.OnAttackResolved(watcher, target, outcome, _state, LogLine);
+        if (outcome.damageToHp > 0 || outcome.damageToPg > 0)
+            SrpSkills.OnTakeDamage(target, _state, LogLine);
+
+        LogLine(
+            $"오버워치 사격: {watcher.displayName}({watcher.id}) → {target.displayName}({target.id}) | " +
+            $"피해 PG-{outcome.damageToPg} HP-{outcome.damageToHp} | 반응 사격 소모 | 탄약 {watcher.ammo}/{watcher.maxAmmo}");
+        LogDefenseBuffers(target, outcome);
+        LogReactionOutcome(target, outcome);
+        if (outcome.becameGroggy)
+            LogLine($"PG 붕괴: {target.displayName}({target.id}) 처단 위험 상태");
+        if (outcome.defenderDied)
         {
-            if (!SrpOverwatch.CanTrigger(_state, watcher, target))
-                continue;
-
-            if (!SrpOverwatch.TryTrigger(_state, watcher, target, out var outcome))
-                continue;
-            SrpSkills.OnAttackResolved(watcher, target, outcome, _state, LogLine);
-            if (outcome.damageToHp > 0 || outcome.damageToPg > 0)
-                SrpSkills.OnTakeDamage(target, _state, LogLine);
-
-            LogLine(
-                $"오버워치 사격: {watcher.displayName}({watcher.id}) → {target.displayName}({target.id}) | " +
-                $"피해 PG-{outcome.damageToPg} HP-{outcome.damageToHp} | 반응 사격 소모 | 탄약 {watcher.ammo}/{watcher.maxAmmo}");
-            LogDefenseBuffers(target, outcome);
-            LogReactionOutcome(target, outcome);
-            if (outcome.becameGroggy)
-                LogLine($"PG 붕괴: {target.displayName}({target.id}) 처단 위험 상태");
-            if (outcome.defenderDied)
-            {
-                _state.RemoveUnit(target);
-                _state.RebuildEngagements();
-                LogLine($"사망: {target.displayName}({target.id})");
-                CheckWin();
-            }
-
-            return outcome.defenderDied;
+            _state.RemoveUnit(target);
+            _state.RebuildEngagements();
+            LogLine($"사망: {target.displayName}({target.id})");
+            CheckWin();
         }
 
-        return false;
+        return outcome.defenderDied;
     }
 
     SrpUnitRuntime FindOpportunityAttacker(SrpUnitRuntime mover, List<int> previousEngagers)
@@ -764,10 +761,16 @@ public partial class SrpGameController : MonoBehaviour
             return;
         if (outcome.coverBufferApplied)
             LogLine($"엄폐 완충: {defender.displayName} 원거리 사격 감쇠 HP-{outcome.reducedHpByCover} PG-{outcome.reducedPgByCover}");
+        if (outcome.perfectDefenseApplied)
+            LogLine($"완벽한 수비: {defender.displayName} 경미 HP 피해 무효 HP-{outcome.reducedHpByPerfectDefense}");
         if (outcome.sustainedDefenseBufferApplied)
             LogLine($"수비 완충: {defender.displayName} 후속 공격 감쇠 HP-{outcome.reducedHpBySustainedDefense} PG-{outcome.reducedPgBySustainedDefense}");
         if (outcome.tankMultiEngagementBufferApplied)
             LogLine($"탱커 대응: {defender.displayName} 다중 교전 감쇠 HP-{outcome.reducedHpByTank} PG-{outcome.reducedPgByTank}");
+        if (outcome.combatTagBonusApplied)
+            LogLine($"전투 태그 소모: {defender.displayName} {SrpCombatTagUtility.BuildSummary(outcome.consumedCombatTags)} | HP+{outcome.bonusHpFromCombatTags} PG+{outcome.bonusPgFromCombatTags}");
+        if (outcome.firearmPgSpillover > 0)
+            LogLine($"총기 충격: {defender.displayName} 최종 HP 피해 기반 PG 파급 +{outcome.firearmPgSpillover}");
     }
 
     void LogReactionOutcome(SrpUnitRuntime defender, SrpCombatResolver.AttackOutcome outcome)
@@ -779,7 +782,10 @@ public partial class SrpGameController : MonoBehaviour
         switch (outcome.reactionKind)
         {
             case SrpReactionKind.Parry:
-                LogLine($"방어 반응: {unit} 패링 성공 | 피해 무효");
+                string parryReward = outcome.parryAppliedBalanceBreak
+                    ? $" | 반격 PG-{outcome.parryCounterDamageToPg}, 균형 붕괴"
+                    : string.Empty;
+                LogLine($"방어 반응: {unit} 패링 성공 | 피해 무효{parryReward}");
                 break;
             case SrpReactionKind.Dodge:
                 if (outcome.wasDodged)

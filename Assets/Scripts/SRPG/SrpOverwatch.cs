@@ -71,6 +71,22 @@ public static class SrpOverwatch
         return IsTileInLineOfSight(state, watcher, target.anchorX, target.anchorY, range, target.id);
     }
 
+    public static SrpUnitRuntime SelectTriggerWatcher(SrpBattleState state, SrpUnitRuntime target)
+    {
+        if (state == null || target == null)
+            return null;
+
+        SrpUnitRuntime best = null;
+        foreach (var watcher in state.Units)
+        {
+            if (!CanTrigger(state, watcher, target))
+                continue;
+            if (IsHigherPriority(state, watcher, best, target))
+                best = watcher;
+        }
+        return best;
+    }
+
     public static bool IsTileInLineOfSight(
         SrpBattleState state,
         SrpUnitRuntime watcher,
@@ -97,17 +113,38 @@ public static class SrpOverwatch
 
         int stepX = dx == 0 ? 0 : (dx > 0 ? 1 : -1);
         int stepY = dy == 0 ? 0 : (dy > 0 ? 1 : -1);
-        int x = watcher.anchorX + stepX;
-        int y = watcher.anchorY + stepY;
-        while (x != targetX || y != targetY)
+        int fromX = watcher.anchorX;
+        int fromY = watcher.anchorY;
+        while (fromX != targetX || fromY != targetY)
         {
-            if (!IsLineTileOpen(state, watcher.id, exceptUnitId, x, y))
+            int x = fromX + stepX;
+            int y = fromY + stepY;
+            if (state.HasLineBlockingCoverSegmentBetween(fromX, fromY, x, y))
                 return false;
-            x += stepX;
-            y += stepY;
+            if ((x != targetX || y != targetY)
+                && !IsLineTileOpen(state, watcher.id, exceptUnitId, x, y))
+                return false;
+            fromX = x;
+            fromY = y;
         }
 
         return true;
+    }
+
+    static bool IsHigherPriority(SrpBattleState state, SrpUnitRuntime candidate, SrpUnitRuntime current, SrpUnitRuntime target)
+    {
+        if (candidate == null)
+            return false;
+        if (current == null)
+            return true;
+
+        int candidateDistance = state.ChebyshevAnchor(candidate, target);
+        int currentDistance = state.ChebyshevAnchor(current, target);
+        if (candidateDistance != currentDistance)
+            return candidateDistance < currentDistance;
+        if (candidate.speed != current.speed)
+            return candidate.speed > current.speed;
+        return candidate.id < current.id;
     }
 
     static bool IsStraightEightDirection(int dx, int dy)

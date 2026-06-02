@@ -1,4 +1,52 @@
-# SRPG v1 전환 이력
+# SRPG 변경 이력
+
+## 2026-06-03
+
+- 첫 전투 프로토타입 프리셋 추가
+  - 내장 프리셋 `M1OpeningPrototype` 추가: `M1QaIntegrated`는 기능 QA 맵으로 유지하고, 첫 전투 판단용 맵을 별도로 분리
+  - 12x9 소형 전장에 북쪽 사격 루트와 남쪽 돌입/상호작용 루트를 배치
+  - 플레이어 4인 파티를 주인공/탱커/사격수/마도사 역할로 재정렬하고, 적은 총기 압박병/근접 돌입병/방어형 적/측면 교란병/전술 장교로 비대칭 구성
+  - 방향성 엄폐 segment, `blocksLineOfSight` 사선 차단, 상호작용 포인트 `신호 장치`를 첫 전투 검증 포인트로 배치
+  - 기본 전투 진입값과 로비 첫 선택을 `M1OpeningPrototype`으로 교체하고, 기존 `M1QaIntegrated`는 로비 후순위 QA 선택지와 코드/테스트용 deprecated 프리셋으로 유지
+  - `SrpgBattle` 씬에 직렬화된 `startPreset`도 `M1OpeningPrototype`으로 갱신하고, 로비 선택이 있을 때만 static 프리셋 전달값을 사용하도록 보정
+  - 플레이어가 보는 기본 스킬 설명에서 `브릿지`/`호환용` 표현을 줄이고, 임시 수치성은 구현 의사결정 문서에 유지
+  - 검증 통과: EditMode `76 passed / 0 failed`, PlayMode `6 passed / 0 failed`
+
+## 2026-06-02
+
+- 다음 P1 스프린트 구현
+  - 초기 4인 고유 패시브 브릿지 추가: 주인공 `전장 적응`, 탱커 `전열 고정`, 사격수 `노출 처벌`, 마도사 `전장 해석`
+  - `M1QaIntegrated`를 플레이어 4인 역할 검증 프리셋으로 갱신하고 주인공 전용 패링/탱커 Tank 태그를 데이터에서 분리
+  - `blocksLineOfSight` 방향성 엄폐 segment를 오버워치와 총기 기본 공격 사선 차단에 연결
+  - 여러 오버워치 후보 우선순위를 가까운 사수, 빠른 사수, 낮은 unit id 순으로 고정
+  - 마법 전장 개입 최소 스킬 `전장 장막`(아군 PG +4) 추가
+  - 메이커 엄폐 segment 편집 UI, 초기 4인 전직 연계/최종 수치, 특수 지형 복합 효과는 후속 의사결정으로 분리
+  - 검증 통과: EditMode `75 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+
+## 2026-05-11
+
+- 문서 동기화
+  - `SRPG_PHASE2_CODE_BACKLOG.md`의 전투 플레이 가능성 P1 완료 범위, 검증 수, 다음 착수 후보를 현재 구현 상태와 맞춤
+  - `SRPG_README.md`의 3차 작업 상태를 진행에서 완료로 정정
+  - 문서 정리만 수행했으므로 Unity 테스트는 재실행하지 않음
+
+## 2026-05-10
+
+- 문서 진입점과 작업 처리 계약 정리
+  - SRPG 문서 계층과 현재 실행 플랜을 `docs/srpg/README.md`로 분리
+  - 작업 시작, 구현, 문서 갱신, 완료 보고 기준을 `docs/project/work-contract.md`에 추가
+  - `docs/README.md`, 루트 `AGENTS.md`, `Assets/Scripts/SRPG/AGENTS.md`, `SRPG_README.md`의 진입 링크와 v1/v2 표기 정리
+  - `SRPG_다음미팅_논의사항.md`를 과거 의사결정 메모로 표시
+  - 문서 전용 변경이므로 Unity 테스트는 실행하지 않음
+- 전투 플레이 가능성 P1 확장
+  - 총기 HP-PG 파급을 최종 HP 피해량 기준으로 보정하고 엄폐 GRD 적용 순서를 고정: `SrpCombatResolver`
+  - 공용 전투 태그(`표식`, `균형 붕괴`, `사살 지시`) 런타임 계약과 스킬 효과 타입 추가: `SrpUnitRuntime`, `SrpSkillData`, `SrpSkills`
+  - 패링 성공 시 공격자 PG 피해와 `균형 붕괴` 부여: `SrpCombatResolver`
+  - `완벽한 수비` 1차 구현: `SrpCombatResolver`
+  - HUD/로그에 전투 태그, 총기 파급, 패링 보상, 완벽한 수비 결과 표시: `SrpGameController`, `SrpGameController.Hud`
+  - 마도사/사격수 태그 대표 스킬과 `M1QaIntegrated` 노출 추가: `SrpDefaultSkills`, `SrpDefaultUnits`, `SrpDefaultMaps`
+  - 구현 브릿지와 다음 의사결정 후보 문서 추가: `SRPG_IMPLEMENTATION_DECISIONS.md`
+  - Unity EditMode `71 passed / 0 failed`, PlayMode `5 passed / 0 failed`
 
 ## 2026-04-27
 

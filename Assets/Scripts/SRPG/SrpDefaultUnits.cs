@@ -19,9 +19,9 @@ public static class SrpDefaultUnits
                 weaponClass = SrpWeaponClass.Melee,
                 stance = SrpStance.Defensive,
                 facing = SrpFacing.South,
-                skillIds = new[] { "heart_spike" },
+                skillIds = new[] { "tank_line_anchor", "cleave" },
                 maxSkills = 4,
-                tags = (int)(SrpUnitTags.ParryUser | SrpUnitTags.Tank),
+                tags = (int)SrpUnitTags.Tank,
             },
             new SrpUnitTemplateData
             {
@@ -38,14 +38,14 @@ public static class SrpDefaultUnits
                 weaponClass = SrpWeaponClass.Firearm,
                 stance = SrpStance.Aggressive,
                 facing = SrpFacing.South,
-                skillIds = new[] { "fh_bless_ally" },
+                skillIds = new[] { "rifle_exposed_punisher", "kill_order", "heal_light" },
                 maxSkills = 4,
                 tags = 0,
             },
             new SrpUnitTemplateData
             {
                 id = "breaker",
-                displayName = "근접 투사",
+                displayName = "주인공",
                 moveRange = 4,
                 attackRange = 1,
                 attackPower = 11,
@@ -57,9 +57,9 @@ public static class SrpDefaultUnits
                 weaponClass = SrpWeaponClass.Melee,
                 stance = SrpStance.Aggressive,
                 facing = SrpFacing.South,
-                skillIds = new[] { "cleave" },
+                skillIds = new[] { "hero_adaptive_heart", "cleave" },
                 maxSkills = 4,
-                tags = 0,
+                tags = (int)SrpUnitTags.ParryUser,
             },
             new SrpUnitTemplateData
             {
@@ -76,7 +76,7 @@ public static class SrpDefaultUnits
                 weaponClass = SrpWeaponClass.Magic,
                 stance = SrpStance.Aggressive,
                 facing = SrpFacing.South,
-                skillIds = new[] { "fh_bless_ally" },
+                skillIds = new[] { "mage_field_theory", "tactical_mark", "balance_hex", "arcane_screen" },
                 maxSkills = 4,
                 tags = 0,
             },

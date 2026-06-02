@@ -348,6 +348,25 @@ public class SrpM1CoreTests
     }
 
     [Test]
+    public void FirearmSpillover_UsesPostCoverFinalHpDamage()
+    {
+        var state = CreateDirectionalCoverTestState();
+        state.CoverSegments[0].coverDef = 3;
+        state.CoverSegments[0].coverGrd = 0;
+        var defender = CreateCoverDefender();
+        defender.SetCover(state.RoundNumber, 2, 2);
+        state.Units.Add(defender);
+        var firearm = CreateCoverAttacker(SrpWeaponClass.Firearm, 2, 4, 15, 4);
+
+        var outcome = SrpCombatResolver.ApplyAttack(state, firearm, defender);
+
+        Assert.IsTrue(outcome.coverBufferApplied, "방향성 엄폐가 적용되지 않았습니다.");
+        Assert.AreEqual(33, outcome.damageToHp, "엄폐 후 최종 HP 피해가 기대와 다릅니다.");
+        Assert.AreEqual(16, outcome.firearmPgSpillover, "총기 PG 파급이 엄폐 후 최종 HP 피해의 50%로 계산되지 않았습니다.");
+        Assert.AreEqual(15, outcome.damageToPg, "엄폐 GRD가 총기 PG 파급에 적용되지 않았습니다.");
+    }
+
+    [Test]
     public void CoverBuffer_AppliesToOverwatchFire()
     {
         var state = CreateCoverTestState();
@@ -576,6 +595,66 @@ public class SrpM1CoreTests
     }
 
     [Test]
+    public void ApplyCombatTagSkill_AddsRuntimeTagToTarget()
+    {
+        var state = SrpBattleState.FromMap(SrpDefaultMaps.GetPreset(SrpMapPreset.M1QaIntegrated));
+        var caster = FindUnit(state, "mage", 0);
+        var target = FindUnit(state, "vanguard", 1);
+        var skill = state.SkillLookup["tactical_mark"];
+        var runtime = new SrpSkillRuntime(skill.id);
+
+        SrpSkills.ResolveActiveSkill(skill, runtime, caster, target.anchorX, target.anchorY, state, null);
+
+        Assert.IsTrue(target.HasCombatTag(SrpCombatTag.Marked), "전술 표식 스킬이 대상 런타임 전투 태그를 부여하지 않았습니다.");
+        Assert.AreEqual(skill.cooldown, runtime.cooldownRemaining, "태그 스킬 사용 후 쿨다운이 설정되지 않았습니다.");
+    }
+
+    [Test]
+    public void InitialFourRolePassives_ApplyBridgeEffects()
+    {
+        var state = SrpBattleState.FromMap(SrpDefaultMaps.GetPreset(SrpMapPreset.M1QaIntegrated));
+        var hero = FindUnit(state, "breaker", 0);
+        var tank = FindUnit(state, "vanguard", 0);
+        var rifleman = FindUnit(state, "rifleman", 0);
+        var mage = FindUnit(state, "mage", 0);
+        var target = FindUnit(state, "vanguard", 1);
+
+        Assert.IsNotNull(hero, "주인공 역할 유닛이 QA 프리셋에 없습니다.");
+        Assert.IsNotNull(tank, "탱커 역할 유닛이 QA 프리셋에 없습니다.");
+        Assert.IsNotNull(rifleman, "사격수 역할 유닛이 QA 프리셋에 없습니다.");
+        Assert.IsNotNull(mage, "마도사 역할 유닛이 QA 프리셋에 없습니다.");
+        Assert.IsTrue(hero.HasTag(SrpUnitTags.ParryUser), "주인공 고유 패링 태그가 없습니다.");
+        Assert.IsTrue(tank.HasTag(SrpUnitTags.Tank), "탱커 고유 Tank 태그가 없습니다.");
+
+        SrpSkills.OnAttackResolved(hero, target, new SrpCombatResolver.AttackOutcome { damageToHp = 1 }, state, null);
+        SrpSkills.OnAttackResolved(rifleman, target, new SrpCombatResolver.AttackOutcome { damageToHp = 1 }, state, null);
+        tank.pg = 10;
+        SrpSkills.OnTakeDamage(tank, state, null);
+        SrpSkills.TryApplyPassiveTurnStart(mage, state, null);
+
+        Assert.AreEqual(3, hero.frozenHeart, "주인공 전장 적응 패시브 수치가 적용되지 않았습니다.");
+        Assert.AreEqual(2, rifleman.frozenHeart, "사격수 노출 처벌 패시브 수치가 적용되지 않았습니다.");
+        Assert.AreEqual(12, tank.pg, "탱커 전열 고정 패시브 PG 회복이 적용되지 않았습니다.");
+        Assert.AreEqual(2, mage.frozenHeart, "마도사 전장 해석 패시브 수치가 적용되지 않았습니다.");
+    }
+
+    [Test]
+    public void ArcaneScreen_RestoresAllyPgAsMagicBattlefieldIntervention()
+    {
+        var state = SrpBattleState.FromMap(SrpDefaultMaps.GetPreset(SrpMapPreset.M1QaIntegrated));
+        var mage = FindUnit(state, "mage", 0);
+        var tank = FindUnit(state, "vanguard", 0);
+        var skill = state.SkillLookup["arcane_screen"];
+        var runtime = new SrpSkillRuntime(skill.id);
+        tank.pg = 10;
+
+        SrpSkills.ResolveActiveSkill(skill, runtime, mage, tank.anchorX, tank.anchorY, state, null);
+
+        Assert.AreEqual(14, tank.pg, "전장 장막이 아군 PG 회복을 적용하지 않았습니다.");
+        Assert.AreEqual(skill.cooldown, runtime.cooldownRemaining, "전장 장막 사용 후 쿨다운이 설정되지 않았습니다.");
+    }
+
+    [Test]
     public void UnitViewFacingRotation_MapsFacingToWedgeForwardDirection()
     {
         AssertFacingForward(SrpFacing.North, Vector3.forward);
@@ -760,6 +839,14 @@ public class SrpM1CoreTests
     {
         foreach (var unit in state.Units)
             if (unit.id == id)
+                return unit;
+        return null;
+    }
+
+    static SrpUnitRuntime FindUnit(SrpBattleState state, string templateId, int owner)
+    {
+        foreach (var unit in state.Units)
+            if (unit.templateId == templateId && unit.owner == owner)
                 return unit;
         return null;
     }

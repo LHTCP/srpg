@@ -442,9 +442,49 @@ public class SrpBattleState
         return false;
     }
 
+    public bool HasLineBlockingCoverSegmentBetween(int fromX, int fromY, int toX, int toY)
+    {
+        int dx = toX - fromX;
+        int dy = toY - fromY;
+        if (dx == 0 && dy == 0)
+            return false;
+        if (Mathf.Abs(dx) > 1 || Mathf.Abs(dy) > 1)
+            return false;
+
+        if (dx > 0 && (HasBlockingCoverSegmentAt(fromX, fromY, SrpCoverEdge.East)
+            || HasBlockingCoverSegmentAt(toX, toY, SrpCoverEdge.West)))
+            return true;
+        if (dx < 0 && (HasBlockingCoverSegmentAt(fromX, fromY, SrpCoverEdge.West)
+            || HasBlockingCoverSegmentAt(toX, toY, SrpCoverEdge.East)))
+            return true;
+        if (dy > 0 && (HasBlockingCoverSegmentAt(fromX, fromY, SrpCoverEdge.North)
+            || HasBlockingCoverSegmentAt(toX, toY, SrpCoverEdge.South)))
+            return true;
+        if (dy < 0 && (HasBlockingCoverSegmentAt(fromX, fromY, SrpCoverEdge.South)
+            || HasBlockingCoverSegmentAt(toX, toY, SrpCoverEdge.North)))
+            return true;
+
+        return false;
+    }
+
     bool HasCoverSegmentAt(int x, int y)
     {
         return TryGetCoverSegmentAt(x, y, out _);
+    }
+
+    bool HasBlockingCoverSegmentAt(int x, int y, SrpCoverEdge edge)
+    {
+        if (CoverSegments == null)
+            return false;
+        for (int i = 0; i < CoverSegments.Count; i++)
+        {
+            var candidate = CoverSegments[i];
+            if (candidate == null || !candidate.blocksLineOfSight)
+                continue;
+            if (candidate.x == x && candidate.y == y && candidate.edge == edge)
+                return true;
+        }
+        return false;
     }
 
     bool TryGetCoverSegmentAt(int x, int y, out SrpCoverSegmentData segment)

@@ -8,8 +8,8 @@ Unity 6 기반 SRPG 프로토타입 프로젝트. 주 개발 대상은 `Assets/S
 
 - **Unity 에디터**: 6000.3.13f1 (`ProjectSettings/ProjectVersion.txt` 기준)
 - **실행 진입점**: `SrpgLobby` 씬
-- **핵심 문서**: `docs/srpg/SRPG_전투규칙_기준서_v2.md`, `docs/srpg/SRPG_README.md`, `docs/srpg/SRPG_프로토타입_마스터플랜.md`
-- **공통 개발 기준**: [docs/project/setup.md](docs/project/setup.md), [docs/project/workflow.md](docs/project/workflow.md), [docs/project/worktrees.md](docs/project/worktrees.md)
+- **핵심 문서**: `docs/srpg/README.md`, `docs/srpg/SRPG_전투규칙_기준서_v2.md`, `docs/srpg/SRPG_BACKLOG.md`
+- **공통 개발 기준**: [docs/project/work-contract.md](docs/project/work-contract.md), [docs/project/setup.md](docs/project/setup.md), [docs/project/workflow.md](docs/project/workflow.md), [docs/project/worktrees.md](docs/project/worktrees.md)
 - **로컬 취향 설정(선택)**: `project.local.json`이 있으면 공통 규칙과 충돌하지 않는 범위에서 참고
 
 ## 도메인 구조
@@ -33,16 +33,20 @@ SRPG 코드는 전투·HUD·렌더링·메이커·데이터·로비 도메인으
 | 목적 | 위치 |
 |------|------|
 | 문서 목록·맵 | [docs/README.md](docs/README.md) |
+| 작업 처리 계약 | [docs/project/work-contract.md](docs/project/work-contract.md) |
 | 개발 환경·재현성 기준 | [docs/project/setup.md](docs/project/setup.md) |
 | Git·브랜치·PR | [docs/project/workflow.md](docs/project/workflow.md) |
 | 멀티 워크트리 운영 | [docs/project/worktrees.md](docs/project/worktrees.md) |
 | 로컬 전용 취향 설정 | [docs/project/local-preferences.md](docs/project/local-preferences.md) |
 | 문서 작성 규칙 | [docs/project/documentation-standards.md](docs/project/documentation-standards.md) |
 | GitHub 운영 기준 | [docs/project/github-governance.md](docs/project/github-governance.md) |
+| SRPG 문서 맵 | [docs/srpg/README.md](docs/srpg/README.md) |
 | SRPG 실행 가이드 | [docs/srpg/SRPG_README.md](docs/srpg/SRPG_README.md) |
 | SRPG 전투규칙 기준서(v2) | [docs/srpg/SRPG_전투규칙_기준서_v2.md](docs/srpg/SRPG_전투규칙_기준서_v2.md) |
+| SRPG 백로그 | [docs/srpg/SRPG_BACKLOG.md](docs/srpg/SRPG_BACKLOG.md) |
+| SRPG 코드 백로그 | [docs/srpg/SRPG_PHASE2_CODE_BACKLOG.md](docs/srpg/SRPG_PHASE2_CODE_BACKLOG.md) |
 | SRPG 마스터플랜 | [docs/srpg/SRPG_프로토타입_마스터플랜.md](docs/srpg/SRPG_프로토타입_마스터플랜.md) |
 | SRPG GDD | [docs/srpg/SRPG_GDD.md](docs/srpg/SRPG_GDD.md) |
 | SRPG TDD | [docs/srpg/SRPG_TDD.md](docs/srpg/SRPG_TDD.md) |
 | SRPG 코드 분류 | [docs/srpg/SRPG_레거시_코드_분류.md](docs/srpg/SRPG_레거시_코드_분류.md) |
-| 다음 미팅 안건 | [docs/srpg/SRPG_다음미팅_논의사항.md](docs/srpg/SRPG_다음미팅_논의사항.md) |
+| 과거 미팅 메모 | [docs/srpg/SRPG_다음미팅_논의사항.md](docs/srpg/SRPG_다음미팅_논의사항.md) |

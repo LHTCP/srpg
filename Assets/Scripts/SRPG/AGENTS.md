@@ -1,6 +1,6 @@
-# SRPG 스크립트 — 에이전트 진입점 (v1)
+# SRPG 스크립트 — 에이전트 진입점 (v2)
 
-이 폴더는 v1 프로토타입 기준으로 유지한다.
+이 폴더는 v2 프로토타입 기준으로 유지한다. 현재 문서 기준은 `docs/srpg/README.md`에서 확인한다.
 
 ## 도메인 → 파일 맵
 
@@ -12,10 +12,8 @@
 | `SrpBattleState.cs` | 시뮬레이션 상태 |
 | `SrpCombatResolver.cs` | HP/PG/처단 계산 |
 | `SrpPathfinder.cs` | 이동 탐색 |
-| `SrpTurnOrder.cs` | 속도 기반 라운드 턴 (신규 예정) |
-| `SrpReaction.cs` | RP 반응행동 처리 (신규 예정) |
+| `SrpTurnOrder.cs` | 속도 기반 라운드 턴 |
 | `SrpOverwatch.cs` | 명시형 ReactionShot/오버워치 예약·발동 처리 |
-| `SrpLineOfSight.cs` | 사선 판정 (신규 예정) |
 
 ### 2) HUD (`srpg-hud`)
 
@@ -63,7 +61,8 @@
 
 ## 작업 가이드
 
-1. 작업 전에 `docs/srpg/SRPG_전투규칙_기준서_v2.md`와 `docs/srpg/SRPG_프로토타입_마스터플랜.md`를 먼저 확인한다.
+1. 작업 전에 `docs/project/work-contract.md`, `docs/srpg/README.md`, `docs/srpg/SRPG_전투규칙_기준서_v2.md`를 먼저 확인한다.
 2. 단일 도메인 수정 원칙을 우선한다.
 3. `SrpGameController`는 partial class 3파일을 함께 확인한다.
-4. 신규 파일 추가 시 본 문서와 관련 문서(TDD/마스터플랜)를 함께 갱신한다.
+4. 신규 파일 추가 시 본 문서와 관련 문서(TDD/백로그/코드 백로그)를 함께 갱신한다.
+5. 새 규칙 구현은 `RQ-*` 또는 `TBD-*`와 연결하고, 테스트 커버는 `SRPG_GDD_TEST_TRACEABILITY.md`에 반영한다.
