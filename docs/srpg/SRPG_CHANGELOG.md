@@ -1,5 +1,17 @@
 # SRPG 변경 이력
 
+## 2026-06-03
+
+- 첫 전투 프로토타입 프리셋 추가
+  - 내장 프리셋 `M1OpeningPrototype` 추가: `M1QaIntegrated`는 기능 QA 맵으로 유지하고, 첫 전투 판단용 맵을 별도로 분리
+  - 12x9 소형 전장에 북쪽 사격 루트와 남쪽 돌입/상호작용 루트를 배치
+  - 플레이어 4인 파티를 주인공/탱커/사격수/마도사 역할로 재정렬하고, 적은 총기 압박병/근접 돌입병/방어형 적/측면 교란병/전술 장교로 비대칭 구성
+  - 방향성 엄폐 segment, `blocksLineOfSight` 사선 차단, 상호작용 포인트 `신호 장치`를 첫 전투 검증 포인트로 배치
+  - 기본 전투 진입값과 로비 첫 선택을 `M1OpeningPrototype`으로 교체하고, 기존 `M1QaIntegrated`는 로비 후순위 QA 선택지와 코드/테스트용 deprecated 프리셋으로 유지
+  - `SrpgBattle` 씬에 직렬화된 `startPreset`도 `M1OpeningPrototype`으로 갱신하고, 로비 선택이 있을 때만 static 프리셋 전달값을 사용하도록 보정
+  - 플레이어가 보는 기본 스킬 설명에서 `브릿지`/`호환용` 표현을 줄이고, 임시 수치성은 구현 의사결정 문서에 유지
+  - 검증 통과: EditMode `76 passed / 0 failed`, PlayMode `6 passed / 0 failed`
+
 ## 2026-06-02
 
 - 다음 P1 스프린트 구현

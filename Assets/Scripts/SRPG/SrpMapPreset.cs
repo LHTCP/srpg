@@ -3,6 +3,7 @@
 /// </summary>
 public enum SrpMapPreset
 {
-    M1QaIntegrated = 0,
+    M1OpeningPrototype = 0,
     M1EngagementLab = 1,
+    M1QaIntegrated = 2,
 }

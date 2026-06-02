@@ -381,6 +381,81 @@ public class SrpMakerMetadataTests
     }
 
     [Test]
+    public void M1OpeningPrototypePreset_LoadsAsAsymmetricFirstBattleScenario()
+    {
+        var map = SrpDefaultMaps.GetPreset(SrpMapPreset.M1OpeningPrototype);
+        var state = SrpBattleState.FromMap(map);
+
+        Assert.AreEqual("m1_opening_prototype", map.name);
+        Assert.AreEqual(12, state.Width, "첫 전투 프리셋 가로 크기 불일치");
+        Assert.AreEqual(9, state.Height, "첫 전투 프리셋 세로 크기 불일치");
+        Assert.AreEqual(4, state.GetAliveUnitsForOwner(0).Count, "첫 전투 플레이어 파티는 4인이어야 합니다.");
+        Assert.AreEqual(5, state.GetAliveUnitsForOwner(1).Count, "첫 전투 적 구성은 QA 대칭 복사본이 아니어야 합니다.");
+        Assert.GreaterOrEqual(state.InteractionPoints.Count, 1, "첫 전투 프리셋에 상호작용 포인트가 없습니다.");
+
+        var hero = FindUnit(state, "breaker", 0);
+        var tank = FindUnit(state, "vanguard", 0);
+        var rifleman = FindUnit(state, "rifleman", 0);
+        var mage = FindUnit(state, "mage", 0);
+
+        Assert.IsNotNull(hero, "주인공 역할이 배치되지 않았습니다.");
+        Assert.IsNotNull(tank, "탱커 역할이 배치되지 않았습니다.");
+        Assert.IsNotNull(rifleman, "사격수 역할이 배치되지 않았습니다.");
+        Assert.IsNotNull(mage, "마도사 역할이 배치되지 않았습니다.");
+        Assert.IsTrue(hero.HasTag(SrpUnitTags.ParryUser), "주인공 패링 전용 태그가 없습니다.");
+        Assert.IsTrue(HasSkill(hero, "hero_adaptive_heart"), "주인공 전장 적응 패시브가 없습니다.");
+        Assert.IsTrue(tank.HasTag(SrpUnitTags.Tank), "탱커 Tank 태그가 없습니다.");
+        Assert.AreEqual(SrpStance.Defensive, tank.stance, "탱커가 수비 태세로 시작하지 않습니다.");
+        Assert.IsTrue(HasSkill(tank, "tank_line_anchor"), "탱커 전열 고정 패시브가 없습니다.");
+        Assert.AreEqual(SrpWeaponClass.Firearm, rifleman.weaponClass, "사격수 무기 분류가 총기가 아닙니다.");
+        Assert.GreaterOrEqual(rifleman.attackRange, 4, "사격수 오버워치 확인 사거리가 부족합니다.");
+        Assert.AreEqual(1, rifleman.maxAmmo, "사격수 총기 탄창은 1발이어야 합니다.");
+        Assert.IsTrue(HasSkill(rifleman, "rifle_exposed_punisher"), "사격수 노출 처벌 패시브가 없습니다.");
+        Assert.IsTrue(HasSkill(rifleman, "kill_order"), "사격수 사살 지시가 없습니다.");
+        Assert.IsTrue(HasSkill(mage, "tactical_mark"), "마도사 전술 표식이 없습니다.");
+        Assert.IsTrue(HasSkill(mage, "balance_hex"), "마도사 균형 교란이 없습니다.");
+        Assert.IsTrue(HasSkill(mage, "arcane_screen"), "마도사 전장 장막이 없습니다.");
+
+        var marksman = FindUnit(state, "opening_marksman", 1);
+        var raider = FindUnit(state, "opening_raider", 1);
+        var bulwark = FindUnit(state, "opening_bulwark", 1);
+        var skirmisher = FindUnit(state, "opening_skirmisher", 1);
+        var officer = FindUnit(state, "opening_officer", 1);
+
+        Assert.IsNotNull(marksman, "총기 압박병이 배치되지 않았습니다.");
+        Assert.IsNotNull(raider, "근접 돌입병이 배치되지 않았습니다.");
+        Assert.IsNotNull(bulwark, "방어형 적이 배치되지 않았습니다.");
+        Assert.IsNotNull(skirmisher, "측면 교란병이 배치되지 않았습니다.");
+        Assert.IsNotNull(officer, "전술 장교가 배치되지 않았습니다.");
+        Assert.AreEqual(SrpWeaponClass.Firearm, marksman.weaponClass, "총기 압박병이 총기 역할이 아닙니다.");
+        Assert.GreaterOrEqual(marksman.attackRange, 5, "총기 압박병 장거리 사선 압박이 부족합니다.");
+        Assert.AreEqual(SrpWeaponClass.Melee, raider.weaponClass, "근접 돌입병이 근접 역할이 아닙니다.");
+        Assert.GreaterOrEqual(raider.moveRange, 5, "근접 돌입병 돌입 이동력이 부족합니다.");
+        Assert.IsTrue(bulwark.HasTag(SrpUnitTags.Tank), "방어형 적이 PG 붕괴 대상으로 충분히 단단하지 않습니다.");
+        Assert.AreEqual(SrpStance.Defensive, bulwark.stance, "방어형 적이 수비 태세가 아닙니다.");
+        Assert.IsTrue(HasSkill(bulwark, "cleave"), "방어형 적이 패링 텔레그래프 확인 스킬을 들고 있지 않습니다.");
+        Assert.IsTrue(HasSkill(officer, "tactical_mark"), "전술 장교가 표식 스킬을 들고 있지 않습니다.");
+        Assert.IsTrue(HasSkill(officer, "kill_order"), "전술 장교가 사살 지시 스킬을 들고 있지 않습니다.");
+
+        bool foundLineBlockingCover = false;
+        bool foundCoverWithStats = false;
+        foreach (var segment in state.CoverSegments)
+        {
+            if (segment == null)
+                continue;
+            if (segment.blocksLineOfSight)
+                foundLineBlockingCover = true;
+            if (segment.coverDef > 0 || segment.coverGrd > 0)
+                foundCoverWithStats = true;
+        }
+        Assert.IsTrue(foundCoverWithStats, "첫 전투 프리셋에 전술적 엄폐 segment가 없습니다.");
+        Assert.IsTrue(foundLineBlockingCover, "첫 전투 프리셋에 사선 차단 segment가 없습니다.");
+        Assert.IsTrue(state.HasAdjacentCover(marksman), "총기 압박병이 방향성 엄폐를 실제로 사용할 수 없습니다.");
+        Assert.IsTrue(state.SkillLookup["cleave"].isParryable, "강타가 패링 가능 스킬로 등록되어 있지 않습니다.");
+        Assert.IsTrue(SrpOverwatch.CanArm(rifleman), "사격수가 오버워치를 예약할 수 있는 초기 상태가 아닙니다.");
+    }
+
+    [Test]
     public void SkillOverclock_CanOverclockOnlyWhenResourceCanRecover()
     {
         var unit = new SrpUnitRuntime
@@ -437,5 +512,23 @@ public class SrpMakerMetadataTests
                 new SrpPlacementData { templateId = template.id, owner = 0, x = 1, y = 1 },
             },
         };
+    }
+
+    static SrpUnitRuntime FindUnit(SrpBattleState state, string templateId, int owner)
+    {
+        foreach (var unit in state.Units)
+            if (unit.templateId == templateId && unit.owner == owner)
+                return unit;
+        return null;
+    }
+
+    static bool HasSkill(SrpUnitRuntime unit, string skillId)
+    {
+        if (unit == null || unit.skillIds == null)
+            return false;
+        foreach (var id in unit.skillIds)
+            if (id == skillId)
+                return true;
+        return false;
     }
 }

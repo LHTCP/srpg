@@ -16,7 +16,7 @@ public partial class SrpGameController : MonoBehaviour
     public SrpMapFileV1 initialMap;
 
     [Tooltip("initialMap이 비어 있을 때 로드할 내장 프리셋.")]
-    public SrpMapPreset startPreset = SrpMapPreset.M1QaIntegrated;
+    public SrpMapPreset startPreset = SrpMapPreset.M1OpeningPrototype;
 
     [Header("Camera")]
     public bool frameCameraOnStart = true;
@@ -79,9 +79,10 @@ public partial class SrpGameController : MonoBehaviour
             initialMap            = SrpGameSettings.CustomMap;
             SrpGameSettings.CustomMap = null;
         }
-        else
+        else if (SrpGameSettings.HasSelectedPreset)
         {
             startPreset = SrpGameSettings.SelectedPreset;
+            SrpGameSettings.HasSelectedPreset = false;
         }
 
         bool mapEmpty = initialMap == null

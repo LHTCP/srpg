@@ -7,7 +7,8 @@ using UnityEngine.SceneManagement;
 public static class SrpGameSettings
 {
     /// <summary>전투 씬에서 사용할 내장 프리셋.</summary>
-    public static SrpMapPreset SelectedPreset = SrpMapPreset.M1QaIntegrated;
+    public static SrpMapPreset SelectedPreset = SrpMapPreset.M1OpeningPrototype;
+    public static bool HasSelectedPreset;
 
     /// <summary>로비에서 JSON으로 불러온 맵. null이면 SelectedPreset 사용.</summary>
     public static SrpMapFileV1 CustomMap = null;
@@ -22,6 +23,7 @@ public static class SrpGameSettings
     public static void StartBattle(SrpMapPreset preset)
     {
         SelectedPreset = preset;
+        HasSelectedPreset = true;
         CustomMap      = null;
         SceneManager.LoadScene(BattleScene);
     }
@@ -30,6 +32,7 @@ public static class SrpGameSettings
     public static void StartBattleWithMap(SrpMapFileV1 map)
     {
         CustomMap = map;
+        HasSelectedPreset = false;
         SceneManager.LoadScene(BattleScene);
     }
 
@@ -37,6 +40,8 @@ public static class SrpGameSettings
     public static void ReturnToLobby()
     {
         CustomMap = null;
+        HasSelectedPreset = false;
+        SelectedPreset = SrpMapPreset.M1OpeningPrototype;
         SceneManager.LoadScene(LobbyScene);
     }
 }

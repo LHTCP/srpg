@@ -26,12 +26,19 @@
 
 ## 현재 실행 플랜
 
-현재 다음 스프린트는 `SRPG_BACKLOG.md`의 "후속 스프린트 (밸런스/검증, P2)"와 `SRPG_IMPLEMENTATION_DECISIONS.md`의 2026-06-02 의사결정 후보를 따른다. 이미 구현한 항목의 브릿지 수치와 다음 의사결정은 `SRPG_IMPLEMENTATION_DECISIONS.md`를 확인한다.
+현재 다음 스프린트는 `SRPG_BACKLOG.md`의 "후속 스프린트 (밸런스/검증, P2)"와 `SRPG_IMPLEMENTATION_DECISIONS.md`의 2026-06-03 의사결정 후보를 따른다. 이미 구현한 항목의 브릿지 수치와 다음 의사결정은 `SRPG_IMPLEMENTATION_DECISIONS.md`를 확인한다.
 
 1. 초기 4인 고유 패시브/대표 스킬 최종 이름, 전직 연계, 밸런스 수치 확정
 2. 맵 메이커 방향성 엄폐 segment 편집 UI
 3. 특수 지형 상호작용의 복합 효과와 승리 조건 연동
 4. 공용 전투 태그/패링/총기 파급 브릿지 수치 밸런스 검증
+5. `M1OpeningPrototype` 실제 플레이/AI 시뮬레이션으로 첫 전투의 적 수, 배치 간격, 루트 선택 가치 검증
+
+## 내장 전투 프리셋 역할
+
+- `M1OpeningPrototype`: 기본 로비 첫 선택 맵. 새 시스템을 늘리지 않고 현재 전투 규칙 조합만으로 한 판의 전술 문제를 판단한다.
+- `M1EngagementLab`: 교전/둘러싸임 QA 맵. 탱커 다중 교전, 교전 이탈 비용, 기회공격을 고정 조건에서 확인한다.
+- `M1QaIntegrated`: deprecated 기능 QA 맵. 로비의 후순위 QA 선택지로 유지하고 코드/자동 테스트 회귀 확인에도 사용한다.
 
 ## 작업 처리 규칙
 

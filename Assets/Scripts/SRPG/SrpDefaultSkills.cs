@@ -8,7 +8,7 @@ public static class SrpDefaultSkills
             {
                 id = "hero_adaptive_heart",
                 displayName = "전장 적응",
-                description = "주인공 고유 패시브. 공격 적중 시 안정도(FH) +3. 패링/오버클럭으로 전장 흐름을 다시 잡는 브릿지 수치.",
+                description = "주인공 고유 패시브. 공격 적중 시 안정도(FH) +3. 패링/오버클럭으로 전장 흐름을 다시 잡는다.",
                 skillType = SrpSkillType.Passive,
                 trigger = SrpSkillTrigger.OnAttackHit,
                 targetType = SrpTargetType.None,
@@ -31,7 +31,7 @@ public static class SrpDefaultSkills
             {
                 id = "tank_line_anchor",
                 displayName = "전열 고정",
-                description = "탱커 고유 패시브. 피격 후 PG +2를 회복한다. 완벽한 수비 조건 유지용 임시 브릿지.",
+                description = "탱커 고유 패시브. 피격 후 PG +2를 회복해 전열과 완벽한 수비 조건을 유지한다.",
                 skillType = SrpSkillType.Passive,
                 trigger = SrpSkillTrigger.OnTakeDamage,
                 targetType = SrpTargetType.None,
@@ -54,7 +54,7 @@ public static class SrpDefaultSkills
             {
                 id = "rifle_exposed_punisher",
                 displayName = "노출 처벌",
-                description = "사격수 고유 패시브. 공격 적중 시 안정도(FH) +2. 사살 지시/오버워치 후속 압박 검증용 브릿지.",
+                description = "사격수 고유 패시브. 공격 적중 시 안정도(FH) +2. 엄폐 밖의 적을 압박하고 후속 사격을 준비한다.",
                 skillType = SrpSkillType.Passive,
                 trigger = SrpSkillTrigger.OnAttackHit,
                 targetType = SrpTargetType.None,
@@ -77,7 +77,7 @@ public static class SrpDefaultSkills
             {
                 id = "mage_field_theory",
                 displayName = "전장 해석",
-                description = "마도사 고유 패시브. 턴 시작 시 안정도(FH) +2. 표식/제어 스킬 오버클럭 진입용 브릿지.",
+                description = "마도사 고유 패시브. 턴 시작 시 안정도(FH) +2. 표식과 제어 스킬의 사용 리듬을 앞당긴다.",
                 skillType = SrpSkillType.Passive,
                 trigger = SrpSkillTrigger.OnTurnStart,
                 targetType = SrpTargetType.None,
@@ -100,7 +100,7 @@ public static class SrpDefaultSkills
             {
                 id = "heart_spike",
                 displayName = "심장 관통",
-                description = "호환용 패시브. 공격 적중 시 자신의 빙결된 심장(FH) +5",
+                description = "공격 적중 시 자신의 빙결된 심장(FH) +5.",
                 skillType = SrpSkillType.Passive,
                 trigger = SrpSkillTrigger.OnAttackHit,
                 targetType = SrpTargetType.None,
@@ -123,7 +123,7 @@ public static class SrpDefaultSkills
             {
                 id = "fh_bless_ally",
                 displayName = "빙결 축복",
-                description = "호환용 패시브. 턴 시작 시 자신의 FH +2",
+                description = "턴 시작 시 자신의 빙결된 심장(FH) +2.",
                 skillType = SrpSkillType.Passive,
                 trigger = SrpSkillTrigger.OnTurnStart,
                 targetType = SrpTargetType.None,
@@ -273,7 +273,7 @@ public static class SrpDefaultSkills
             {
                 id = "arcane_screen",
                 displayName = "전장 장막",
-                description = "사거리 3 내 아군의 PG를 4 회복한다. 마법/전장 개입 최소 스킬 브릿지.",
+                description = "사거리 3 내 아군의 PG를 4 회복한다. 전열을 다시 세우는 마법 장막.",
                 skillType = SrpSkillType.Active,
                 trigger = SrpSkillTrigger.OnActivate,
                 targetType = SrpTargetType.SingleAlly,

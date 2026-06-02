@@ -19,7 +19,7 @@ public class SrpLobbyController : MonoBehaviour
 
     // ── 상태 ──────────────────────────────────────────────────────────────────
 
-    SrpMapPreset   _selectedPreset = SrpMapPreset.M1QaIntegrated;
+    SrpMapPreset   _selectedPreset = SrpMapPreset.M1OpeningPrototype;
     SrpMapFileV1   _loadedMap;
 
     Button[]  _presetButtons;
@@ -28,11 +28,13 @@ public class SrpLobbyController : MonoBehaviour
     TMP_Dropdown    _ddMapSelect;
     static readonly SrpMapPreset[] PresetValues =
     {
+        SrpMapPreset.M1OpeningPrototype,
         SrpMapPreset.M1QaIntegrated,
         SrpMapPreset.M1EngagementLab,
     };
     static readonly string[] PresetLabels =
     {
+        "첫 전투\n프로토타입",
         "M1 QA\n통합 검증",
         "교전/포위\n검증 랩",
     };

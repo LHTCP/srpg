@@ -11,7 +11,7 @@
 
 ## 0. 현재 착수 상태
 
-2026-06-02 기준 Phase2 1차 전투 코어 기반 작업, 교전 이탈 비용 브릿지, 교전 이탈 기회공격 1차 구현, 스킬 자원 기본 모델, 패링 조건/텔레그래프 1차 구현, 반응행동 파이프라인 1차 구현, 수비 지속 완충/탱커 다중 대응 브릿지, 메이커 메타데이터 UI 확장, 중간 점검 보정, 유닛 시각 방향성 개선, 교전/둘러싸임 검증 프리셋 보강, RP/HUD 노출 정책 정리, 기획 대조 P1 보정, HUD/로그 가독성 동기화, 오버워치 사선/횟수/해제 상세 규칙, 테스트 프리셋 v2 + HUD 레이아웃 개편, 전투 직접 조작 UI 보강, 오버클럭 성능 증폭, 재장전 AP 행동 1차 구현, 엄폐 AP 행동 1차 구현, 상호작용 AP 행동 1차 구현, 개발용 전술 HUD 개선, 총기 1발 고화력 + 방향성 엄폐 설계, 방향성 엄폐 1차 구현, 11~23 대화 정책 잠금/문서 정렬, 전투 플레이 가능성 P1 확장, 다음 P1 초기 4인/방향성 엄폐/오버워치/마법 브릿지를 완료했다.
+2026-06-03 기준 Phase2 1차 전투 코어 기반 작업, 교전 이탈 비용 브릿지, 교전 이탈 기회공격 1차 구현, 스킬 자원 기본 모델, 패링 조건/텔레그래프 1차 구현, 반응행동 파이프라인 1차 구현, 수비 지속 완충/탱커 다중 대응 브릿지, 메이커 메타데이터 UI 확장, 중간 점검 보정, 유닛 시각 방향성 개선, 교전/둘러싸임 검증 프리셋 보강, RP/HUD 노출 정책 정리, 기획 대조 P1 보정, HUD/로그 가독성 동기화, 오버워치 사선/횟수/해제 상세 규칙, 테스트 프리셋 v2 + HUD 레이아웃 개편, 전투 직접 조작 UI 보강, 오버클럭 성능 증폭, 재장전 AP 행동 1차 구현, 엄폐 AP 행동 1차 구현, 상호작용 AP 행동 1차 구현, 개발용 전술 HUD 개선, 총기 1발 고화력 + 방향성 엄폐 설계, 방향성 엄폐 1차 구현, 11~23 대화 정책 잠금/문서 정렬, 전투 플레이 가능성 P1 확장, 다음 P1 초기 4인/방향성 엄폐/오버워치/마법 브릿지, 첫 전투 프로토타입 프리셋 분리를 완료했다.
 
 완료 범위:
 
@@ -79,6 +79,9 @@
 - `SrpBattleState.cs`, `SrpOverwatch.cs`, `SrpCombatResolver.cs`: `blocksLineOfSight` edge segment를 오버워치와 총기 기본 공격 사선 차단에 연결
 - `SrpOverwatch.cs`, `SrpGameController.cs`: 여러 오버워치 후보 우선순위를 거리/속도/unit id 순으로 선택
 - `SrpDefaultMaps.cs`: `M1QaIntegrated`를 플레이어 4인 역할 검증과 사선 차단 엄폐 segment 확인용으로 갱신
+- `SrpMapPreset.cs`, `SrpDefaultMaps.cs`: 첫 전투 프로토타입 내장 프리셋 `M1OpeningPrototype` 추가
+- `SrpGameSettings.cs`, `SrpGameController.cs`, `SrpLobbyController.cs`: 기본 전투 진입값과 로비 첫 선택을 `M1OpeningPrototype`으로 교체하고 `M1QaIntegrated`는 로비 후순위 QA 선택지와 코드/자동 테스트용 deprecated 프리셋으로 유지
+- `SrpDefaultSkills.cs`: 플레이어가 보는 기본 스킬 설명에서 `브릿지`/`호환용` 표현을 줄이고 임시 수치는 문서로 분리
 - EditMode 테스트: 교전/반응 클론 독립성, Guard RP 소비, 라운드 RP 리셋, 교전 이탈 비용, 기회공격 발생/미발생, 쿨다운/충전/오버클럭, 오버클럭 성능 증폭, 패링 가능/불가 조건, Parry/Dodge/명시형 ReactionShot, 오버워치 사선/차단/후보 우선순위, 수비 지속 완충/탱커 다중 대응, 메이커 JSON 메타 보존, 중간 점검 회귀, 유닛 뷰 방향 회전, 프리셋 기반 교전/포위 검증, QA 프리셋 v2 스킬/태그/초기 4인/사선 차단 검증, 오버클럭 가능 조건, 오버워치 상태 helper, 탄약/재장전/오버워치 탄약 소비, 엄폐 판정/완충/사선 차단, 상호작용 탐색/실행/owner 제한/클론/JSON/프리셋, 총기 HP-PG 파급, 공용 전투 태그, 패링 보상, 완벽한 수비, 마법 전장 개입 검증 추가
 - PlayMode 테스트: HUD의 반응 상태 표기(`반응: 준비/소모/예약`), 상단 헤더/좌측 콘솔/하단 유닛 카드/행동 preview 카드, 태세/방향/오버클럭/재장전/엄폐/상호작용 직접 조작, 범례, 오버워치 버튼, hover 문구, 로그 핵심 문구를 스모크 검증
 
@@ -104,14 +107,15 @@
 
 검증:
 
-- Unity EditMode 테스트 통과: `75 passed / 0 failed`
-- Unity PlayMode 테스트 통과: `5 passed / 0 failed`
+- Unity EditMode 테스트 통과: `76 passed / 0 failed`
+- Unity PlayMode 테스트 통과: `6 passed / 0 failed`
 - 실행 명령:
   - `Unity.exe -batchmode -automated -projectPath <repo> -runTests -testPlatform EditMode -testResults <repo>/TestResults-EditMode.xml -logFile <repo>/UnityTest-EditMode.log`
 
 다음 착수 후보:
 
 - P1/P2: 맵 메이커 엄폐 segment 편집 UI
+- P2: `M1OpeningPrototype` 실제 플레이/AI 시뮬레이션 기반 첫 전투 밸런스 보정
 - P2: 초기 4인 고유 패시브/대표 스킬 최종 이름, 전직 연계, 밸런스 수치 확정
 - P2: 특수 지형 상호작용의 복합 효과와 승리 조건 연동
 - P2: 공용 전투 태그/패링/총기 파급 브릿지 수치 밸런스 검증

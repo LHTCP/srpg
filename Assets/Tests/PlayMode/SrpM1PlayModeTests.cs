@@ -7,8 +7,11 @@ using UnityEngine.TestTools;
 public class SrpM1PlayModeTests
 {
     [UnityTest]
-    public IEnumerator M1IntegratedPreset_InitializesRoundAndHud()
+    public IEnumerator DefaultOpeningPrototypePreset_InitializesRoundAndHud()
     {
+        SrpGameSettings.CustomMap = null;
+        SrpGameSettings.SelectedPreset = SrpMapPreset.M1OpeningPrototype;
+        SrpGameSettings.HasSelectedPreset = true;
         var go = new GameObject("SrpM1PlayModeTests_Controller");
         var controller = go.AddComponent<SrpGameController>();
 
@@ -25,7 +28,7 @@ public class SrpM1PlayModeTests
         Assert.IsTrue(controller.TestHudReady, $"HUD 초기화 실패 (waitedFrames={waited})");
         Assert.GreaterOrEqual(controller.TestRoundNumber, 1, "라운드 번호 초기화 실패");
         Assert.Greater(controller.TestCurrentUnitId, 0, "현재 행동 유닛 미설정");
-        Assert.GreaterOrEqual(controller.TestAliveUnitCount(), 4, "M1 통합 프리셋 유닛 수 부족");
+        Assert.AreEqual(9, controller.TestAliveUnitCount(), "기본 첫 전투 프리셋 유닛 수가 초기화 계약과 다릅니다.");
         Assert.IsTrue(controller.TestHasTopStatusPanel, "상단 전투 상태 헤더가 생성되지 않았습니다.");
         Assert.IsTrue(controller.TestHasLeftConsolePanel, "좌측 조작 콘솔이 생성되지 않았습니다.");
         Assert.IsTrue(controller.TestHasActiveUnitCardPanel, "좌측 하단 현재 유닛 카드가 생성되지 않았습니다.");
@@ -38,6 +41,7 @@ public class SrpM1PlayModeTests
         var previewCard = controller.TestActionPreviewText;
         StringAssert.Contains($"라운드 {controller.TestRoundNumber}", turnHud);
         StringAssert.Contains($"({controller.TestCurrentUnitId})", turnHud);
+        StringAssert.Contains("m1_opening_prototype", turnHud);
         StringAssert.Contains("라운드", turnHud);
         StringAssert.Contains("현재:", turnHud);
         StringAssert.Contains("대기:", turnHud);
@@ -81,6 +85,37 @@ public class SrpM1PlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator M1OpeningPrototypePreset_InitializesFromGameSettings()
+    {
+        var previousPreset = SrpGameSettings.SelectedPreset;
+        SrpGameSettings.CustomMap = null;
+        SrpGameSettings.SelectedPreset = SrpMapPreset.M1OpeningPrototype;
+        SrpGameSettings.HasSelectedPreset = true;
+
+        var go = new GameObject("SrpM1PlayModeTests_OpeningPrototypeController");
+        var controller = go.AddComponent<SrpGameController>();
+
+        const int maxWaitFrames = 120;
+        int waited = 0;
+        while (!controller.TestHudReady && waited < maxWaitFrames)
+        {
+            waited++;
+            yield return null;
+        }
+
+        Assert.IsTrue(controller.TestHudReady, $"첫 전투 프리셋 HUD 초기화 실패 (waitedFrames={waited})");
+        Assert.AreEqual(9, controller.TestAliveUnitCount(), "첫 전투 프리셋 유닛 수가 초기화 계약과 다릅니다.");
+        StringAssert.Contains("m1_opening_prototype", controller.TestTurnHudText);
+        StringAssert.Contains("SRPG 프로토타입", controller.TestLogText);
+
+        Object.Destroy(go);
+        SrpGameSettings.SelectedPreset = previousPreset;
+        SrpGameSettings.HasSelectedPreset = false;
+        SrpGameSettings.CustomMap = null;
+        yield return null;
+    }
+
+    [UnityTest]
     public IEnumerator M1CombatSplit_FirearmVsMelee_IsMaintainedInPlayMode()
     {
         var firearm = new SrpUnitRuntime
@@ -110,6 +145,9 @@ public class SrpM1PlayModeTests
     [UnityTest]
     public IEnumerator DangerAreaAndHoverPreview_UpdatesStatusText()
     {
+        SrpGameSettings.CustomMap = null;
+        SrpGameSettings.SelectedPreset = SrpMapPreset.M1QaIntegrated;
+        SrpGameSettings.HasSelectedPreset = true;
         var go = new GameObject("SrpM1PlayModeTests_UxController");
         var controller = go.AddComponent<SrpGameController>();
 
@@ -165,12 +203,18 @@ public class SrpM1PlayModeTests
         yield return null;
 
         Object.Destroy(go);
+        SrpGameSettings.SelectedPreset = SrpMapPreset.M1OpeningPrototype;
+        SrpGameSettings.HasSelectedPreset = false;
+        SrpGameSettings.CustomMap = null;
         yield return null;
     }
 
     [UnityTest]
     public IEnumerator DirectControlUi_ChangesStanceFacingAndOverclocksSkill()
     {
+        SrpGameSettings.CustomMap = null;
+        SrpGameSettings.SelectedPreset = SrpMapPreset.M1QaIntegrated;
+        SrpGameSettings.HasSelectedPreset = true;
         var go = new GameObject("SrpM1PlayModeTests_DirectControlController");
         var controller = go.AddComponent<SrpGameController>();
 
@@ -222,6 +266,9 @@ public class SrpM1PlayModeTests
         StringAssert.Contains("강화 대기", controller.TestUnitHudText);
 
         Object.Destroy(go);
+        SrpGameSettings.SelectedPreset = SrpMapPreset.M1OpeningPrototype;
+        SrpGameSettings.HasSelectedPreset = false;
+        SrpGameSettings.CustomMap = null;
         yield return null;
     }
 

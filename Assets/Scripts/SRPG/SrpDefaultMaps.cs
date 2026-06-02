@@ -9,6 +9,8 @@ public static class SrpDefaultMaps
     {
         switch (preset)
         {
+            case SrpMapPreset.M1OpeningPrototype:
+                return CreateM1OpeningPrototype();
             case SrpMapPreset.M1EngagementLab:
                 return CreateM1EngagementLab();
             case SrpMapPreset.M1QaIntegrated:
@@ -179,6 +181,285 @@ public static class SrpDefaultMaps
         {
             version = 2,
             name = "m1_qa_integrated",
+            width = w,
+            height = h,
+            walkable = walk,
+            playerOrder = new[] { 0, 1 },
+            templates = templates,
+            placements = placements,
+            interactionPoints = interactionPoints,
+            coverSegments = coverSegments,
+        };
+    }
+
+    /// <summary>
+    /// 첫 전투 프로토타입 프리셋.
+    /// - QA용 대칭 검증이 아니라 6~10턴 안에 판단 가능한 소형 전술 문제로 구성한다.
+    /// - 북쪽 사격 루트와 남쪽 돌입/상호작용 루트를 분리하고, 사선 차단 엄폐로 총기 압박을 조절한다.
+    /// - 승리 시스템은 전멸 유지지만, 동쪽 장교를 전술 목표처럼 느끼도록 배치한다.
+    /// </summary>
+    public static SrpMapFileV1 CreateM1OpeningPrototype()
+    {
+        int w = 12, h = 9;
+        int n = w * h;
+        var walk = new bool[n];
+        for (int i = 0; i < n; i++)
+            walk[i] = true;
+
+        // 중앙 폐허. 북쪽 사격로와 남쪽 돌입로를 만들고, 중앙 직선 돌파는 좁게 만든다.
+        walk[4 + 3 * w] = false;
+        walk[5 + 3 * w] = false;
+        walk[6 + 3 * w] = false;
+        walk[4 + 5 * w] = false;
+        walk[5 + 5 * w] = false;
+        walk[6 + 5 * w] = false;
+
+        var templates = new[]
+        {
+            new SrpUnitTemplateData
+            {
+                id = "breaker",
+                displayName = "주인공",
+                moveRange = 5,
+                attackRange = 1,
+                attackPower = 11,
+                maxHp = 34,
+                maxPg = 22,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 10,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.East,
+                skillIds = new[] { "hero_adaptive_heart", "cleave" },
+                maxSkills = 4,
+                tags = (int)SrpUnitTags.ParryUser,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "vanguard",
+                displayName = "전열 탱커",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 9,
+                maxHp = 42,
+                maxPg = 28,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 8,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Defensive,
+                facing = SrpFacing.East,
+                skillIds = new[] { "tank_line_anchor", "cleave" },
+                maxSkills = 4,
+                tags = (int)SrpUnitTags.Tank,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "rifleman",
+                displayName = "사격수",
+                moveRange = 4,
+                attackRange = 5,
+                attackPower = 8,
+                maxAmmo = 1,
+                maxHp = 28,
+                maxPg = 16,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 12,
+                weaponClass = SrpWeaponClass.Firearm,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.East,
+                skillIds = new[] { "rifle_exposed_punisher", "kill_order" },
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "mage",
+                displayName = "마도사",
+                moveRange = 4,
+                attackRange = 3,
+                attackPower = 7,
+                maxHp = 26,
+                maxPg = 15,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 9,
+                weaponClass = SrpWeaponClass.Magic,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.East,
+                skillIds = new[] { "mage_field_theory", "tactical_mark", "balance_hex", "arcane_screen" },
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "opening_marksman",
+                displayName = "총기 압박병",
+                moveRange = 3,
+                attackRange = 5,
+                attackPower = 7,
+                maxAmmo = 1,
+                maxHp = 24,
+                maxPg = 14,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 11,
+                weaponClass = SrpWeaponClass.Firearm,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.West,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "opening_raider",
+                displayName = "근접 돌입병",
+                moveRange = 5,
+                attackRange = 1,
+                attackPower = 8,
+                maxHp = 28,
+                maxPg = 18,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 11,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.West,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "opening_bulwark",
+                displayName = "방어형 적",
+                moveRange = 3,
+                attackRange = 1,
+                attackPower = 8,
+                maxHp = 38,
+                maxPg = 28,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 7,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Defensive,
+                facing = SrpFacing.West,
+                skillIds = new[] { "cleave" },
+                maxSkills = 4,
+                tags = (int)SrpUnitTags.Tank,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "opening_skirmisher",
+                displayName = "측면 교란병",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 7,
+                maxHp = 24,
+                maxPg = 16,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 10,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.West,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "opening_officer",
+                displayName = "전술 장교",
+                moveRange = 3,
+                attackRange = 3,
+                attackPower = 7,
+                maxHp = 30,
+                maxPg = 18,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 9,
+                weaponClass = SrpWeaponClass.Magic,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.West,
+                skillIds = new[] { "tactical_mark", "kill_order" },
+                maxSkills = 4,
+                tags = 0,
+            },
+        };
+
+        var placements = new[]
+        {
+            // Owner 0: 첫 4인 파티.
+            new SrpPlacementData { templateId = "rifleman", owner = 0, x = 1, y = 2, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "vanguard", owner = 0, x = 2, y = 4, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "breaker", owner = 0, x = 1, y = 5, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "mage", owner = 0, x = 1, y = 6, footprint = new SrpOffset[0] },
+
+            // Owner 1: 비대칭 적 역할.
+            new SrpPlacementData { templateId = "opening_marksman", owner = 1, x = 9, y = 2, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "opening_bulwark", owner = 1, x = 8, y = 4, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "opening_raider", owner = 1, x = 7, y = 6, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "opening_skirmisher", owner = 1, x = 9, y = 6, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "opening_officer", owner = 1, x = 10, y = 5, footprint = new SrpOffset[0] },
+        };
+
+        var interactionPoints = new[]
+        {
+            new SrpInteractionPointData
+            {
+                id = "opening_signal_crank",
+                displayName = "신호 장치",
+                x = 4,
+                y = 6,
+                owner = -1,
+                requiredOwner = 0,
+                singleUse = true,
+                activated = false,
+            },
+        };
+
+        var coverSegments = new[]
+        {
+            new SrpCoverSegmentData
+            {
+                x = 3,
+                y = 2,
+                edge = SrpCoverEdge.East,
+                shape = SrpCoverShape.Linear,
+                coverDef = 3,
+                coverGrd = 1,
+                blocksLineOfSight = false,
+            },
+            new SrpCoverSegmentData
+            {
+                x = 9,
+                y = 2,
+                edge = SrpCoverEdge.West,
+                shape = SrpCoverShape.Linear,
+                coverDef = 4,
+                coverGrd = 2,
+                blocksLineOfSight = true,
+            },
+            new SrpCoverSegmentData
+            {
+                x = 7,
+                y = 6,
+                edge = SrpCoverEdge.West,
+                shape = SrpCoverShape.Corner,
+                coverDef = 2,
+                coverGrd = 2,
+                blocksLineOfSight = false,
+            },
+        };
+
+        return new SrpMapFileV1
+        {
+            version = 2,
+            name = "m1_opening_prototype",
             width = w,
             height = h,
             walkable = walk,
