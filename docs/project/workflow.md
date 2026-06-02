@@ -52,7 +52,8 @@ Implement speed-based round order for SRPG v1
 - PR 하나는 한 주제를 다루고, 리뷰 가능한 크기를 유지한다.
 - 문서·정책 PR과 코드·CI PR을 섞어 키우지 않는다.
 - 플랫폼별 빌드처럼 무거운 변경은 빠른 검증 PR과 분리한다.
-- 이슈와 PR 본문 언어는 로컬/팀 설정을 따른다. 이 프로젝트의 현재 로컬 선호 예시는 한국어다.
+- 이 프로젝트의 PR 제목과 본문은 한국어를 기본으로 작성한다.
+- 외부 도구 출력, 명령 이름, Conventional Commit 접두사처럼 그대로 두는 편이 명확한 표현은 영어를 섞을 수 있다.
 - PR 템플릿과 브랜치 보호 기준은 [github-governance.md](github-governance.md)를 따른다.
 
 ## 머지 방식과 로컬 정리
