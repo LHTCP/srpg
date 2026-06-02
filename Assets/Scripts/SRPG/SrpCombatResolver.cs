@@ -22,6 +22,13 @@ public static class SrpCombatResolver
     const int BackAttackHpBonus = 2;
     const int BackAttackPgBonus = 2;
     const int FirearmHpToPgSpilloverPercent = 50;
+    const int ParryCounterPgDamage = 8;
+    const int MarkedPgBonus = 2;
+    const int BalanceBrokenPgBonus = 4;
+    const int KillOrderHpBonus = 2;
+    const int KillOrderPgBonus = 2;
+    const SrpCombatTag ConsumableCombatTags =
+        SrpCombatTag.Marked | SrpCombatTag.BalanceBroken | SrpCombatTag.KillOrder;
 
     public struct AttackOutcome
     {
@@ -37,11 +44,22 @@ public static class SrpCombatResolver
         public int reducedPgByTank;
         public int reducedHpByCover;
         public int reducedPgByCover;
+        public int coverGrdCapacity;
+        public int reducedHpByPerfectDefense;
+        public int firearmPgSpillover;
+        public int bonusHpFromCombatTags;
+        public int bonusPgFromCombatTags;
+        public SrpCombatTag consumedCombatTags;
+        public int parryCounterDamageToPg;
         public SrpReactionKind reactionKind;
         public bool reactionSpentRp;
         public bool sustainedDefenseBufferApplied;
         public bool tankMultiEngagementBufferApplied;
         public bool coverBufferApplied;
+        public bool perfectDefenseApplied;
+        public bool combatTagBonusApplied;
+        public bool parryAppliedBalanceBreak;
+        public bool parryCounterBecameGroggy;
         public bool wasDodged;
         public bool dodgeFailed;
         public bool wasParried;
@@ -57,7 +75,11 @@ public static class SrpCombatResolver
         if (attacker.owner == defender.owner)
             return false;
         int dist = state.ChebyshevAnchor(attacker, defender);
-        return dist <= attacker.attackRange;
+        if (dist > attacker.attackRange)
+            return false;
+        if (attacker.weaponClass == SrpWeaponClass.Firearm && dist > 1)
+            return SrpOverwatch.IsTileInLineOfSight(state, attacker, defender.anchorX, defender.anchorY, attacker.attackRange, defender.id);
+        return true;
     }
 
     public static bool CanDefenderParry(
@@ -133,7 +155,7 @@ public static class SrpCombatResolver
         attacker.lastReactionKind = SrpReactionKind.ReactionShot;
         attacker.lastReactionRound = state.RoundNumber;
         attacker.lastReactionSourceId = defender.id;
-        outcome = ApplyAttack(state, attacker, defender, null);
+        outcome = ApplyAttack(state, attacker, defender, null, true);
         return true;
     }
 
@@ -160,11 +182,17 @@ public static class SrpCombatResolver
         ApplySustainedDefenseBuffers(state, defender, ref hpDamage, ref pgDamage, ref outcome);
         ApplyCoverBuffer(state, attacker, defender, ref hpDamage, ref pgDamage, ref outcome);
         ApplyReactionIfAvailable(state, attacker, defender, attackSkill, ref hpDamage, ref pgDamage, ref outcome);
+        ApplyCombatTagPressure(attacker, defender, ref hpDamage, ref pgDamage, ref outcome);
         RecordDefensivePressure(state, defender);
         return outcome;
     }
 
     public static AttackOutcome ApplyAttack(SrpBattleState state, SrpUnitRuntime attacker, SrpUnitRuntime defender, SrpSkillData attackSkill)
+    {
+        return ApplyAttack(state, attacker, defender, attackSkill, false);
+    }
+
+    static AttackOutcome ApplyAttack(SrpBattleState state, SrpUnitRuntime attacker, SrpUnitRuntime defender, SrpSkillData attackSkill, bool isOpportunityAttack)
     {
         var o = new AttackOutcome();
         int raw = Mathf.Max(1, attacker.attackPower);
@@ -203,9 +231,12 @@ public static class SrpCombatResolver
             ApplyDirectionalVulnerability(attacker, defender, ref hpDamage, ref pgDamage);
             ApplyConstantMitigation(defender, ref hpDamage, ref pgDamage, ref o);
             ApplySustainedDefenseBuffers(state, defender, ref hpDamage, ref pgDamage, ref o);
-            ApplyFirearmHpSpillover(attacker, hpDamage, ref pgDamage);
             ApplyCoverBuffer(state, attacker, defender, ref hpDamage, ref pgDamage, ref o);
             ApplyReactionIfAvailable(state, attacker, defender, attackSkill, ref hpDamage, ref pgDamage, ref o);
+            bool isMajorHpThreat = attacker.weaponClass == SrpWeaponClass.Firearm || isOpportunityAttack;
+            ApplyPerfectDefense(attacker, defender, isMajorHpThreat, ref hpDamage, ref o);
+            ApplyCombatTagPressure(attacker, defender, ref hpDamage, ref pgDamage, ref o);
+            ApplyFirearmHpSpillover(attacker, hpDamage, ref pgDamage, ref o);
         }
 
         ApplyResolvedDamage(defender, ref o, hpDamage, pgDamage);
@@ -314,11 +345,69 @@ public static class SrpCombatResolver
 
         int beforeHp = hpDamage;
         int beforePg = pgDamage;
+        outcome.coverGrdCapacity = Mathf.Max(outcome.coverGrdCapacity, coverGrd);
         hpDamage = Mathf.Max(0, hpDamage - coverDef);
         pgDamage = Mathf.Max(0, pgDamage - coverGrd);
         outcome.reducedHpByCover += beforeHp - hpDamage;
         outcome.reducedPgByCover += beforePg - pgDamage;
         outcome.coverBufferApplied = outcome.reducedHpByCover > 0 || outcome.reducedPgByCover > 0;
+    }
+
+    static void ApplyPerfectDefense(
+        SrpUnitRuntime attacker,
+        SrpUnitRuntime defender,
+        bool isMajorHpThreat,
+        ref int hpDamage,
+        ref AttackOutcome outcome)
+    {
+        if (attacker == null || defender == null || hpDamage <= 0 || isMajorHpThreat)
+            return;
+        if (!defender.HasTag(SrpUnitTags.Tank))
+            return;
+        if (defender.stance != SrpStance.Defensive || defender.pg <= 0 || defender.groggy)
+            return;
+        if (IsAttackerBehindDefender(attacker, defender))
+            return;
+
+        outcome.reducedHpByPerfectDefense += hpDamage;
+        hpDamage = 0;
+        outcome.perfectDefenseApplied = true;
+    }
+
+    static void ApplyCombatTagPressure(
+        SrpUnitRuntime attacker,
+        SrpUnitRuntime defender,
+        ref int hpDamage,
+        ref int pgDamage,
+        ref AttackOutcome outcome)
+    {
+        if (attacker == null || defender == null || attacker.owner == defender.owner)
+            return;
+        if (hpDamage <= 0 && pgDamage <= 0)
+            return;
+
+        var consumed = defender.ConsumeCombatTags(ConsumableCombatTags);
+        if (consumed == SrpCombatTag.None)
+            return;
+
+        int hpBonus = 0;
+        int pgBonus = 0;
+        if ((consumed & SrpCombatTag.Marked) != 0)
+            pgBonus += MarkedPgBonus;
+        if ((consumed & SrpCombatTag.BalanceBroken) != 0)
+            pgBonus += BalanceBrokenPgBonus;
+        if ((consumed & SrpCombatTag.KillOrder) != 0)
+        {
+            hpBonus += KillOrderHpBonus;
+            pgBonus += KillOrderPgBonus;
+        }
+
+        hpDamage += hpBonus;
+        pgDamage += pgBonus;
+        outcome.bonusHpFromCombatTags += hpBonus;
+        outcome.bonusPgFromCombatTags += pgBonus;
+        outcome.consumedCombatTags |= consumed;
+        outcome.combatTagBonusApplied = hpBonus > 0 || pgBonus > 0;
     }
 
     static bool TryGetCoverMitigation(
@@ -368,12 +457,21 @@ public static class SrpCombatResolver
         defender.defensiveHitsTakenThisRound++;
     }
 
-    static void ApplyFirearmHpSpillover(SrpUnitRuntime attacker, int hpDamage, ref int pgDamage)
+    static void ApplyFirearmHpSpillover(SrpUnitRuntime attacker, int hpDamage, ref int pgDamage, ref AttackOutcome outcome)
     {
         if (attacker == null || attacker.weaponClass != SrpWeaponClass.Firearm || hpDamage <= 0)
             return;
 
         int spillover = Mathf.FloorToInt(hpDamage * FirearmHpToPgSpilloverPercent / 100f);
+        outcome.firearmPgSpillover += spillover;
+        int remainingCoverGrd = Mathf.Max(0, outcome.coverGrdCapacity - outcome.reducedPgByCover);
+        if (remainingCoverGrd > 0)
+        {
+            int reducedByCover = Mathf.Min(spillover, remainingCoverGrd);
+            spillover -= reducedByCover;
+            outcome.reducedPgByCover += reducedByCover;
+            outcome.coverBufferApplied = true;
+        }
         pgDamage += spillover;
     }
 
@@ -427,7 +525,26 @@ public static class SrpCombatResolver
             outcome.wasParried = true;
             hpDamage = 0;
             pgDamage = 0;
+            ApplyParryReward(attacker, ref outcome);
         }
+    }
+
+    static void ApplyParryReward(SrpUnitRuntime attacker, ref AttackOutcome outcome)
+    {
+        if (attacker == null || attacker.eliminated)
+            return;
+
+        int beforePg = attacker.pg;
+        attacker.pg = Mathf.Max(0, attacker.pg - ParryCounterPgDamage);
+        outcome.parryCounterDamageToPg = beforePg - attacker.pg;
+        if (beforePg > 0 && attacker.pg <= 0)
+        {
+            attacker.groggy = true;
+            outcome.parryCounterBecameGroggy = true;
+        }
+
+        attacker.AddCombatTag(SrpCombatTag.BalanceBroken);
+        outcome.parryAppliedBalanceBreak = true;
     }
 
     static SrpReactionKind ChooseReaction(SrpBattleState state, SrpUnitRuntime attacker, SrpUnitRuntime defender, SrpSkillData attackSkill)

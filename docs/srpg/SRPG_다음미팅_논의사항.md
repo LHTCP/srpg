@@ -1,4 +1,6 @@
-# SRPG v1 다음 미팅 필수 논의사항
+# SRPG v1 의사결정 메모
+
+상태: 과거 기준 참고 문서. 현재 구현 우선순위와 스프린트 계획은 `SRPG_BACKLOG.md`와 `SRPG_PHASE2_CODE_BACKLOG.md`를 따른다.
 
 ## 우선순위 A (이번 스프린트 착수 전 확정)
 

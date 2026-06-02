@@ -27,6 +27,16 @@ public class SrpMakerMetadataTests
                     overclockPowerBonus = 4,
                     isParryable = true,
                     requiresParryTelegraph = true,
+                    effects = new[]
+                    {
+                        new SrpSkillEffect
+                        {
+                            type = SrpEffectType.ApplyCombatTag,
+                            stat = "marked",
+                            value = 0,
+                            duration = 1,
+                        },
+                    },
                 },
             },
         };
@@ -43,6 +53,8 @@ public class SrpMakerMetadataTests
         Assert.AreEqual(4, skill.overclockPowerBonus);
         Assert.IsTrue(skill.isParryable);
         Assert.IsTrue(skill.requiresParryTelegraph);
+        Assert.AreEqual(SrpEffectType.ApplyCombatTag, skill.effects[0].type);
+        Assert.AreEqual("marked", skill.effects[0].stat);
     }
 
     [Test]
@@ -312,9 +324,19 @@ public class SrpMakerMetadataTests
         bool foundFirearmLine = false;
         bool foundInteractionPoint = state.InteractionPoints.Count > 0;
         bool foundDirectionalCover = state.CoverSegments.Count > 0;
+        bool foundLineBlockingCover = false;
+        bool foundCombatTagSkill = false;
+        bool foundHero = false;
+        bool foundPlayerTank = false;
+        bool foundRiflemanPassive = false;
+        bool foundMageIntervention = false;
 
         foreach (var unit in state.Units)
         {
+            if (unit.owner == 0 && unit.templateId == "breaker" && unit.HasTag(SrpUnitTags.ParryUser))
+                foundHero = true;
+            if (unit.owner == 0 && unit.templateId == "vanguard" && unit.HasTag(SrpUnitTags.Tank))
+                foundPlayerTank = true;
             if (unit.HasTag(SrpUnitTags.Tank))
                 foundTank = true;
             if (unit.weaponClass == SrpWeaponClass.Firearm && unit.attackRange >= 4)
@@ -328,7 +350,20 @@ public class SrpMakerMetadataTests
                     foundChargeSkill = true;
                 if (skill.isParryable || skill.requiresParryTelegraph)
                     foundParrySkill = true;
+                if (skill.id == "rifle_exposed_punisher")
+                    foundRiflemanPassive = true;
+                if (skill.id == "arcane_screen")
+                    foundMageIntervention = true;
+                if (skill.effects != null)
+                    foreach (var effect in skill.effects)
+                        if (effect.type == SrpEffectType.ApplyCombatTag)
+                            foundCombatTagSkill = true;
             }
+        }
+        foreach (var segment in state.CoverSegments)
+        {
+            if (segment != null && segment.blocksLineOfSight)
+                foundLineBlockingCover = true;
         }
 
         Assert.IsTrue(foundChargeSkill, "M1 QA 프리셋이 충전형 스킬 체험 유닛을 포함하지 않습니다.");
@@ -337,6 +372,12 @@ public class SrpMakerMetadataTests
         Assert.IsTrue(foundFirearmLine, "M1 QA 프리셋이 오버워치 사선 확인용 총기 유닛을 포함하지 않습니다.");
         Assert.IsTrue(foundInteractionPoint, "M1 QA 프리셋이 상호작용 포인트를 포함하지 않습니다.");
         Assert.IsTrue(foundDirectionalCover, "M1 QA 프리셋이 방향성 엄폐 segment를 포함하지 않습니다.");
+        Assert.IsTrue(foundLineBlockingCover, "M1 QA 프리셋이 사선 차단 방향성 엄폐 segment를 포함하지 않습니다.");
+        Assert.IsTrue(foundCombatTagSkill, "M1 QA 프리셋이 공용 전투 태그 스킬을 포함하지 않습니다.");
+        Assert.IsTrue(foundHero, "M1 QA 프리셋이 주인공/패링 역할 데이터를 포함하지 않습니다.");
+        Assert.IsTrue(foundPlayerTank, "M1 QA 프리셋이 플레이어 탱커 역할 데이터를 포함하지 않습니다.");
+        Assert.IsTrue(foundRiflemanPassive, "M1 QA 프리셋이 사격수 고유 패시브를 포함하지 않습니다.");
+        Assert.IsTrue(foundMageIntervention, "M1 QA 프리셋이 마법 전장 개입 스킬을 포함하지 않습니다.");
     }
 
     [Test]

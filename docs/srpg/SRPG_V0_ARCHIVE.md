@@ -9,4 +9,4 @@ v0(중세형 SRPG) 기준 점검 문서와 스킬 메이커 개선 초안은 v1 
 - `SRPG_TDD.md`
 - `SRPG_BACKLOG.md`
 
-v1 이후의 실행 기준은 위 문서를 따른다.
+현재 v2 실행 기준은 `SRPG_README.md`, `SRPG_전투규칙_기준서_v2.md`, `SRPG_BACKLOG.md`, `SRPG_PHASE2_CODE_BACKLOG.md`를 따른다.

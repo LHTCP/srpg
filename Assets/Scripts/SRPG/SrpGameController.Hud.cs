@@ -1212,6 +1212,9 @@ public partial class SrpGameController
         var stateParts = new List<string>();
         if (unit.HasTag(SrpUnitTags.Tank))
             stateParts.Add($"탱커 / 교전 수 {_state.CountEngagingEnemies(unit)}");
+        var combatTags = (SrpCombatTag)unit.combatTags;
+        if (combatTags != SrpCombatTag.None)
+            stateParts.Add($"전투 태그: {SrpCombatTagUtility.BuildSummary(combatTags)}");
         if (unit.stance == SrpStance.Defensive && unit.defensiveHitsRound == _state.RoundNumber)
             stateParts.Add($"수비 압박 {unit.defensiveHitsTakenThisRound}");
         if (unit.overwatchArmed)
@@ -1475,9 +1478,28 @@ public partial class SrpGameController
             tags.Add("오버클럭");
         if (data.overclockPowerBonus > 0)
             tags.Add($"증폭+{data.overclockPowerBonus}");
+        string combatTagText = BuildSkillCombatTagText(data);
+        if (!string.IsNullOrEmpty(combatTagText))
+            tags.Add(combatTagText);
         if (runtime != null && runtime.overclockedUsesRemaining > 0)
             tags.Add("강화 대기");
         return tags.Count > 0 ? $" [{string.Join("/", tags)}]" : string.Empty;
+    }
+
+    static string BuildSkillCombatTagText(SrpSkillData data)
+    {
+        if (data?.effects == null)
+            return string.Empty;
+
+        var parts = new List<string>();
+        foreach (var effect in data.effects)
+        {
+            if (effect == null || effect.type != SrpEffectType.ApplyCombatTag)
+                continue;
+            if (SrpCombatTagUtility.TryParse(effect.stat, out var tag))
+                parts.Add(SrpCombatTagUtility.GetDisplayName(tag));
+        }
+        return parts.Count > 0 ? $"태그:{string.Join(",", parts)}" : string.Empty;
     }
 
     static string BuildReactionReadinessText(SrpUnitRuntime unit)

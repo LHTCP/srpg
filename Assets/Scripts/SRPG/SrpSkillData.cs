@@ -28,6 +28,7 @@ public enum SrpEffectType
     DebuffStat,
     FrozenHeart,
     Cleave,
+    ApplyCombatTag,
 }
 
 [Serializable]

@@ -270,6 +270,8 @@ public static class SrpSkills
                         log?.Invoke($"수비 완충: {target.displayName} | HP-{reaction.reducedHpBySustainedDefense} PG-{reaction.reducedPgBySustainedDefense}");
                     if (reaction.tankMultiEngagementBufferApplied)
                         log?.Invoke($"탱커 대응: {target.displayName} | HP-{reaction.reducedHpByTank} PG-{reaction.reducedPgByTank}");
+                    if (reaction.combatTagBonusApplied)
+                        log?.Invoke($"전투 태그 소모: {target.displayName} | {SrpCombatTagUtility.BuildSummary(reaction.consumedCombatTags)} | HP+{reaction.bonusHpFromCombatTags} PG+{reaction.bonusPgFromCombatTags}");
                     if (reaction.reactionSpentRp)
                         LogSkillReaction(target, reaction, log);
                     SrpCombatResolver.ApplyResolvedDamage(target, ref reaction, hpDmg, pgDmg);
@@ -311,6 +313,17 @@ public static class SrpSkills
                     log?.Invoke($"스탯 변화: {target.displayName} | {eff.stat} {(delta >= 0 ? "+" : "")}{delta}");
                     break;
                 }
+                case SrpEffectType.ApplyCombatTag:
+                {
+                    var affected = eff.stat == "self" ? caster : target;
+                    if (affected == null)
+                        break;
+                    if (!SrpCombatTagUtility.TryParse(eff.stat, out var tag) && !SrpCombatTagUtility.TryParse(eff.value.ToString(), out tag))
+                        break;
+                    affected.AddCombatTag(tag);
+                    log?.Invoke($"전투 태그: {affected.displayName} | {SrpCombatTagUtility.GetDisplayName(tag)} 부여/갱신");
+                    break;
+                }
                 case SrpEffectType.Cleave:
                 {
                     if (target == null) break;
@@ -339,7 +352,10 @@ public static class SrpSkills
         switch (reaction.reactionKind)
         {
             case SrpReactionKind.Parry:
-                log?.Invoke($"방어 반응: {target.displayName} 패링 성공 | 피해 무효");
+                string parryReward = reaction.parryAppliedBalanceBreak
+                    ? $" | 반격 PG-{reaction.parryCounterDamageToPg}, 균형 붕괴"
+                    : string.Empty;
+                log?.Invoke($"방어 반응: {target.displayName} 패링 성공 | 피해 무효{parryReward}");
                 break;
             case SrpReactionKind.Dodge:
                 if (reaction.wasDodged)

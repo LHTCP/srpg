@@ -1,4 +1,40 @@
-# SRPG v1 전환 이력
+# SRPG 변경 이력
+
+## 2026-06-02
+
+- 다음 P1 스프린트 구현
+  - 초기 4인 고유 패시브 브릿지 추가: 주인공 `전장 적응`, 탱커 `전열 고정`, 사격수 `노출 처벌`, 마도사 `전장 해석`
+  - `M1QaIntegrated`를 플레이어 4인 역할 검증 프리셋으로 갱신하고 주인공 전용 패링/탱커 Tank 태그를 데이터에서 분리
+  - `blocksLineOfSight` 방향성 엄폐 segment를 오버워치와 총기 기본 공격 사선 차단에 연결
+  - 여러 오버워치 후보 우선순위를 가까운 사수, 빠른 사수, 낮은 unit id 순으로 고정
+  - 마법 전장 개입 최소 스킬 `전장 장막`(아군 PG +4) 추가
+  - 메이커 엄폐 segment 편집 UI, 초기 4인 전직 연계/최종 수치, 특수 지형 복합 효과는 후속 의사결정으로 분리
+  - 검증 통과: EditMode `75 passed / 0 failed`, PlayMode `5 passed / 0 failed`
+
+## 2026-05-11
+
+- 문서 동기화
+  - `SRPG_PHASE2_CODE_BACKLOG.md`의 전투 플레이 가능성 P1 완료 범위, 검증 수, 다음 착수 후보를 현재 구현 상태와 맞춤
+  - `SRPG_README.md`의 3차 작업 상태를 진행에서 완료로 정정
+  - 문서 정리만 수행했으므로 Unity 테스트는 재실행하지 않음
+
+## 2026-05-10
+
+- 문서 진입점과 작업 처리 계약 정리
+  - SRPG 문서 계층과 현재 실행 플랜을 `docs/srpg/README.md`로 분리
+  - 작업 시작, 구현, 문서 갱신, 완료 보고 기준을 `docs/project/work-contract.md`에 추가
+  - `docs/README.md`, 루트 `AGENTS.md`, `Assets/Scripts/SRPG/AGENTS.md`, `SRPG_README.md`의 진입 링크와 v1/v2 표기 정리
+  - `SRPG_다음미팅_논의사항.md`를 과거 의사결정 메모로 표시
+  - 문서 전용 변경이므로 Unity 테스트는 실행하지 않음
+- 전투 플레이 가능성 P1 확장
+  - 총기 HP-PG 파급을 최종 HP 피해량 기준으로 보정하고 엄폐 GRD 적용 순서를 고정: `SrpCombatResolver`
+  - 공용 전투 태그(`표식`, `균형 붕괴`, `사살 지시`) 런타임 계약과 스킬 효과 타입 추가: `SrpUnitRuntime`, `SrpSkillData`, `SrpSkills`
+  - 패링 성공 시 공격자 PG 피해와 `균형 붕괴` 부여: `SrpCombatResolver`
+  - `완벽한 수비` 1차 구현: `SrpCombatResolver`
+  - HUD/로그에 전투 태그, 총기 파급, 패링 보상, 완벽한 수비 결과 표시: `SrpGameController`, `SrpGameController.Hud`
+  - 마도사/사격수 태그 대표 스킬과 `M1QaIntegrated` 노출 추가: `SrpDefaultSkills`, `SrpDefaultUnits`, `SrpDefaultMaps`
+  - 구현 브릿지와 다음 의사결정 후보 문서 추가: `SRPG_IMPLEMENTATION_DECISIONS.md`
+  - Unity EditMode `71 passed / 0 failed`, PlayMode `5 passed / 0 failed`
 
 ## 2026-04-27
 

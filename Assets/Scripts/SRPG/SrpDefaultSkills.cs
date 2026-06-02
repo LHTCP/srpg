@@ -6,9 +6,101 @@ public static class SrpDefaultSkills
         {
             new SrpSkillData
             {
+                id = "hero_adaptive_heart",
+                displayName = "전장 적응",
+                description = "주인공 고유 패시브. 공격 적중 시 안정도(FH) +3. 패링/오버클럭으로 전장 흐름을 다시 잡는 브릿지 수치.",
+                skillType = SrpSkillType.Passive,
+                trigger = SrpSkillTrigger.OnAttackHit,
+                targetType = SrpTargetType.None,
+                range = 0,
+                areaSize = 0,
+                endsActivation = false,
+                cooldown = 0,
+                effects = new[]
+                {
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.FrozenHeart,
+                        stat = "self",
+                        value = 3,
+                        duration = 0,
+                    },
+                },
+            },
+            new SrpSkillData
+            {
+                id = "tank_line_anchor",
+                displayName = "전열 고정",
+                description = "탱커 고유 패시브. 피격 후 PG +2를 회복한다. 완벽한 수비 조건 유지용 임시 브릿지.",
+                skillType = SrpSkillType.Passive,
+                trigger = SrpSkillTrigger.OnTakeDamage,
+                targetType = SrpTargetType.None,
+                range = 0,
+                areaSize = 0,
+                endsActivation = false,
+                cooldown = 0,
+                effects = new[]
+                {
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.BuffStat,
+                        stat = "pg",
+                        value = 2,
+                        duration = 0,
+                    },
+                },
+            },
+            new SrpSkillData
+            {
+                id = "rifle_exposed_punisher",
+                displayName = "노출 처벌",
+                description = "사격수 고유 패시브. 공격 적중 시 안정도(FH) +2. 사살 지시/오버워치 후속 압박 검증용 브릿지.",
+                skillType = SrpSkillType.Passive,
+                trigger = SrpSkillTrigger.OnAttackHit,
+                targetType = SrpTargetType.None,
+                range = 0,
+                areaSize = 0,
+                endsActivation = false,
+                cooldown = 0,
+                effects = new[]
+                {
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.FrozenHeart,
+                        stat = "self",
+                        value = 2,
+                        duration = 0,
+                    },
+                },
+            },
+            new SrpSkillData
+            {
+                id = "mage_field_theory",
+                displayName = "전장 해석",
+                description = "마도사 고유 패시브. 턴 시작 시 안정도(FH) +2. 표식/제어 스킬 오버클럭 진입용 브릿지.",
+                skillType = SrpSkillType.Passive,
+                trigger = SrpSkillTrigger.OnTurnStart,
+                targetType = SrpTargetType.None,
+                range = 0,
+                areaSize = 0,
+                endsActivation = false,
+                cooldown = 0,
+                effects = new[]
+                {
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.FrozenHeart,
+                        stat = "self",
+                        value = 2,
+                        duration = 0,
+                    },
+                },
+            },
+            new SrpSkillData
+            {
                 id = "heart_spike",
                 displayName = "심장 관통",
-                description = "공격 적중 시 자신의 빙결된 심장(FH) +5",
+                description = "호환용 패시브. 공격 적중 시 자신의 빙결된 심장(FH) +5",
                 skillType = SrpSkillType.Passive,
                 trigger = SrpSkillTrigger.OnAttackHit,
                 targetType = SrpTargetType.None,
@@ -31,7 +123,7 @@ public static class SrpDefaultSkills
             {
                 id = "fh_bless_ally",
                 displayName = "빙결 축복",
-                description = "턴 시작 시 자신의 FH +2",
+                description = "호환용 패시브. 턴 시작 시 자신의 FH +2",
                 skillType = SrpSkillType.Passive,
                 trigger = SrpSkillTrigger.OnTurnStart,
                 targetType = SrpTargetType.None,
@@ -102,6 +194,104 @@ public static class SrpDefaultSkills
                         type = SrpEffectType.Heal,
                         stat = "hp",
                         value = 15,
+                        duration = 0,
+                    },
+                },
+            },
+            new SrpSkillData
+            {
+                id = "tactical_mark",
+                displayName = "전술 표식",
+                description = "사거리 3 내 적 하나에게 표식을 부여한다. 다음 아군 공격의 PG 압박을 높인다.",
+                skillType = SrpSkillType.Active,
+                trigger = SrpSkillTrigger.OnActivate,
+                targetType = SrpTargetType.SingleEnemy,
+                range = 3,
+                areaSize = 0,
+                endsActivation = false,
+                cooldown = 1,
+                effects = new[]
+                {
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.ApplyCombatTag,
+                        stat = "marked",
+                        value = 0,
+                        duration = 1,
+                    },
+                },
+            },
+            new SrpSkillData
+            {
+                id = "balance_hex",
+                displayName = "균형 교란",
+                description = "사거리 3 내 적 하나에게 균형 붕괴를 부여한다. 다음 아군 공격의 PG 피해가 크게 오른다.",
+                skillType = SrpSkillType.Active,
+                trigger = SrpSkillTrigger.OnActivate,
+                targetType = SrpTargetType.SingleEnemy,
+                range = 3,
+                areaSize = 0,
+                endsActivation = false,
+                cooldown = 2,
+                maxCharges = 1,
+                chargeRecoveryTurns = 2,
+                effects = new[]
+                {
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.ApplyCombatTag,
+                        stat = "balanceBroken",
+                        value = 0,
+                        duration = 1,
+                    },
+                },
+            },
+            new SrpSkillData
+            {
+                id = "kill_order",
+                displayName = "사살 지시",
+                description = "사거리 4 내 적 하나에게 사살 지시를 부여한다. 다음 아군 공격의 HP/PG 압박이 오른다.",
+                skillType = SrpSkillType.Active,
+                trigger = SrpSkillTrigger.OnActivate,
+                targetType = SrpTargetType.SingleEnemy,
+                range = 4,
+                areaSize = 0,
+                endsActivation = false,
+                cooldown = 2,
+                effects = new[]
+                {
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.ApplyCombatTag,
+                        stat = "killOrder",
+                        value = 0,
+                        duration = 1,
+                    },
+                },
+            },
+            new SrpSkillData
+            {
+                id = "arcane_screen",
+                displayName = "전장 장막",
+                description = "사거리 3 내 아군의 PG를 4 회복한다. 마법/전장 개입 최소 스킬 브릿지.",
+                skillType = SrpSkillType.Active,
+                trigger = SrpSkillTrigger.OnActivate,
+                targetType = SrpTargetType.SingleAlly,
+                range = 3,
+                areaSize = 0,
+                endsActivation = false,
+                cooldown = 2,
+                maxCharges = 1,
+                chargeRecoveryTurns = 2,
+                overclockFrozenHeartCost = 5,
+                overclockPowerBonus = 2,
+                effects = new[]
+                {
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.BuffStat,
+                        stat = "pg",
+                        value = 4,
                         duration = 0,
                     },
                 },

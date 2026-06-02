@@ -58,7 +58,7 @@ public static class SrpDefaultMaps
                 weaponClass = SrpWeaponClass.Firearm,
                 stance = SrpStance.Aggressive,
                 facing = SrpFacing.East,
-                skillIds = new[] { "heal_light" },
+                skillIds = new[] { "rifle_exposed_punisher", "kill_order", "heal_light" },
                 maxSkills = 4,
                 tags = 0,
             },
@@ -77,14 +77,14 @@ public static class SrpDefaultMaps
                 weaponClass = SrpWeaponClass.Melee,
                 stance = SrpStance.Defensive,
                 facing = SrpFacing.West,
-                skillIds = new[] { "heart_spike" },
+                skillIds = new[] { "tank_line_anchor", "cleave" },
                 maxSkills = 4,
-                tags = (int)(SrpUnitTags.ParryUser | SrpUnitTags.Tank),
+                tags = (int)SrpUnitTags.Tank,
             },
             new SrpUnitTemplateData
             {
                 id = "breaker",
-                displayName = "근접 투사",
+                displayName = "주인공",
                 moveRange = 5,
                 attackRange = 1,
                 attackPower = 11,
@@ -96,9 +96,9 @@ public static class SrpDefaultMaps
                 weaponClass = SrpWeaponClass.Melee,
                 stance = SrpStance.Aggressive,
                 facing = SrpFacing.East,
-                skillIds = new[] { "cleave" },
+                skillIds = new[] { "hero_adaptive_heart", "cleave" },
                 maxSkills = 4,
-                tags = 0,
+                tags = (int)SrpUnitTags.ParryUser,
             },
             new SrpUnitTemplateData
             {
@@ -115,7 +115,7 @@ public static class SrpDefaultMaps
                 weaponClass = SrpWeaponClass.Magic,
                 stance = SrpStance.Aggressive,
                 facing = SrpFacing.East,
-                skillIds = new[] { "heal_light" },
+                skillIds = new[] { "mage_field_theory", "tactical_mark", "balance_hex", "arcane_screen" },
                 maxSkills = 4,
                 tags = 0,
             },
@@ -125,6 +125,7 @@ public static class SrpDefaultMaps
         {
             // Owner 0
             new SrpPlacementData { templateId = "rifleman", owner = 0, x = 1, y = 2, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "vanguard", owner = 0, x = 1, y = 4, footprint = new SrpOffset[0] },
             new SrpPlacementData { templateId = "breaker", owner = 0, x = 2, y = 4, footprint = new SrpOffset[0] },
             new SrpPlacementData { templateId = "mage", owner = 0, x = 1, y = 6, footprint = new SrpOffset[0] },
 
@@ -132,6 +133,7 @@ public static class SrpDefaultMaps
             new SrpPlacementData { templateId = "rifleman", owner = 1, x = 10, y = 5, footprint = new SrpOffset[0] },
             new SrpPlacementData { templateId = "vanguard", owner = 1, x = 9, y = 3, footprint = new SrpOffset[0] },
             new SrpPlacementData { templateId = "breaker", owner = 1, x = 10, y = 1, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "mage", owner = 1, x = 9, y = 6, footprint = new SrpOffset[0] },
         };
 
         var interactionPoints = new[]
@@ -169,7 +171,7 @@ public static class SrpDefaultMaps
                 shape = SrpCoverShape.Linear,
                 coverDef = 3,
                 coverGrd = 1,
-                blocksLineOfSight = false,
+                blocksLineOfSight = true,
             },
         };
 

@@ -260,6 +260,8 @@ public class SrpM1RuleSpecTests
         var attacker = FindUnit(state, owner: 1, templateId: "enemy");
         var defender = FindUnit(state, owner: 0, templateId: "mover");
         PlaceParryPair(attacker, defender, attackerX: 2, attackerY: 3, defenderFacing: SrpFacing.North);
+        attacker.pg = 20;
+        attacker.maxPg = 20;
         int beforeHp = defender.hp;
         int beforePg = defender.pg;
 
@@ -271,6 +273,44 @@ public class SrpM1RuleSpecTests
         Assert.AreEqual(0, defender.reactionPoints, "패링 후 RP가 감소하지 않았습니다.");
         Assert.AreEqual(beforeHp, defender.hp, "패링이 HP 피해를 무효화하지 않았습니다.");
         Assert.AreEqual(beforePg, defender.pg, "패링이 PG 피해를 무효화하지 않았습니다.");
+        Assert.AreEqual(12, attacker.pg, "패링 성공 보상 PG 피해가 공격자에게 적용되지 않았습니다.");
+        Assert.IsTrue(attacker.HasCombatTag(SrpCombatTag.BalanceBroken), "패링 성공이 공격자에게 균형 붕괴를 부여하지 않았습니다.");
+        Assert.AreEqual(8, outcome.parryCounterDamageToPg, "패링 PG 보상 수치가 결과에 기록되지 않았습니다.");
+        Assert.IsTrue(outcome.parryAppliedBalanceBreak, "패링 균형 붕괴 보상 플래그가 기록되지 않았습니다.");
+    }
+
+    [Test]
+    public void CombatTags_RefreshConsumeAndApplyNextAttackPressure()
+    {
+        var attacker = new SrpUnitRuntime
+        {
+            owner = 0,
+            attackPower = 8,
+            weaponClass = SrpWeaponClass.Melee,
+            stance = SrpStance.Aggressive,
+        };
+        var defender = new SrpUnitRuntime
+        {
+            owner = 1,
+            hp = 30,
+            maxHp = 30,
+            pg = 30,
+            maxPg = 30,
+            reactionPoints = 0,
+        };
+        defender.AddCombatTag(SrpCombatTag.Marked);
+        defender.AddCombatTag(SrpCombatTag.BalanceBroken);
+        defender.AddCombatTag(SrpCombatTag.KillOrder);
+
+        var outcome = SrpCombatResolver.ApplyAttack(null, attacker, defender);
+
+        Assert.IsTrue(outcome.combatTagBonusApplied, "전투 태그 보너스가 적용되지 않았습니다.");
+        Assert.AreEqual(SrpCombatTag.Marked | SrpCombatTag.BalanceBroken | SrpCombatTag.KillOrder, outcome.consumedCombatTags);
+        Assert.AreEqual(2, outcome.bonusHpFromCombatTags, "사살 지시 HP 보너스가 기록되지 않았습니다.");
+        Assert.AreEqual(8, outcome.bonusPgFromCombatTags, "표식/균형 붕괴/사살 지시 PG 보너스가 기록되지 않았습니다.");
+        Assert.AreEqual(0, defender.combatTags, "소모형 전투 태그가 다음 공격 후 제거되지 않았습니다.");
+        Assert.AreEqual(26, defender.hp, "전투 태그 HP 보너스가 실제 피해에 반영되지 않았습니다.");
+        Assert.AreEqual(9, defender.pg, "전투 태그 PG 보너스가 실제 피해에 반영되지 않았습니다.");
     }
 
     [Test]
@@ -444,6 +484,79 @@ public class SrpM1RuleSpecTests
     }
 
     [Test]
+    public void LineOfSight_CoverSegmentBlocksOverwatchAndFirearmBasicAttack()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var watcher = FindUnit(state, owner: 0, templateId: "mover");
+        var target = FindUnit(state, owner: 1, templateId: "enemy");
+        watcher.weaponClass = SrpWeaponClass.Firearm;
+        watcher.attackRange = 4;
+        watcher.actionPoints = 2;
+        watcher.reactionPoints = 1;
+        watcher.maxAmmo = 1;
+        watcher.ammo = 1;
+        target.reactionPoints = 0;
+        state.CoverSegments.Add(new SrpCoverSegmentData
+        {
+            x = target.anchorX,
+            y = target.anchorY,
+            edge = SrpCoverEdge.West,
+            shape = SrpCoverShape.Linear,
+            blocksLineOfSight = true,
+        });
+
+        Assert.IsTrue(SrpOverwatch.Arm(state, watcher), "오버워치 예약 실패");
+        Assert.IsFalse(SrpOverwatch.CanTrigger(state, watcher, target), "blocksLineOfSight segment가 오버워치 사선을 차단하지 않았습니다.");
+        Assert.IsFalse(SrpCombatResolver.CanAttack(state, watcher, target), "blocksLineOfSight segment가 총기 기본 공격 사선을 차단하지 않았습니다.");
+
+        state.CoverSegments[0].blocksLineOfSight = false;
+        Assert.IsTrue(SrpOverwatch.CanTrigger(state, watcher, target), "사선 차단이 꺼진 segment가 오버워치를 막았습니다.");
+        Assert.IsTrue(SrpCombatResolver.CanAttack(state, watcher, target), "사선 차단이 꺼진 segment가 총기 기본 공격을 막았습니다.");
+    }
+
+    [Test]
+    public void Overwatch_SelectTriggerWatcher_UsesDistanceSpeedAndIdPriority()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var slow = FindUnit(state, owner: 0, templateId: "mover");
+        var target = FindUnit(state, owner: 1, templateId: "enemy");
+        slow.weaponClass = SrpWeaponClass.Firearm;
+        slow.attackRange = 4;
+        slow.actionPoints = 2;
+        slow.reactionPoints = 1;
+        slow.speed = 10;
+        var fast = new SrpUnitRuntime
+        {
+            id = 200,
+            templateId = "fast_watcher",
+            displayName = "Fast Watcher",
+            owner = 0,
+            anchorX = 3,
+            anchorY = 3,
+            hp = 30,
+            maxHp = 30,
+            pg = 10,
+            maxPg = 10,
+            actionPoints = 2,
+            maxActionPoints = 2,
+            reactionPoints = 1,
+            maxReactionPoints = 1,
+            speed = 20,
+            weaponClass = SrpWeaponClass.Firearm,
+            attackRange = 4,
+            attackPower = 8,
+        };
+        state.Units.Add(fast);
+
+        Assert.IsTrue(SrpOverwatch.Arm(state, slow), "첫 번째 오버워치 예약 실패");
+        Assert.IsTrue(SrpOverwatch.Arm(state, fast), "두 번째 오버워치 예약 실패");
+
+        var selected = SrpOverwatch.SelectTriggerWatcher(state, target);
+
+        Assert.AreEqual(fast.id, selected.id, "동일 거리 오버워치 후보 중 더 빠른 유닛이 우선되지 않았습니다.");
+    }
+
+    [Test]
     public void Overwatch_ArmStatus_ExplainsHudPolicyConditions()
     {
         var unit = CreateOverwatchReadyUnit();
@@ -548,6 +661,55 @@ public class SrpM1RuleSpecTests
         var normal = SrpCombatResolver.ApplyAttack(state, attacker, tank);
 
         Assert.IsFalse(normal.tankMultiEngagementBufferApplied, "일반 유닛에 탱커 전용 완충이 적용되었습니다.");
+    }
+
+    [Test]
+    public void PerfectDefense_NullsMinorHpDamage_ButNotMajorOrBackAttack()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var tank = FindUnit(state, owner: 0, templateId: "mover");
+        var attacker = FindUnit(state, owner: 1, templateId: "enemy");
+
+        tank.anchorX = 2;
+        tank.anchorY = 2;
+        tank.facing = SrpFacing.North;
+        tank.stance = SrpStance.Defensive;
+        tank.tags = (int)SrpUnitTags.Tank;
+        tank.reactionPoints = 0;
+        tank.hp = 30;
+        tank.pg = 10;
+        attacker.anchorX = 2;
+        attacker.anchorY = 3;
+        attacker.weaponClass = SrpWeaponClass.Melee;
+        attacker.attackPower = 8;
+
+        var minor = SrpCombatResolver.ApplyAttack(state, attacker, tank);
+
+        Assert.IsTrue(minor.perfectDefenseApplied, "정면 경미 HP 피해에 완벽한 수비가 적용되지 않았습니다.");
+        Assert.AreEqual(0, minor.damageToHp, "완벽한 수비가 경미 HP 피해를 무효화하지 않았습니다.");
+        Assert.Greater(minor.damageToPg, 0, "완벽한 수비가 PG 압박까지 지워서는 안 됩니다.");
+
+        tank.hp = 30;
+        tank.pg = 10;
+        tank.defensiveHitsRound = 0;
+        tank.defensiveHitsTakenThisRound = 0;
+        attacker.weaponClass = SrpWeaponClass.Firearm;
+        attacker.attackRange = 4;
+        var major = SrpCombatResolver.ApplyAttack(state, attacker, tank);
+        Assert.IsFalse(major.perfectDefenseApplied, "총격 중대 HP 피해가 완벽한 수비로 무효화되었습니다.");
+        Assert.Greater(major.damageToHp, 0, "총격 HP 피해가 사라졌습니다.");
+
+        tank.hp = 30;
+        tank.pg = 10;
+        tank.defensiveHitsRound = 0;
+        tank.defensiveHitsTakenThisRound = 0;
+        attacker.weaponClass = SrpWeaponClass.Melee;
+        attacker.attackRange = 1;
+        attacker.anchorX = 2;
+        attacker.anchorY = 1;
+        var back = SrpCombatResolver.ApplyAttack(state, attacker, tank);
+        Assert.IsFalse(back.perfectDefenseApplied, "후방 경미 HP 피해가 완벽한 수비로 무효화되었습니다.");
+        Assert.Greater(back.damageToHp, 0, "후방 HP 피해가 사라졌습니다.");
     }
 
     [Test]
