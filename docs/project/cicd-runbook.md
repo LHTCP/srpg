@@ -148,7 +148,9 @@ Failed running Unity build
 - 사용 중인 Unity 버전에 WebGL build support가 설치된 runner 이미지를 쓰는지 확인한다.
 - Build Settings에 필수 씬이 등록되어 있는지 확인한다.
 - Player Settings의 WebGL 설정이 현재 Unity 버전과 호환되는지 확인한다.
+- GitHub Pages 무료 배포 경로에서는 서버의 `Content-Encoding` 헤더를 세밀하게 제어하기 어렵기 때문에 `Decompression Fallback` 설정이 켜져 있는지 확인한다.
 - 빌드 산출물 경로가 artifact 업로드 또는 정적 호스팅 step의 path와 일치하는지 확인한다.
+- GitHub Pages 배포는 저장소 `Settings > Pages`의 source가 GitHub Actions로 되어 있어야 한다.
 
 ### 조치
 
@@ -156,6 +158,7 @@ Failed running Unity build
 - 메모리 부족이면 runner 종류, compression 설정, 빌드 캐시 전략을 검토한다.
 - 산출물 경로가 비어 있으면 Unity build step의 output path와 upload-artifact path를 맞춘다.
 - 정적 호스팅 배포가 실패하면 먼저 WebGL artifact 생성이 성공했는지 분리해서 확인한다.
+- Pages 권한 오류가 나면 workflow의 `pages: write`, `id-token: write` 권한과 저장소 Pages 설정을 확인한다.
 
 ### 에스컬레이션 기준
 
