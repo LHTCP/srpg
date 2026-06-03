@@ -12,9 +12,11 @@ GitHub 이슈, PR 템플릿, 브랜치 보호 기준은 [github-governance.md](g
 
 ## 기본 원칙
 
+- 현재 개발 주력은 로컬 Unity 에디터와 로컬 에이전트 작업이다. 상세 기준은 [development-initiative.md](development-initiative.md)를 본다.
 - 로컬 개발 방식은 각자 선택할 수 있다.
 - 하지만 기본 브랜치에 들어가는 변경은 **브랜치 + Pull Request + GitHub Checks** 경로를 따른다.
 - 로컬 확인은 권장되지만, 최종 통합 기준은 GitHub의 리뷰와 체크 상태다.
+- PR과 CI/CD는 로컬 플레이 확인을 대체하지 않고, 변경 단위와 검증 맥락을 남기는 얇은 안전망으로 둔다.
 - 형상 관리 텍스트 언어는 로컬/팀 설정을 따른다. 같은 PR 안에서는 이슈, PR 본문, 커밋 메시지의 언어를 가능하면 섞지 않는다.
 
 ## 커밋 메시지
@@ -89,6 +91,7 @@ Implement speed-based round order for SRPG v1
 - 공유 브랜치 통합은 GitHub 기준으로 관리한다.
 - 보호 브랜치에는 직접 푸시하지 않는다.
 - 병합 가능 여부는 개인 PC 상태가 아니라 저장소의 체크 통과 기준으로 판단한다.
+- 단, Unity 씬·프리팹·입력·화면 품질은 PR/CI만으로 충분히 보장되지 않으므로 로컬 에디터 확인 결과를 PR에 남긴다.
 
 ## 빠른 PR 체크
 

@@ -11,6 +11,7 @@
 | [project/workflow.md](project/workflow.md) | Git·브랜치·PR·첫 커밋 |
 | [project/setup.md](project/setup.md) | 로컬 개발 환경·재현성 기준 |
 | [project/worktrees.md](project/worktrees.md) | 멀티 브랜치·멀티 에이전트 워크트리 운영 |
+| [project/development-initiative.md](project/development-initiative.md) | 로컬 에이전트 개발 중심 운영과 PC 우선 플랫폼 기준 |
 | [project/issue-workflow.md](project/issue-workflow.md) | 이슈 트리·Parent-Child·Blocks 관계 운영 기준 |
 | [project/github-governance.md](project/github-governance.md) | GitHub 이슈·PR·브랜치 보호 운영 기준 |
 | [project/release-checklist.md](project/release-checklist.md) | 배포 전·후 검증과 rollback/known issue 판단 기준 |
@@ -27,6 +28,7 @@
 | [work-contract.md](project/work-contract.md) | 작업 처리 계약과 문서 갱신 기준 |
 | [setup.md](project/setup.md) | 개발 환경·Git 안전 설정·클라우드 호환 원칙 |
 | [worktrees.md](project/worktrees.md) | `git worktree` 운영 규칙 |
+| [development-initiative.md](project/development-initiative.md) | 로컬 에이전트 개발 중심 운영과 PC 우선 플랫폼 기준 |
 | [issue-workflow.md](project/issue-workflow.md) | 이슈 트리·Parent-Child·Blocks 관계 운영 기준 |
 | [local-preferences.md](project/local-preferences.md) | Git 미추적 로컬 작업 취향 설정 |
 | [github-governance.md](project/github-governance.md) | GitHub 이슈·PR 템플릿과 브랜치 보호 기준 |
