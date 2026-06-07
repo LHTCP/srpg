@@ -123,12 +123,12 @@ Unity standalone player는 `-batchmode`, `-nographics` 같은 command line argum
 
 ## 현재 프로젝트 기준 권장안
 
-현재 프로젝트는 “빠르게 새 버전을 플레이해보는 것”이 1차 목표이므로, Windows 빌드 자체보다 WebGL 링크 배포가 더 즉각적인 경로다. Windows는 다음 순서로 붙이는 것이 좋다.
+초기 버전 플랫폼은 PC로 고정한다. 따라서 Windows 빌드 artifact가 현재 Delivery의 중심 경로이고, WebGL 링크는 무료 공유 링크 또는 보조 확인 경로로 둔다. Windows는 다음 순서로 붙이는 것이 좋다.
 
-1. WebGL 배포 workflow 안정화
-2. Windows artifact 생성 workflow 추가
-3. Windows smoke 검증 job 추가
-4. 무료 범위 안에서 보관 가능한 짧은 retention의 Actions artifact를 먼저 사용
-5. 수동 release 태그 기준 Windows zip을 GitHub Release asset으로 승격
+1. Windows artifact 생성 workflow 추가
+2. Windows smoke 검증 job 추가
+3. 무료 범위 안에서 보관 가능한 짧은 retention의 Actions artifact를 먼저 사용
+4. 수동 release 태그 기준 Windows zip을 GitHub Release asset으로 승격
+5. WebGL Pages 링크는 PC artifact가 막힐 때의 보조 공유 경로로 유지
 
 따라서 issue #30의 결정값은 “초기 Windows build는 Linux runner cross-build, 실행 검증은 Windows runner smoke job, IL2CPP 전환 시 Windows runner build로 승격”으로 둔다.

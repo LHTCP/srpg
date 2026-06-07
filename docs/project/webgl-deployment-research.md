@@ -4,9 +4,9 @@
 
 ## 결론
 
-이번 스프린트의 최소 Delivery 조건은 "추가 유료 계정 없이 최신 빌드를 플레이할 수 있는 링크"로 둔다. 따라서 1차 목표는 GitHub Actions public repo 무료 standard runner와 GitHub Pages 조합으로 닫고, S3+CloudFront는 비용 승인 이후의 승격 후보로만 다룬다.
+이번 스프린트의 최소 Delivery 조건은 "추가 유료 계정 없이 최신 PC 빌드를 플레이하거나 내려받을 수 있는 상태"로 둔다. 초기 버전 플랫폼은 PC로 고정되었으므로 WebGL은 1차 플랫폼이 아니라 무료 공유 링크 후보로 다룬다. S3+CloudFront는 비용 승인 이후의 승격 후보로만 둔다.
 
-1차 빠른 검증 링크는 GitHub Pages로 시작하는 것을 추천한다. GitHub 저장소와 Actions만으로 닫힌 루프를 만들기 쉽고, public repo에서는 진입 비용이 가장 낮다. 단, GitHub Pages는 Unity WebGL의 `Content-Encoding` 세부 제어가 약하므로 초기에는 Unity의 Decompression Fallback을 켠 빌드를 대상으로 삼는 것이 안전하다.
+WebGL이 필요해지는 경우에는 GitHub Pages로 시작하는 것을 추천한다. GitHub 저장소와 Actions만으로 닫힌 루프를 만들기 쉽고, public repo에서는 진입 비용이 가장 낮다. 단, GitHub Pages는 Unity WebGL의 `Content-Encoding` 세부 제어가 약하므로 초기에는 Unity의 Decompression Fallback을 켠 빌드를 대상으로 삼는 것이 안전하다.
 
 운영성 있는 공개 플레이 링크는 비용 승인을 전제로 S3+CloudFront를 후보로 둔다. Unity WebGL의 gzip/Brotli 네이티브 압축 헤더, 캐시 TTL, invalidation, 커스텀 도메인/TLS를 가장 명확하게 제어할 수 있기 때문이다. 대신 AWS 계정, 사용량 과금, 권한, 배포 스크립트, CloudFront invalidation 운영이 추가되므로 이번 무료 우선 스프린트의 완료조건에는 넣지 않는다.
 
@@ -21,7 +21,7 @@ Cloudflare Pages는 편리한 프리뷰/배포 경험이 장점이지만, Free p
 | 배포 속도 | GitHub Actions에서 Pages artifact 업로드로 단순. 첫 도입 빠름 | Wrangler direct upload 또는 Git 연동 가능. preview deployment 경험 좋음 | S3 sync + CloudFront invalidation이 필요해 설정은 무겁지만 운영 제어력 높음 |
 | 캐시 | Pages 캐시는 세부 제어가 제한적. 파일명 해시/버전 디렉터리 전략 필요 | `_headers`로 일부 캐시 헤더 제어 가능 | CloudFront TTL, Cache-Control, invalidation을 명시적으로 운영 가능 |
 | 커스텀 도메인 | GitHub Pages custom domain과 HTTPS 지원 | 프로젝트당 custom domain 제한 있음. Free plan 기준 100개 | CloudFront alternate domain name과 TLS 인증서 필요 |
-| 추천 위치 | 첫 WebGL 플레이 링크, 내부/공개 데모 초안 | preview deployment 또는 작은 WebGL 빌드 | 안정 배포, 큰 WebGL 파일, 압축/캐시 최적화가 필요한 공개 링크 |
+| 추천 위치 | PC artifact를 보조하는 무료 공유 링크 | preview deployment 또는 작은 WebGL 빌드 | 안정 배포, 큰 WebGL 파일, 압축/캐시 최적화가 필요한 공개 링크 |
 
 ## 후보별 메모
 
@@ -63,8 +63,8 @@ Unity 공식 문서 기준 gzip은 기본 옵션이고 Brotli보다 파일은 �
 
 1. WebGL 빌드 산출물 크기와 최대 단일 파일 크기를 측정한다.
 2. 단일 파일이 25 MiB를 넘는지 확인한다.
-3. 첫 공개 플레이 링크는 GitHub Pages + Decompression Fallback로 만든다.
-4. GitHub Pages 링크가 이번 스프린트의 무료 Delivery 완료조건을 만족하는지 확인한다.
+3. PC/Windows artifact Delivery가 막히거나 공유 링크가 필요하면 GitHub Pages + Decompression Fallback로 WebGL 링크를 만든다.
+4. GitHub Pages 링크가 PC 우선 흐름을 보조하는지 확인한다.
 5. 로딩 속도, 파일 크기, 캐시 문제가 확인되고 비용 승인이 있으면 S3+CloudFront로 승격한다.
 6. Cloudflare Pages는 preview deployment 가치가 크거나 산출물이 25 MiB 이하일 때만 별도 PoC를 진행한다.
 
