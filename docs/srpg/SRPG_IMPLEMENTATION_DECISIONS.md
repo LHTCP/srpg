@@ -182,3 +182,29 @@
 - EditMode: `76 passed / 0 failed`
 - PlayMode: `6 passed / 0 failed`
 - PlayMode에 현재 행동/선택/hover ring, ZOC/교전 badge, 턴 시작/종료, 스킬 준비/사용 feedback 계약을 추가 검증했다.
+
+## 2026-06-07 PR #61 실플레이 피드백 보정
+
+### Ring 기준 보정
+
+- ring은 유닛 발아래 타일 위에 얹히는 decal/annulus 표식을 기준으로 한다. 타일 전체를 다시 칠하는 overlay가 아니다.
+- 현재 타일 cube는 중심 `y=0`, 높이 `0.15`이므로 표면은 `y=0.075`다. ring은 이보다 위에 있어야 하며, 현재 행동/선택/hover 순으로 `0.110 / 0.123 / 0.136` 높이를 사용한다.
+- 기존 ring mesh는 위에서 볼 때 뒷면이 될 수 있어, triangle winding을 위쪽 normal 기준으로 뒤집었다.
+- 현재 행동 ring은 가장 바깥 노랑, 선택 ring은 중간 청록, hover ring은 안쪽 흰색으로 둔다. 같은 유닛에 겹쳐도 반지름과 y offset이 모두 달라야 한다.
+- 실플레이 2차 피드백 기준으로 ring은 큰 경고 원이 아니라 발아래 얇은 표식으로 보이게 current/selected/hover 반지름을 낮추고 선 두께를 줄였다.
+- 색상도 고채도 원색 대신 차분한 amber/teal/ivory 계열로 낮춘다.
+
+### Floating feedback 가독성 기준
+
+- feedback text는 전체 `2.15s`, 초기 `1.25s` 완전 불투명 유지 후 후반 fade out을 기준으로 한다.
+- TMP 기본 폰트는 한국어 glyph 보존을 위해 `Pretendard-Regular SDF.asset`를 유지한다. `LiberationSans SDF.asset` 대체는 금지한다.
+- 텍스트 크기를 키우고 TMP outline과 검은 shadow를 적용해 전장 배경 위에서 대비를 확보한다.
+- 실플레이 2차 피드백 기준으로 text 크기는 과하게 크지 않게 낮추되, outline/shadow와 hold time으로 읽힘을 보완한다.
+- 같은 유닛에 짧은 시간 안에 feedback이 여러 개 뜨면 per-unit active lane 수로 시작 위치를 보드 평면의 screen-up/side 방향에 분산한다. 턴 종료+턴 시작, 스킬 준비+사용이 같은 위치에 완전히 겹치면 안 된다.
+- 탑다운 카메라에서는 `Vector3.up` 이동이 화면상 거의 보이지 않으므로, 카메라 up/right를 보드 평면에 투영한 방향으로 이동/stack한다. world Y 이동은 연결감을 잃지 않는 작은 보조값만 둔다.
+
+### 검증
+
+- PlayMode에 ring 높이, ring 반지름/높이 구분, feedback duration/hold, 같은 유닛 feedback 2개 이상의 시작 위치 분산 계약을 추가했다.
+- 로컬 Unity batchmode EditMode: `76 passed / 0 failed`.
+- 로컬 Unity batchmode PlayMode: `6 passed / 0 failed`.

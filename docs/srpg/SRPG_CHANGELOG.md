@@ -303,6 +303,12 @@
   - PlayMode 테스트에 ring/badge/floating feedback 계약 assert 추가
   - TMP 기본 폰트는 한국어 UI 렌더링을 위해 Pretendard SDF를 유지하고, PlayMode 검증 전 LFS 원본 asset 확보 필요성을 확인
   - 검증: EditMode `76 passed / 0 failed`, PlayMode `6 passed / 0 failed`
+- PR #61 전투 UX 피드백 레이어 P1 실플레이 보정
+  - 유닛 ring을 타일 표면 위 발아래 decal 기준으로 올리고 mesh winding/반지름/높이 우선순위를 수정
+  - world-space feedback text 표시 시간을 늘리고 hold 후 fade, TMP outline/shadow, per-unit stacking을 추가
+  - 실플레이 2차 피드백에 맞춰 ring 크기/두께, 색상 채도, world-space feedback text 크기를 낮춤
+  - Pretendard SDF 유지 원칙을 재확인하고 LiberationSans 대체를 금지
+  - 검증: EditMode `76 passed / 0 failed`, PlayMode `6 passed / 0 failed`
 
 ## 기록 원칙
 

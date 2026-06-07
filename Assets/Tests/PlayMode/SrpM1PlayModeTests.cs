@@ -41,8 +41,14 @@ public class SrpM1PlayModeTests
         var previewCard = controller.TestActionPreviewText;
         Assert.IsTrue(controller.TestHasCurrentActionRing, "current action unit ring missing");
         Assert.IsTrue(controller.TestHasSelectedUnitRing, "selected unit ring missing");
+        Assert.Greater(controller.TestCurrentActionRingWorldY, controller.TestTileSurfaceY, "current action ring is buried in tile");
+        Assert.Greater(controller.TestSelectedUnitRingWorldY, controller.TestCurrentActionRingWorldY, "selected ring y offset must be distinct");
+        Assert.Greater(controller.TestCurrentActionRingRadiusScale, controller.TestSelectedUnitRingRadiusScale, "current action ring should be the outer ring");
+        Assert.GreaterOrEqual(controller.TestWorldFeedbackDuration, 1.8f, "feedback text lifetime is too short");
+        Assert.GreaterOrEqual(controller.TestWorldFeedbackHoldDuration, 1.0f, "feedback text hold time is too short");
         Assert.GreaterOrEqual(controller.TestFloatingFeedbackSpawnCount, 1, "turn start floating feedback missing");
         StringAssert.Contains("\uD134 \uC2DC\uC791", controller.TestFloatingFeedbackHistory);
+        Assert.IsTrue(controller.TestSpawnTwoFeedbackOnCurrentUnit(), "stacked feedback text starts at the same position");
         StringAssert.Contains($"라운드 {controller.TestRoundNumber}", turnHud);
         StringAssert.Contains($"({controller.TestCurrentUnitId})", turnHud);
         StringAssert.Contains("m1_opening_prototype", turnHud);
@@ -189,6 +195,8 @@ public class SrpM1PlayModeTests
         controller.OnUnitHoverEnter(controller.TestCurrentUnitId);
         yield return null;
         Assert.IsTrue(controller.TestHasHoverUnitRing, "hover unit ring missing");
+        Assert.Greater(controller.TestHoverUnitRingWorldY, controller.TestSelectedUnitRingWorldY, "hover ring y offset must be distinct");
+        Assert.Greater(controller.TestSelectedUnitRingRadiusScale, controller.TestHoverUnitRingRadiusScale, "hover ring should be visually inside selected ring");
         StringAssert.Contains("유닛 미리보기", controller.TestStatusHudText);
         StringAssert.Contains("ZOC", controller.TestStatusHudText);
         Assert.AreEqual(controller.TestCurrentUnitId, controller.TestHoveredUnitId);

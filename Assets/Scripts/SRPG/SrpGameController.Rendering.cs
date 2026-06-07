@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 /// <summary>
 /// SrpGameController — 그리드 생성, 타일 색상, 유닛 뷰 갱신.
@@ -25,6 +26,14 @@ public partial class SrpGameController
     const int OverlayIntentPath = 90;
     const int OverlayIntentTarget = 100;
     const int OverlayHover = 110;
+    const float TileSurfaceY = 0.075f;
+    const float CurrentRingY = TileSurfaceY + 0.035f;
+    const float SelectedRingY = TileSurfaceY + 0.048f;
+    const float HoverRingY = TileSurfaceY + 0.061f;
+    const float WorldFeedbackDuration = 2.15f;
+    const float WorldFeedbackHoldDuration = 1.25f;
+    const float WorldFeedbackBoardRise = 0.72f;
+    const float WorldFeedbackLaneGap = 0.22f;
     static readonly int[] OverlayComposeOrder =
     {
         OverlayMove,
@@ -62,6 +71,10 @@ public partial class SrpGameController
     GameObject _hoverUnitRing;
     int _feedbackTextSpawnCount;
     string _lastFeedbackText = string.Empty;
+    readonly Dictionary<int, int> _activeFeedbackByUnit = new Dictionary<int, int>();
+    Vector3 _previousFeedbackStartPosition;
+    Vector3 _lastFeedbackStartPosition;
+    bool _hasPreviousFeedbackStartPosition;
 
     // ── 그리드 ───────────────────────────────────────────────────────────────
 
@@ -328,6 +341,37 @@ public partial class SrpGameController
             r.material.color = c;
     }
 
+    static Material CreateFeedbackMaterial(Color color)
+    {
+        var shader = Shader.Find("Universal Render Pipeline/Unlit")
+            ?? Shader.Find("Unlit/Color")
+            ?? Shader.Find("Standard");
+        var material = new Material(shader);
+        material.name = "SrpFeedbackUnlit";
+        material.renderQueue = 3100;
+        SetMaterialColor(material, color);
+        return material;
+    }
+
+    static void ApplyFeedbackColor(Renderer r, Color color)
+    {
+        if (r == null)
+            return;
+        if (r.sharedMaterial == null)
+            r.sharedMaterial = CreateFeedbackMaterial(color);
+        SetMaterialColor(r.material, color);
+    }
+
+    static void SetMaterialColor(Material material, Color color)
+    {
+        if (material == null)
+            return;
+        if (material.HasProperty("_BaseColor"))
+            material.SetColor("_BaseColor", color);
+        if (material.HasProperty("_Color"))
+            material.SetColor("_Color", color);
+    }
+
     // ── 유닛 뷰 ─────────────────────────────────────────────────────────────
 
     void RefreshUnitViews()
@@ -459,15 +503,15 @@ public partial class SrpGameController
 
         EnsureUnitFeedbackRoot();
         UpdatePriorityRing(ref _currentUnitRing, "CurrentActionRing", GetUnit(_state.CurrentUnitId),
-            new Color(1f, 0.88f, 0.25f), 0.018f, 1.18f);
+            new Color(1f, 0.66f, 0.22f), CurrentRingY, 1.08f);
         UpdatePriorityRing(ref _selectedUnitRing, "SelectedUnitRing", _selectedId.HasValue ? GetUnit(_selectedId.Value) : null,
-            new Color(0.25f, 1f, 0.95f), 0.028f, 1.02f);
+            new Color(0.22f, 0.82f, 0.84f), SelectedRingY, 0.94f);
         UpdatePriorityRing(ref _hoverUnitRing, "HoverUnitRing", _hoverUnitId > 0 ? GetUnit(_hoverUnitId) : null,
-            new Color(1f, 1f, 1f), 0.038f, 0.88f);
+            new Color(0.92f, 0.94f, 0.88f), HoverRingY, 0.78f);
         UpdateUnitStatusBadges();
     }
 
-    void UpdatePriorityRing(ref GameObject ring, string name, SrpUnitRuntime unit, Color color, float yOffset, float radiusScale)
+    void UpdatePriorityRing(ref GameObject ring, string name, SrpUnitRuntime unit, Color color, float worldY, float radiusScale)
     {
         if (ring == null)
             ring = CreateUnitRing(name, color);
@@ -478,10 +522,11 @@ public partial class SrpGameController
         }
 
         ring.SetActive(true);
-        ring.transform.position = GetUnitWorldCenter(unit) + Vector3.up * yOffset;
+        var center = GetUnitWorldCenter(unit);
+        ring.transform.position = new Vector3(center.x, worldY, center.z);
         float radius = GetUnitFeedbackRadius(unit) * radiusScale;
         ring.transform.localScale = new Vector3(radius, 1f, radius);
-        ApplyColor(ring.GetComponent<Renderer>(), color);
+        ApplyFeedbackColor(ring.GetComponent<Renderer>(), color);
     }
 
     GameObject CreateUnitRing(string name, Color color)
@@ -490,7 +535,12 @@ public partial class SrpGameController
         var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
         go.transform.SetParent(_unitFeedbackRoot.transform, false);
         go.GetComponent<MeshFilter>().sharedMesh = GetUnitRingMesh();
-        ApplyColor(go.GetComponent<Renderer>(), color);
+        var renderer = go.GetComponent<Renderer>();
+        renderer.sharedMaterial = CreateFeedbackMaterial(color);
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        renderer.sortingOrder = 20;
+        ApplyFeedbackColor(renderer, color);
         return go;
     }
 
@@ -501,7 +551,7 @@ public partial class SrpGameController
 
         const int segments = 64;
         const float outerRadius = 0.5f;
-        const float innerRadius = 0.39f;
+        const float innerRadius = 0.4f;
         var vertices = new Vector3[segments * 2];
         var triangles = new int[segments * 6];
         for (int i = 0; i < segments; i++)
@@ -515,11 +565,11 @@ public partial class SrpGameController
             int next = (i + 1) % segments;
             int tri = i * 6;
             triangles[tri] = i * 2;
-            triangles[tri + 1] = next * 2;
-            triangles[tri + 2] = i * 2 + 1;
+            triangles[tri + 1] = i * 2 + 1;
+            triangles[tri + 2] = next * 2;
             triangles[tri + 3] = next * 2;
-            triangles[tri + 4] = next * 2 + 1;
-            triangles[tri + 5] = i * 2 + 1;
+            triangles[tri + 4] = i * 2 + 1;
+            triangles[tri + 5] = next * 2 + 1;
         }
 
         s_unitRingMesh = new Mesh
@@ -611,15 +661,19 @@ public partial class SrpGameController
         EnsureUnitFeedbackRoot();
         var go = new GameObject("FloatingFeedback_" + text);
         go.transform.SetParent(_unitFeedbackRoot.transform, false);
-        go.transform.position = GetUnitWorldCenter(unit) + Vector3.up * 0.58f;
+        go.transform.position = GetFeedbackStartPosition(unit);
         go.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+
+        var shadowGo = new GameObject("Shadow");
+        shadowGo.transform.SetParent(go.transform, false);
+        shadowGo.transform.localPosition = new Vector3(0.045f, -0.045f, 0.012f);
+        var shadow = shadowGo.AddComponent<TextMeshPro>();
+        ConfigureFeedbackText(shadow, text, new Color(0f, 0f, 0f, 0.86f), 3.35f);
+
         var label = go.AddComponent<TextMeshPro>();
-        label.alignment = TextAlignmentOptions.Center;
-        label.fontSize = 3.3f;
-        label.fontStyle = FontStyles.Bold;
-        label.enableWordWrapping = false;
-        label.text = text;
-        label.color = color;
+        ConfigureFeedbackText(label, text, color, 3.35f);
+        label.outlineWidth = 0.14f;
+        label.outlineColor = Color.black;
 
         _floatingFeedbackTexts.Add(go);
         _feedbackTextSpawnCount++;
@@ -627,29 +681,112 @@ public partial class SrpGameController
         _feedbackTextHistory.Add(text);
         if (_feedbackTextHistory.Count > 24)
             _feedbackTextHistory.RemoveAt(0);
-        StartCoroutine(AnimateWorldFeedback(go, label, color));
+        StartCoroutine(AnimateWorldFeedback(unit.id, go, label, shadow, color));
     }
 
-    IEnumerator AnimateWorldFeedback(GameObject go, TextMeshPro label, Color color)
+    Vector3 GetFeedbackStartPosition(SrpUnitRuntime unit)
     {
-        const float duration = 1.15f;
+        int activeCount = 0;
+        _activeFeedbackByUnit.TryGetValue(unit.id, out activeCount);
+        _activeFeedbackByUnit[unit.id] = activeCount + 1;
+
+        Vector3 center = GetUnitWorldCenter(unit);
+        Vector3 screenUp = GetBoardScreenUp();
+        Vector3 screenRight = GetBoardScreenRight();
+        int lane = activeCount;
+        float sideStep = lane == 0 ? 0f : ((lane % 2 == 0) ? -1f : 1f) * 0.08f * Mathf.Ceil(lane * 0.5f);
+        var start = center
+            + Vector3.up * 0.64f
+            + screenUp * (WorldFeedbackLaneGap * lane)
+            + screenRight * sideStep;
+
+        _hasPreviousFeedbackStartPosition = _feedbackTextSpawnCount > 0;
+        _previousFeedbackStartPosition = _lastFeedbackStartPosition;
+        _lastFeedbackStartPosition = start;
+        return start;
+    }
+
+    Vector3 GetBoardScreenUp()
+    {
+        var cam = Camera.main;
+        if (cam != null)
+        {
+            var projected = Vector3.ProjectOnPlane(cam.transform.up, Vector3.up);
+            if (projected.sqrMagnitude > 0.0001f)
+                return projected.normalized;
+        }
+        return Vector3.forward;
+    }
+
+    Vector3 GetBoardScreenRight()
+    {
+        var cam = Camera.main;
+        if (cam != null)
+        {
+            var projected = Vector3.ProjectOnPlane(cam.transform.right, Vector3.up);
+            if (projected.sqrMagnitude > 0.0001f)
+                return projected.normalized;
+        }
+        return Vector3.right;
+    }
+
+    static void ConfigureFeedbackText(TextMeshPro label, string text, Color color, float fontSize)
+    {
+        label.alignment = TextAlignmentOptions.Center;
+        label.fontSize = fontSize;
+        label.fontStyle = FontStyles.Bold;
+        label.enableWordWrapping = false;
+        label.text = text;
+        label.color = color;
+        label.richText = false;
+        label.rectTransform.sizeDelta = new Vector2(8f, 1.4f);
+        var renderer = label.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.sortingOrder = 30;
+        }
+    }
+
+    IEnumerator AnimateWorldFeedback(int unitId, GameObject go, TextMeshPro label, TextMeshPro shadow, Color color)
+    {
         Vector3 start = go.transform.position;
+        Vector3 screenUp = GetBoardScreenUp();
         float elapsed = 0f;
-        while (elapsed < duration && go != null && label != null)
+        while (elapsed < WorldFeedbackDuration && go != null && label != null)
         {
             elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / duration);
-            go.transform.position = start + Vector3.up * (0.58f * t);
-            var faded = color;
-            faded.a = 1f - t;
-            label.color = faded;
+            float t = Mathf.Clamp01(elapsed / WorldFeedbackDuration);
+            go.transform.position = start + screenUp * (WorldFeedbackBoardRise * t) + Vector3.up * (0.08f * t);
+            float fadeT = Mathf.Clamp01((elapsed - WorldFeedbackHoldDuration) / (WorldFeedbackDuration - WorldFeedbackHoldDuration));
+            SetFeedbackTextAlpha(label, color, 1f - fadeT);
+            if (shadow != null)
+                SetFeedbackTextAlpha(shadow, Color.black, 0.9f * (1f - fadeT));
             yield return null;
+        }
+        if (_activeFeedbackByUnit.TryGetValue(unitId, out var count))
+        {
+            count = Mathf.Max(0, count - 1);
+            if (count == 0)
+                _activeFeedbackByUnit.Remove(unitId);
+            else
+                _activeFeedbackByUnit[unitId] = count;
         }
         if (go != null)
         {
             _floatingFeedbackTexts.Remove(go);
             Destroy(go);
         }
+    }
+
+    static void SetFeedbackTextAlpha(TextMeshPro label, Color baseColor, float alpha)
+    {
+        if (label == null)
+            return;
+        var color = baseColor;
+        color.a = Mathf.Clamp01(alpha);
+        label.color = color;
     }
 
     void FlashUnit(SrpUnitRuntime unit, Color color)
@@ -750,8 +887,12 @@ public partial class SrpGameController
         _flashingUnitIds.Clear();
         _floatingFeedbackTexts.Clear();
         _feedbackTextHistory.Clear();
+        _activeFeedbackByUnit.Clear();
         _feedbackTextSpawnCount = 0;
         _lastFeedbackText = string.Empty;
+        _previousFeedbackStartPosition = Vector3.zero;
+        _lastFeedbackStartPosition = Vector3.zero;
+        _hasPreviousFeedbackStartPosition = false;
     }
 
     public static Quaternion GetFacingRotation(SrpFacing facing)
@@ -774,6 +915,13 @@ public partial class SrpGameController
     public bool TestHasCurrentActionRing => _currentUnitRing != null && _currentUnitRing.activeInHierarchy;
     public bool TestHasSelectedUnitRing => _selectedUnitRing != null && _selectedUnitRing.activeInHierarchy;
     public bool TestHasHoverUnitRing => _hoverUnitRing != null && _hoverUnitRing.activeInHierarchy;
+    public float TestTileSurfaceY => TileSurfaceY;
+    public float TestCurrentActionRingWorldY => _currentUnitRing != null ? _currentUnitRing.transform.position.y : -1f;
+    public float TestSelectedUnitRingWorldY => _selectedUnitRing != null ? _selectedUnitRing.transform.position.y : -1f;
+    public float TestHoverUnitRingWorldY => _hoverUnitRing != null ? _hoverUnitRing.transform.position.y : -1f;
+    public float TestCurrentActionRingRadiusScale => _currentUnitRing != null ? _currentUnitRing.transform.localScale.x : 0f;
+    public float TestSelectedUnitRingRadiusScale => _selectedUnitRing != null ? _selectedUnitRing.transform.localScale.x : 0f;
+    public float TestHoverUnitRingRadiusScale => _hoverUnitRing != null ? _hoverUnitRing.transform.localScale.x : 0f;
     public int TestVisibleUnitStatusBadgeCount
     {
         get
@@ -788,5 +936,21 @@ public partial class SrpGameController
     public int TestFloatingFeedbackSpawnCount => _feedbackTextSpawnCount;
     public string TestLastFloatingFeedbackText => _lastFeedbackText;
     public string TestFloatingFeedbackHistory => string.Join("\n", _feedbackTextHistory);
+    public float TestWorldFeedbackDuration => WorldFeedbackDuration;
+    public float TestWorldFeedbackHoldDuration => WorldFeedbackHoldDuration;
+    public bool TestHasStackedFeedbackStartPositions => _hasPreviousFeedbackStartPosition
+        && Vector3.Distance(_previousFeedbackStartPosition, _lastFeedbackStartPosition) > 0.01f;
+
+    public bool TestSpawnTwoFeedbackOnCurrentUnit()
+    {
+        if (_state == null)
+            return false;
+        var unit = GetUnit(_state.CurrentUnitId);
+        if (unit == null)
+            return false;
+        SpawnWorldFeedback(unit, "TEST A", Color.white);
+        SpawnWorldFeedback(unit, "TEST B", Color.yellow);
+        return TestHasStackedFeedbackStartPositions;
+    }
 #endif
 }
