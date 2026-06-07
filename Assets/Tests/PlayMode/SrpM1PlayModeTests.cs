@@ -39,6 +39,16 @@ public class SrpM1PlayModeTests
         var unitHud = controller.TestUnitHudText;
         var activeCard = controller.TestActiveUnitCardText;
         var previewCard = controller.TestActionPreviewText;
+        Assert.IsTrue(controller.TestHasCurrentActionRing, "current action unit ring missing");
+        Assert.IsTrue(controller.TestHasSelectedUnitRing, "selected unit ring missing");
+        Assert.Greater(controller.TestCurrentActionRingWorldY, controller.TestTileSurfaceY, "current action ring is buried in tile");
+        Assert.Greater(controller.TestSelectedUnitRingWorldY, controller.TestCurrentActionRingWorldY, "selected ring y offset must be distinct");
+        Assert.Greater(controller.TestCurrentActionRingRadiusScale, controller.TestSelectedUnitRingRadiusScale, "current action ring should be the outer ring");
+        Assert.GreaterOrEqual(controller.TestWorldFeedbackDuration, 1.8f, "feedback text lifetime is too short");
+        Assert.GreaterOrEqual(controller.TestWorldFeedbackHoldDuration, 1.0f, "feedback text hold time is too short");
+        Assert.GreaterOrEqual(controller.TestFloatingFeedbackSpawnCount, 1, "turn start floating feedback missing");
+        StringAssert.Contains("\uD134 \uC2DC\uC791", controller.TestFloatingFeedbackHistory);
+        Assert.IsTrue(controller.TestSpawnTwoFeedbackOnCurrentUnit(), "stacked feedback text starts at the same position");
         StringAssert.Contains($"라운드 {controller.TestRoundNumber}", turnHud);
         StringAssert.Contains($"({controller.TestCurrentUnitId})", turnHud);
         StringAssert.Contains("m1_opening_prototype", turnHud);
@@ -79,6 +89,12 @@ public class SrpM1PlayModeTests
         StringAssert.Contains("남", controller.TestFacingSouthButtonText);
         StringAssert.Contains("서", controller.TestFacingWestButtonText);
         StringAssert.Contains("SRPG 프로토타입", controller.TestLogText);
+
+        int feedbackBeforeEndTurn = controller.TestFloatingFeedbackSpawnCount;
+        Assert.IsTrue(controller.TestEndTurnSelectedUnit(), "test end turn failed");
+        yield return null;
+        Assert.GreaterOrEqual(controller.TestFloatingFeedbackSpawnCount, feedbackBeforeEndTurn + 2, "turn end/start feedback contract broke");
+        StringAssert.Contains("\uD134 \uC885\uB8CC", controller.TestFloatingFeedbackHistory);
 
         Object.Destroy(go);
         yield return null;
@@ -178,9 +194,14 @@ public class SrpM1PlayModeTests
 
         controller.OnUnitHoverEnter(controller.TestCurrentUnitId);
         yield return null;
+        Assert.IsTrue(controller.TestHasHoverUnitRing, "hover unit ring missing");
+        Assert.Greater(controller.TestHoverUnitRingWorldY, controller.TestSelectedUnitRingWorldY, "hover ring y offset must be distinct");
+        Assert.Greater(controller.TestSelectedUnitRingRadiusScale, controller.TestHoverUnitRingRadiusScale, "hover ring should be visually inside selected ring");
         StringAssert.Contains("유닛 미리보기", controller.TestStatusHudText);
         StringAssert.Contains("ZOC", controller.TestStatusHudText);
         Assert.AreEqual(controller.TestCurrentUnitId, controller.TestHoveredUnitId);
+        Assert.IsTrue(controller.TestForceCurrentUnitIntoEnemyZoc(), "failed to place test unit in ZOC");
+        Assert.Greater(controller.TestVisibleUnitStatusBadgeCount, 0, "ZOC/engagement unit badge missing");
         StringAssert.Contains("대상 정보", controller.TestActionPreviewText);
 
         Assert.IsTrue(controller.TestTryHoverFirstInteractionPoint(), "hover 가능한 상호작용 포인트가 없음");
@@ -264,6 +285,15 @@ public class SrpM1PlayModeTests
         StringAssert.Contains("오버클럭", controller.TestLogText);
         StringAssert.Contains("피해/회복", controller.TestLogText);
         StringAssert.Contains("강화 대기", controller.TestUnitHudText);
+
+        int feedbackBeforeSkill = controller.TestFloatingFeedbackSpawnCount;
+        Assert.IsTrue(controller.TestBeginFirstTargetedSkill(), "targeted skill prepare failed");
+        yield return null;
+        Assert.Greater(controller.TestFloatingFeedbackSpawnCount, feedbackBeforeSkill, "skill prepare feedback missing");
+        StringAssert.Contains("\uC900\uBE44", controller.TestFloatingFeedbackHistory);
+        Assert.IsTrue(controller.TestUsePendingSkillOnFirstTarget(), "targeted skill use failed");
+        yield return null;
+        StringAssert.Contains("!", controller.TestFloatingFeedbackHistory);
 
         Object.Destroy(go);
         SrpGameSettings.SelectedPreset = SrpMapPreset.M1OpeningPrototype;

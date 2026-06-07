@@ -160,6 +160,24 @@
   - 방향성 엄폐 segment, `blocksLineOfSight` 사선 차단, 상호작용 포인트 1개를 첫 전투 확인 지점으로 배치
   - 기본 전투 진입값과 로비 첫 선택을 새 프리셋에 연결하고, `M1QaIntegrated`는 deprecated QA 맵으로 후순위 노출
   - EditMode 테스트 `76 passed / 0 failed`, PlayMode 테스트 `6 passed / 0 failed`
+- [x] 전투 UX 피드백 레이어 P1
+  - 현재 행동 유닛, 선택 유닛, hover 유닛을 전장 위 ring으로 분리 표시
+  - ZOC/교전 상태를 유닛 위 `ZOC`/`교전` badge로 표시하고 기존 위험영역 타일 색 의미와 분리
+  - 턴 시작/턴 종료, 공격, 스킬 준비/사용, 재장전, 엄폐, 상호작용, 오버워치에 world-space floating text 추가
+  - 피해/부정 피드백은 붉은 flash, 회복/긍정 피드백은 녹색 계열 flash, 턴/선택 피드백은 노랑/흰색 계열 flash로 분류
+  - PlayMode 테스트에 ring, ZOC/교전 badge, 턴 시작/종료, 스킬 준비/사용 feedback 계약 assert 추가
+  - TMP 기본 폰트는 한국어 UI 렌더링을 위해 `Pretendard-Regular SDF.asset`를 유지하고, 로컬 검증 전 LFS 원본 asset 확보가 필요함을 확인
+  - EditMode 테스트 `76 passed / 0 failed`, PlayMode 테스트 `6 passed / 0 failed`
+- [x] 전투 UX 피드백 레이어 P1 실플레이 보정
+  - ring을 유닛 발아래 타일 위 decal 기준으로 재정의하고, 타일 표면 `y=0.075`보다 위에 배치
+  - ring mesh winding을 위쪽 normal 기준으로 수정해 탑다운 카메라에서 보이도록 보정
+  - 현재 행동/선택/hover ring의 반지름과 y offset을 모두 분리해 같은 유닛에 겹쳐도 구분되도록 조정
+  - world-space feedback text를 `2.15s` 표시, `1.25s` hold 후 fade out으로 늘리고 TMP outline/shadow를 적용
+  - 같은 유닛에 여러 feedback text가 동시에 뜰 때 per-unit lane stacking으로 시작 위치가 완전히 겹치지 않도록 보정
+  - 실플레이 2차 피드백에 따라 ring 반지름/두께와 world-space feedback text 크기를 낮추고 색상을 차분한 계열로 재조정
+  - TMP 기본 폰트는 `Pretendard-Regular SDF.asset` 유지 원칙을 재확인하고 `LiberationSans SDF.asset` 대체를 금지
+  - PlayMode 테스트에 ring 높이/구분, feedback lifetime/hold, feedback stacking 계약 assert 추가
+  - 로컬 Unity batchmode EditMode 테스트 `76 passed / 0 failed`, PlayMode 테스트 `6 passed / 0 failed`
 
 ## 다음 스프린트 (코드 2차 확장, P1/P2)
 
@@ -200,6 +218,9 @@
 - [ ] 초기 4인 대표 스킬 수치 확정 (`TBD-008`)
 - [ ] 초기 4인 고유 패시브 이름/서사/전직 연계 최종 확정 (`TBD-008`)
 - [ ] `M1OpeningPrototype` 실제 플레이/AI 시뮬레이션 후 적 수, 배치 간격, 루트별 위험도, 6~10턴 종료 밀도 조정
+- [ ] 전투 UX 피드백 레이어 P2
+  - 정식 VFX/파티클, 행동 순서 패널, 카메라/애니메이션 고도화는 P1 범위 밖으로 유지
+  - 로컬 Unity 에디터에서 실제 플레이 화면 기준으로 ring 두께, badge 위치, floating text 지속시간/가독성 튜닝
 - [ ] 맵 메이커 방향성 엄폐 segment 편집 UI (`TBD-001`, `TBD-004`)
 - [ ] 특수 지형 상호작용의 복합 효과/승리 조건 연동 (`TBD-004`)
 

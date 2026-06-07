@@ -145,3 +145,66 @@
 3. 총기 압박병의 엄폐/사선 차단 위치가 답답함이 아니라 읽을 수 있는 위협으로 작동하는지 확인
 4. 전술 장교를 목표처럼 보이게 할지, 별도 지휘관 처치/상호작용 승리 조건을 도입할지 결정
 5. 상호작용 포인트 `신호 장치`의 실제 전투 효과를 유지/확장/삭제할지 결정
+
+## 2026-06-07 전투 UX 피드백 레이어 P1
+
+### 임시 시각 규칙
+
+- 현재 행동 유닛 ring은 노랑, 선택 유닛 ring은 청록, hover 유닛 ring은 흰색으로 둔다.
+- 같은 유닛에 여러 상태가 겹치면 현재 행동 ring은 바깥쪽, 선택 ring은 중간, hover ring은 안쪽/상단으로 보이게 반지름과 높이를 다르게 둔다.
+- ZOC/교전 표시는 타일 오버레이가 아니라 유닛 위 world-space badge로 둔다.
+  - 교전 상태는 `교전` 자홍 badge
+  - ZOC 인접 상태는 `ZOC` 노랑 badge
+- 기존 타일 오버레이 색상 의미는 유지한다.
+  - 초록: 이동
+  - 빨강/비강: 공격/위험
+  - 주황: ZOC/주의 타일
+  - 보라: 스킬 대상
+  - 청록: 패링 텔레그래프
+- 이번 P1의 badge/ring 색은 유닛 위 표식이므로 위험영역 타일 의미와 직접 충돌하지 않게 배치한다.
+
+### Floating text / flash 분류
+
+- 턴 시작/턴 종료는 해당 유닛 위에 짧은 floating text를 띄운다.
+- 공격, 기회공격, 오버워치 발동, 스킬 준비/사용, 재장전, 엄폐, 상호작용, 오버클럭은 즉시 world-space text를 띄운다.
+- 피해/부정 변화는 붉은 flash, 회복/긍정 변화는 녹색/청록 flash, 턴/선택/중립 피드백은 노랑/흰색 flash로 둔다.
+- 스킬 결과 flash는 HP/PG 변화량을 기준으로 판단한다. 버프/디버프 전용 정교화는 후속 VFX 단계에서 조정한다.
+
+### 비범위와 후속
+
+- 새 전투 규칙, 파티클/VFX 고도화, 행동 순서 패널, 메이커 드롭다운/툴팁 개선은 이번 P1 비범위다.
+- 맵 메이커 엄폐 segment 편집 UI와 모바일/WebGL 전용 조정도 비범위다.
+- TMP 기본 폰트는 한국어 UI 렌더링을 위해 `Pretendard-Regular SDF.asset`를 유지한다. 로컬 PlayMode 검증 전에는 LFS 원본 asset을 받아야 하며, `LiberationSans SDF.asset`로 대체하면 한국어 glyph가 누락될 수 있다.
+- 실제 Unity 에디터 플레이에서는 ring 두께, badge 높이, floating text 지속시간을 화면 가독성 기준으로 추가 튜닝할 수 있다.
+
+### 검증
+
+- EditMode: `76 passed / 0 failed`
+- PlayMode: `6 passed / 0 failed`
+- PlayMode에 현재 행동/선택/hover ring, ZOC/교전 badge, 턴 시작/종료, 스킬 준비/사용 feedback 계약을 추가 검증했다.
+
+## 2026-06-07 PR #61 실플레이 피드백 보정
+
+### Ring 기준 보정
+
+- ring은 유닛 발아래 타일 위에 얹히는 decal/annulus 표식을 기준으로 한다. 타일 전체를 다시 칠하는 overlay가 아니다.
+- 현재 타일 cube는 중심 `y=0`, 높이 `0.15`이므로 표면은 `y=0.075`다. ring은 이보다 위에 있어야 하며, 현재 행동/선택/hover 순으로 `0.110 / 0.123 / 0.136` 높이를 사용한다.
+- 기존 ring mesh는 위에서 볼 때 뒷면이 될 수 있어, triangle winding을 위쪽 normal 기준으로 뒤집었다.
+- 현재 행동 ring은 가장 바깥 노랑, 선택 ring은 중간 청록, hover ring은 안쪽 흰색으로 둔다. 같은 유닛에 겹쳐도 반지름과 y offset이 모두 달라야 한다.
+- 실플레이 2차 피드백 기준으로 ring은 큰 경고 원이 아니라 발아래 얇은 표식으로 보이게 current/selected/hover 반지름을 낮추고 선 두께를 줄였다.
+- 색상도 고채도 원색 대신 차분한 amber/teal/ivory 계열로 낮춘다.
+
+### Floating feedback 가독성 기준
+
+- feedback text는 전체 `2.15s`, 초기 `1.25s` 완전 불투명 유지 후 후반 fade out을 기준으로 한다.
+- TMP 기본 폰트는 한국어 glyph 보존을 위해 `Pretendard-Regular SDF.asset`를 유지한다. `LiberationSans SDF.asset` 대체는 금지한다.
+- 텍스트 크기를 키우고 TMP outline과 검은 shadow를 적용해 전장 배경 위에서 대비를 확보한다.
+- 실플레이 2차 피드백 기준으로 text 크기는 과하게 크지 않게 낮추되, outline/shadow와 hold time으로 읽힘을 보완한다.
+- 같은 유닛에 짧은 시간 안에 feedback이 여러 개 뜨면 per-unit active lane 수로 시작 위치를 보드 평면의 screen-up/side 방향에 분산한다. 턴 종료+턴 시작, 스킬 준비+사용이 같은 위치에 완전히 겹치면 안 된다.
+- 탑다운 카메라에서는 `Vector3.up` 이동이 화면상 거의 보이지 않으므로, 카메라 up/right를 보드 평면에 투영한 방향으로 이동/stack한다. world Y 이동은 연결감을 잃지 않는 작은 보조값만 둔다.
+
+### 검증
+
+- PlayMode에 ring 높이, ring 반지름/높이 구분, feedback duration/hold, 같은 유닛 feedback 2개 이상의 시작 위치 분산 계약을 추가했다.
+- 로컬 Unity batchmode EditMode: `76 passed / 0 failed`.
+- 로컬 Unity batchmode PlayMode: `6 passed / 0 failed`.

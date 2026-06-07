@@ -667,6 +667,8 @@ public partial class SrpGameController
             UpdateHud();
             return;
         }
+        SpawnWorldFeedback(unit, "\uC624\uBC84\uC6CC\uCE58", new Color(0.35f, 0.55f, 1f));
+        FlashUnit(unit, new Color(0.35f, 0.55f, 1f));
         LogLine($"오버워치 예약: {unit.displayName}({unit.id}) | 사거리 {unit.overwatchRange} | 행동 소모");
         RefreshUnitViews();
         FinishActivation();
@@ -1632,6 +1634,161 @@ public partial class SrpGameController
     {
         OnShowSkillList();
         return _skillListPanel != null && _skillListPanel.activeSelf;
+    }
+
+    public bool TestEndTurnSelectedUnit()
+    {
+        if (!_selectedId.HasValue)
+            return false;
+        OnEndTurnSoft();
+        return true;
+    }
+
+    public bool TestBeginFirstTargetedSkill()
+    {
+        var unit = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+        if (_state == null)
+            return false;
+        if (TryBeginFirstTargetedSkillForUnit(unit))
+            return true;
+
+        foreach (var candidate in _state.Units)
+        {
+            if (candidate == null || candidate.eliminated)
+                continue;
+            if (TryBeginFirstTargetedSkillForUnit(candidate))
+                return true;
+        }
+        return false;
+    }
+
+    bool TryBeginFirstTargetedSkillForUnit(SrpUnitRuntime unit)
+    {
+        if (unit == null || _state == null)
+            return false;
+        foreach (var runtime in unit.skillRuntimes)
+        {
+            if (runtime == null || !_state.SkillLookup.TryGetValue(runtime.skillId, out var data))
+                continue;
+            if (data.skillType != SrpSkillType.Active || data.targetType == SrpTargetType.Self)
+                continue;
+            SrpSkills.EnsureRuntimeInitialized(data, runtime);
+            if (!SrpSkills.CanUseActiveSkill(data, runtime))
+                continue;
+            unit.actionPoints = Mathf.Max(1, unit.actionPoints);
+            _selectedId = unit.id;
+            _state.CurrentUnitId = unit.id;
+            _phase = Phase.UnitActive;
+            _remainingMove = unit.moveRange;
+            var targets = SrpSkills.GetSkillTargetTiles(data, unit, _state);
+            if (targets == null || targets.Count == 0)
+            {
+                if (!TryPrepareFeedbackSkillTarget(unit, data))
+                    continue;
+                targets = SrpSkills.GetSkillTargetTiles(data, unit, _state);
+                if (targets == null || targets.Count == 0)
+                    continue;
+            }
+            RefreshActiveHighlights(unit);
+            BeginSkillTargeting(data, runtime);
+            return _phase == Phase.SelectingSkillTarget && _skillTargetTiles.Count > 0;
+        }
+        return false;
+    }
+
+    bool TryPrepareFeedbackSkillTarget(SrpUnitRuntime caster, SrpSkillData data)
+    {
+        if (caster == null || data == null || _state == null)
+            return false;
+        if (data.targetType == SrpTargetType.AreaEnemy || data.targetType == SrpTargetType.AreaAlly)
+            return true;
+
+        bool wantsEnemy = data.targetType == SrpTargetType.SingleEnemy;
+        SrpUnitRuntime target = null;
+        foreach (var candidate in _state.Units)
+        {
+            if (candidate == null || candidate.id == caster.id)
+                continue;
+            bool ownerMatches = wantsEnemy
+                ? candidate.owner != caster.owner
+                : candidate.owner == caster.owner;
+            if (!ownerMatches)
+                continue;
+            target = candidate;
+            break;
+        }
+        if (target == null)
+            return false;
+
+        int range = Mathf.Max(1, data.range);
+        bool wasEliminated = target.eliminated;
+        target.eliminated = true;
+        for (int y = Mathf.Max(0, caster.anchorY - range); y <= Mathf.Min(_state.Height - 1, caster.anchorY + range); y++)
+        for (int x = Mathf.Max(0, caster.anchorX - range); x <= Mathf.Min(_state.Width - 1, caster.anchorX + range); x++)
+        {
+            if (x == caster.anchorX && y == caster.anchorY)
+                continue;
+            if (!_state.CanStandAt(target, x, y, target.id))
+                continue;
+            target.anchorX = x;
+            target.anchorY = y;
+            target.eliminated = false;
+            target.hp = Mathf.Max(1, target.hp > 0 ? target.hp : target.maxHp);
+            target.pg = Mathf.Max(1, target.pg > 0 ? target.pg : target.maxPg);
+            _state.RebuildEngagements();
+            RefreshUnitViews();
+            return true;
+        }
+        target.eliminated = wasEliminated;
+        return false;
+    }
+
+    public bool TestUsePendingSkillOnFirstTarget()
+    {
+        if (_phase != Phase.SelectingSkillTarget || _skillTargetTiles.Count == 0)
+            return false;
+        var tile = _skillTargetTiles[0];
+        OnTileClicked(tile.x, tile.y);
+        return true;
+    }
+
+    public bool TestForceCurrentUnitIntoEnemyZoc()
+    {
+        if (_state == null || _state.CurrentUnitId <= 0)
+            return false;
+        var unit = GetUnit(_state.CurrentUnitId);
+        if (unit == null)
+            return false;
+        SrpUnitRuntime enemy = null;
+        foreach (var candidate in _state.Units)
+        {
+            if (candidate != null && !candidate.eliminated && candidate.owner != unit.owner)
+            {
+                enemy = candidate;
+                break;
+            }
+        }
+        if (enemy == null)
+            return false;
+
+        int[] dx = { 1, -1, 0, 0 };
+        int[] dy = { 0, 0, 1, -1 };
+        for (int i = 0; i < dx.Length; i++)
+        {
+            int nx = unit.anchorX + dx[i];
+            int ny = unit.anchorY + dy[i];
+            if (!_state.CanStandAt(enemy, nx, ny, enemy.id))
+                continue;
+            enemy.anchorX = nx;
+            enemy.anchorY = ny;
+            _state.RebuildEngagements();
+            RefreshUnitViews();
+            RefreshActiveHighlights(unit);
+            UpdateUnitFeedbackVisuals();
+            UpdateHud();
+            return true;
+        }
+        return false;
     }
 
     public bool TestSetSelectedStance(SrpStance stance)
