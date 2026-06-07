@@ -296,6 +296,13 @@
   - 유닛 hover 시 해당 유닛의 공격범위/ZOC 미리보기 표시
   - 적 예상 intent(경량 휴리스틱) 경로/타깃 타일 표시 추가
   - PlayMode 테스트에 위험영역 토글/hover 상태 문구 검증 추가
+- 전투 UX 피드백 레이어 P1
+  - 현재 행동/선택/hover 유닛 ring과 ZOC/교전 unit badge 추가
+  - 턴 시작/종료, 공격, 스킬 준비/사용, 재장전, 엄폐, 상호작용, 오버워치 world-space feedback 추가
+  - 피해/회복/턴/선택 계열 unit flash 추가
+  - PlayMode 테스트에 ring/badge/floating feedback 계약 assert 추가
+  - TMP 기본 폰트는 한국어 UI 렌더링을 위해 Pretendard SDF를 유지하고, PlayMode 검증 전 LFS 원본 asset 확보 필요성을 확인
+  - 검증: EditMode `76 passed / 0 failed`, PlayMode `6 passed / 0 failed`
 
 ## 기록 원칙
 

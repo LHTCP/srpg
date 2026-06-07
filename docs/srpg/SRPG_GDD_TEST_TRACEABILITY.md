@@ -38,6 +38,16 @@
 | RQ-021 | 초기 4인 파티 역할 | `SrpM1CoreTests.InitialFourRolePassives_ApplyBridgeEffects`, `SrpM1CoreTests.ArcaneScreen_RestoresAllyPgAsMagicBattlefieldIntervention`, `SrpMakerMetadataTests.M1QaIntegratedPreset_ExposesPhase2SkillsAndScenarioHooks`, `SrpMakerMetadataTests.M1OpeningPrototypePreset_LoadsAsAsymmetricFirstBattleScenario`, `SrpM1PlayModeTests.M1OpeningPrototypePreset_InitializesFromGameSettings` | 부분 | 캐릭터별 대표 스킬 최종 수치와 전직 연계 확정 후 프리셋 테스트 갱신 |
 | RQ-022 | 총기 HP-PG 파급 | `SrpCombatResolverTests.ApplyAttack_FirearmSpillsHalfFinalHpDamageToPg`, `SrpM1CoreTests.FirearmSpillover_UsesPostCoverFinalHpDamage` | 완전 | 비율/반올림/최소값 변경 시 기대값 갱신 |
 
+## UX 피드백 계약
+
+| 항목 | 검증 테스트 | 상태 | 다음 액션 |
+| --- | --- | --- | --- |
+| 현재 행동/선택/hover 유닛 ring | `SrpM1PlayModeTests.DefaultOpeningPrototypePreset_InitializesRoundAndHud`, `SrpM1PlayModeTests.DangerAreaAndHoverPreview_UpdatesStatusText` | 부분 | 로컬 Unity 플레이 화면에서 ring 두께/겹침 가독성 추가 확인 |
+| ZOC/교전 unit badge | `SrpM1PlayModeTests.DangerAreaAndHoverPreview_UpdatesStatusText` | 부분 | 실제 교전 밀집 장면에서 badge 위치와 타일 오버레이 충돌 여부 확인 |
+| 턴 시작/종료 floating feedback | `SrpM1PlayModeTests.DefaultOpeningPrototypePreset_InitializesRoundAndHud` | 부분 | 정식 VFX 단계에서 지속시간/애니메이션 보정 |
+| 스킬 준비/사용 floating feedback | `SrpM1PlayModeTests.DirectControlUi_ChangesStanceFacingAndOverclocksSkill` | 부분 | 대표 스킬별 짧은 표시명 최종화 후 문구 보정 |
+| 피해/회복/중립 flash | PlayMode 피드백 생성 계약과 런타임 HP/PG 변화 기반 flash 연결 | 부분 | 실제 화면 기준 과도한 flash 여부 확인 |
+
 ## 운영 규칙
 
 1. 새 규칙 구현 시 먼저 이 표의 상태를 업데이트한다.

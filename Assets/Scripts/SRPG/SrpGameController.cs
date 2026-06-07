@@ -215,8 +215,11 @@ public partial class SrpGameController : MonoBehaviour
                     return;
                 }
                 PushUndo();
+                var beforeVitals = CaptureUnitVitals();
+                SpawnWorldFeedback(u, $"{_pendingSkillData.displayName}!", new Color(0.82f, 0.55f, 1f));
                 SrpSkills.ResolveActiveSkill(_pendingSkillData, _pendingSkillRuntime,
                     u, x, y, _state, LogLine);
+                FlashChangedUnits(beforeVitals);
                 u.hasUsedSkillThisActivation = true;
                 u.actionPoints = Mathf.Max(0, u.actionPoints - 1);
                 RefreshUnitViews();
@@ -412,6 +415,7 @@ public partial class SrpGameController : MonoBehaviour
         _hoverTileY = unit.anchorY;
         RenderUnitHoverOverlays(unit);
         _hoverStatusHint = $"유닛 미리보기: {unit.displayName} 공격범위/ZOC 표시";
+        UpdateUnitFeedbackVisuals();
         UpdateHud();
     }
 
@@ -425,6 +429,7 @@ public partial class SrpGameController : MonoBehaviour
         ClearOverlayLayer(OverlayUnitHoverRange);
         ClearOverlayLayer(OverlayUnitHoverZoc);
         _hoverStatusHint = string.Empty;
+        UpdateUnitFeedbackVisuals();
         UpdateHud();
     }
 
@@ -453,6 +458,8 @@ public partial class SrpGameController : MonoBehaviour
         u.hasReloadedThisActivation = false;
         _phase = Phase.UnitActive;
         RefreshActiveHighlights(u);
+        FlashUnit(u, new Color(1f, 0.92f, 0.35f));
+        UpdateUnitFeedbackVisuals();
         UpdateHud();
     }
 
@@ -479,6 +486,7 @@ public partial class SrpGameController : MonoBehaviour
         HighlightCoverTiles(u);
         HighlightInteractionTiles(u);
         RebuildDangerAndIntentOverlays();
+        UpdateUnitFeedbackVisuals();
     }
 
     // ── 전투 ─────────────────────────────────────────────────────────────────
@@ -532,7 +540,10 @@ public partial class SrpGameController : MonoBehaviour
         if (data.targetType == SrpTargetType.Self)
         {
             PushUndo();
+            SpawnWorldFeedback(u, $"{data.displayName}!", new Color(0.82f, 0.55f, 1f));
+            var beforeVitals = CaptureUnitVitals();
             SrpSkills.ResolveActiveSkill(data, runtime, u, u.anchorX, u.anchorY, _state, LogLine);
+            FlashChangedUnits(beforeVitals);
             u.hasUsedSkillThisActivation = true;
             u.actionPoints = Mathf.Max(0, u.actionPoints - 1);
             RefreshUnitViews();
@@ -566,6 +577,9 @@ public partial class SrpGameController : MonoBehaviour
         foreach (var tile in _skillTargetTiles)
             SetOverlayTile(OverlaySkill, tile.x, tile.y, new Color(0.7f, 0.3f, 0.9f));
         HighlightParryTelegraphForSkillTargets(u, data);
+        SpawnWorldFeedback(u, $"{data.displayName} \uC900\uBE44", new Color(0.82f, 0.55f, 1f));
+        FlashUnit(u, new Color(0.9f, 0.82f, 1f));
+        UpdateUnitFeedbackVisuals();
         UpdateHud();
     }
 
@@ -610,6 +624,10 @@ public partial class SrpGameController : MonoBehaviour
         _pendingSkillData = null;
         _pendingSkillRuntime = null;
         _skillTargetTiles.Clear();
+        _hoverUnitId = -1;
+        _hoverTileX = -1;
+        _hoverTileY = -1;
+        _hoverStatusHint = string.Empty;
         ResetTileColors();
         RefreshUnitViews();
         LogLine("— 되감기 —");
@@ -633,9 +651,13 @@ public partial class SrpGameController : MonoBehaviour
 
         if (!SrpCombatResolver.TryApplyOpportunityAttack(_state, attacker, mover, out var outcome))
             return false;
+        SpawnWorldFeedback(attacker, "\uAE30\uD68C\uACF5\uACA9!", new Color(1f, 0.42f, 0.35f));
         SrpSkills.OnAttackResolved(attacker, mover, outcome, _state, LogLine);
         if (outcome.damageToHp > 0 || outcome.damageToPg > 0)
+        {
             SrpSkills.OnTakeDamage(mover, _state, LogLine);
+            FlashUnit(mover, new Color(1f, 0.15f, 0.12f));
+        }
 
         LogLine(
             $"기회공격: {attacker.displayName}({attacker.id}) → {mover.displayName}({mover.id}) | " +
@@ -666,9 +688,13 @@ public partial class SrpGameController : MonoBehaviour
 
         if (!SrpOverwatch.TryTrigger(_state, watcher, target, out var outcome))
             return false;
+        SpawnWorldFeedback(watcher, "\uC624\uBC84\uC6CC\uCE58!", new Color(0.35f, 0.55f, 1f));
         SrpSkills.OnAttackResolved(watcher, target, outcome, _state, LogLine);
         if (outcome.damageToHp > 0 || outcome.damageToPg > 0)
+        {
             SrpSkills.OnTakeDamage(target, _state, LogLine);
+            FlashUnit(target, new Color(1f, 0.15f, 0.12f));
+        }
 
         LogLine(
             $"오버워치 사격: {watcher.displayName}({watcher.id}) → {target.displayName}({target.id}) | " +
@@ -721,10 +747,14 @@ public partial class SrpGameController : MonoBehaviour
             UpdateHud();
             return;
         }
+        SpawnWorldFeedback(atk, "\uACF5\uACA9!", new Color(1f, 0.42f, 0.35f));
         var outcome = SrpCombatResolver.ApplyAttack(_state, atk, def);
         SrpSkills.OnAttackResolved(atk, def, outcome, _state, LogLine);
         if (outcome.damageToHp > 0 || outcome.damageToPg > 0)
+        {
             SrpSkills.OnTakeDamage(def, _state, LogLine);
+            FlashUnit(def, new Color(1f, 0.15f, 0.12f));
+        }
         atk.hasAttackedThisActivation = true;
         _hasAttackedThisTurn = true;
         atk.actionPoints = Mathf.Max(0, atk.actionPoints - 1);
@@ -806,6 +836,12 @@ public partial class SrpGameController : MonoBehaviour
 
     void FinishActivation()
     {
+        var ended = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+        if (ended != null)
+        {
+            SpawnWorldFeedback(ended, "\uD134 \uC885\uB8CC", new Color(0.9f, 0.9f, 0.9f));
+            FlashUnit(ended, new Color(1f, 1f, 1f));
+        }
         ResetTileColors();
         _selectedId = null;
         _phase = Phase.Idle;
@@ -814,6 +850,7 @@ public partial class SrpGameController : MonoBehaviour
         _pendingSkillData = null;
         _pendingSkillRuntime = null;
         _skillTargetTiles.Clear();
+        UpdateUnitFeedbackVisuals();
         AdvanceToNextActivation();
     }
 
@@ -861,6 +898,7 @@ public partial class SrpGameController : MonoBehaviour
         }
 
         BeginSelectUnit(next);
+        SpawnWorldFeedback(next, "\uD134 \uC2DC\uC791", new Color(1f, 0.92f, 0.35f));
         LogLine($"행동 시작: {next.displayName}({next.id}) [SPD {next.speed}]");
         CheckWin();
         UpdateHud();
@@ -876,6 +914,7 @@ public partial class SrpGameController : MonoBehaviour
         foreach (var kv in _unitObjs)
             if (kv.Value != null) Destroy(kv.Value);
         _unitObjs.Clear();
+        ClearUnitFeedbackObjects();
 
         _undo.Clear();
         _log.Clear();
@@ -1022,6 +1061,8 @@ public partial class SrpGameController : MonoBehaviour
         unit.ReloadAmmo();
         unit.actionPoints = Mathf.Max(0, unit.actionPoints - 1);
         unit.hasReloadedThisActivation = true;
+        SpawnWorldFeedback(unit, "\uC7AC\uC7A5\uC804", new Color(0.25f, 1f, 0.65f));
+        FlashUnit(unit, new Color(0.25f, 1f, 0.65f));
         LogLine($"재장전: {unit.displayName} | 탄약 {unit.ammo}/{unit.maxAmmo} | AP-1");
         RefreshActiveHighlights(unit);
         UpdateHud();
@@ -1069,6 +1110,8 @@ public partial class SrpGameController : MonoBehaviour
         PushUndo();
         unit.SetCover(_state.RoundNumber, coverX, coverY);
         unit.actionPoints = Mathf.Max(0, unit.actionPoints - 1);
+        SpawnWorldFeedback(unit, "\uC5C4\uD3D0", new Color(0.55f, 1f, 0.35f));
+        FlashUnit(unit, new Color(0.55f, 1f, 0.35f));
         LogLine($"엄폐: {unit.displayName} | 엄폐물 ({coverX},{coverY}) | AP-1");
         RefreshActiveHighlights(unit);
         UpdateHud();
@@ -1112,6 +1155,8 @@ public partial class SrpGameController : MonoBehaviour
             return false;
         }
         string label = string.IsNullOrEmpty(point.displayName) ? point.id : point.displayName;
+        SpawnWorldFeedback(unit, "\uC0C1\uD638\uC791\uC6A9", new Color(1f, 0.86f, 0.25f));
+        FlashUnit(unit, new Color(1f, 0.86f, 0.25f));
         LogLine($"상호작용: {unit.displayName} → {label}({point.x},{point.y}) | AP-1");
         RefreshActiveHighlights(unit);
         UpdateHud();
@@ -1147,6 +1192,8 @@ public partial class SrpGameController : MonoBehaviour
             return false;
         }
 
+        SpawnWorldFeedback(unit, "\uC624\uBC84\uD074\uB7ED", new Color(1f, 0.78f, 0.25f));
+        FlashUnit(unit, new Color(1f, 0.78f, 0.25f));
         RefreshActiveHighlights(unit);
         UpdateHud();
         return true;

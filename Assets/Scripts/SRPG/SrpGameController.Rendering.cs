@@ -1,4 +1,6 @@
+using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 
 /// <summary>
@@ -44,10 +46,22 @@ public partial class SrpGameController
 
     GameObject[,] _tiles;
     readonly Dictionary<int, GameObject> _unitObjs = new Dictionary<int, GameObject>();
+    readonly Dictionary<int, GameObject> _unitStatusBadges = new Dictionary<int, GameObject>();
+    readonly Dictionary<int, Coroutine> _unitFlashCoroutines = new Dictionary<int, Coroutine>();
+    readonly HashSet<int> _flashingUnitIds = new HashSet<int>();
+    readonly List<GameObject> _floatingFeedbackTexts = new List<GameObject>();
+    readonly List<string> _feedbackTextHistory = new List<string>();
     Renderer[,] _tileRenderers;
     Color[,] _baseTileColors;
     readonly Dictionary<int, Dictionary<int, Color>> _tileOverlayLayers = new Dictionary<int, Dictionary<int, Color>>();
     static Mesh s_unitFacingWedgeMesh;
+    static Mesh s_unitRingMesh;
+    GameObject _unitFeedbackRoot;
+    GameObject _currentUnitRing;
+    GameObject _selectedUnitRing;
+    GameObject _hoverUnitRing;
+    int _feedbackTextSpawnCount;
+    string _lastFeedbackText = string.Empty;
 
     // ── 그리드 ───────────────────────────────────────────────────────────────
 
@@ -349,7 +363,8 @@ public partial class SrpGameController
                 : new Color(1f, 0.3f, 0.25f);
             if (u.HasTag(SrpUnitTags.Boss))
                 unitColor = Color.Lerp(unitColor, Color.yellow, 0.45f);
-            ApplyColor(go.GetComponent<Renderer>(), unitColor);
+            if (!_flashingUnitIds.Contains(u.id))
+                ApplyColor(go.GetComponent<Renderer>(), unitColor);
         }
 
         var remove = new List<int>();
@@ -360,6 +375,20 @@ public partial class SrpGameController
             Destroy(_unitObjs[id]);
             _unitObjs.Remove(id);
         }
+
+        UpdateUnitFeedbackVisuals();
+    }
+
+    Color GetUnitBaseColor(SrpUnitRuntime u)
+    {
+        if (u == null)
+            return Color.white;
+        Color unitColor = u.owner == 0
+            ? new Color(0.25f, 0.6f, 1f)
+            : new Color(1f, 0.3f, 0.25f);
+        if (u.HasTag(SrpUnitTags.Boss))
+            unitColor = Color.Lerp(unitColor, Color.yellow, 0.45f);
+        return unitColor;
     }
 
     Vector3 GetUnitWorldCenter(SrpUnitRuntime u)
@@ -423,6 +452,308 @@ public partial class SrpGameController
         return s_unitFacingWedgeMesh;
     }
 
+    void UpdateUnitFeedbackVisuals()
+    {
+        if (_state == null)
+            return;
+
+        EnsureUnitFeedbackRoot();
+        UpdatePriorityRing(ref _currentUnitRing, "CurrentActionRing", GetUnit(_state.CurrentUnitId),
+            new Color(1f, 0.88f, 0.25f), 0.018f, 1.18f);
+        UpdatePriorityRing(ref _selectedUnitRing, "SelectedUnitRing", _selectedId.HasValue ? GetUnit(_selectedId.Value) : null,
+            new Color(0.25f, 1f, 0.95f), 0.028f, 1.02f);
+        UpdatePriorityRing(ref _hoverUnitRing, "HoverUnitRing", _hoverUnitId > 0 ? GetUnit(_hoverUnitId) : null,
+            new Color(1f, 1f, 1f), 0.038f, 0.88f);
+        UpdateUnitStatusBadges();
+    }
+
+    void UpdatePriorityRing(ref GameObject ring, string name, SrpUnitRuntime unit, Color color, float yOffset, float radiusScale)
+    {
+        if (ring == null)
+            ring = CreateUnitRing(name, color);
+        if (unit == null || unit.eliminated)
+        {
+            ring.SetActive(false);
+            return;
+        }
+
+        ring.SetActive(true);
+        ring.transform.position = GetUnitWorldCenter(unit) + Vector3.up * yOffset;
+        float radius = GetUnitFeedbackRadius(unit) * radiusScale;
+        ring.transform.localScale = new Vector3(radius, 1f, radius);
+        ApplyColor(ring.GetComponent<Renderer>(), color);
+    }
+
+    GameObject CreateUnitRing(string name, Color color)
+    {
+        EnsureUnitFeedbackRoot();
+        var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+        go.transform.SetParent(_unitFeedbackRoot.transform, false);
+        go.GetComponent<MeshFilter>().sharedMesh = GetUnitRingMesh();
+        ApplyColor(go.GetComponent<Renderer>(), color);
+        return go;
+    }
+
+    static Mesh GetUnitRingMesh()
+    {
+        if (s_unitRingMesh != null)
+            return s_unitRingMesh;
+
+        const int segments = 64;
+        const float outerRadius = 0.5f;
+        const float innerRadius = 0.39f;
+        var vertices = new Vector3[segments * 2];
+        var triangles = new int[segments * 6];
+        for (int i = 0; i < segments; i++)
+        {
+            float angle = (Mathf.PI * 2f * i) / segments;
+            float sin = Mathf.Sin(angle);
+            float cos = Mathf.Cos(angle);
+            vertices[i * 2] = new Vector3(cos * outerRadius, 0f, sin * outerRadius);
+            vertices[i * 2 + 1] = new Vector3(cos * innerRadius, 0f, sin * innerRadius);
+
+            int next = (i + 1) % segments;
+            int tri = i * 6;
+            triangles[tri] = i * 2;
+            triangles[tri + 1] = next * 2;
+            triangles[tri + 2] = i * 2 + 1;
+            triangles[tri + 3] = next * 2;
+            triangles[tri + 4] = next * 2 + 1;
+            triangles[tri + 5] = i * 2 + 1;
+        }
+
+        s_unitRingMesh = new Mesh
+        {
+            name = "SrpUnitFeedbackRing",
+            vertices = vertices,
+            triangles = triangles,
+        };
+        s_unitRingMesh.RecalculateNormals();
+        s_unitRingMesh.RecalculateBounds();
+        return s_unitRingMesh;
+    }
+
+    float GetUnitFeedbackRadius(SrpUnitRuntime unit)
+    {
+        if (unit == null || unit.footprintOffsets == null || unit.footprintOffsets.Count == 0)
+            return cellSize;
+
+        int minX = 0, maxX = 0, minY = 0, maxY = 0;
+        foreach (var off in unit.footprintOffsets)
+        {
+            minX = Mathf.Min(minX, off.x);
+            maxX = Mathf.Max(maxX, off.x);
+            minY = Mathf.Min(minY, off.y);
+            maxY = Mathf.Max(maxY, off.y);
+        }
+        float span = Mathf.Max(maxX - minX + 1, maxY - minY + 1);
+        return Mathf.Max(cellSize * 0.95f, span * cellSize);
+    }
+
+    void UpdateUnitStatusBadges()
+    {
+        var keep = new HashSet<int>();
+        foreach (var unit in _state.Units)
+        {
+            if (unit == null || unit.eliminated)
+                continue;
+            keep.Add(unit.id);
+
+            if (!_unitStatusBadges.TryGetValue(unit.id, out var badge))
+            {
+                badge = CreateUnitStatusBadge(unit.id);
+                _unitStatusBadges[unit.id] = badge;
+            }
+
+            bool engaged = _state.IsUnitEngaged(unit.id);
+            bool inZoc = !engaged && _state.IsEnemyAdjacentToTile(unit.anchorX, unit.anchorY, unit.owner);
+            badge.SetActive(engaged || inZoc);
+            if (!badge.activeSelf)
+                continue;
+
+            badge.transform.position = GetUnitWorldCenter(unit) + new Vector3(0f, 0.42f, -0.42f * cellSize);
+            badge.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            var text = badge.GetComponent<TextMeshPro>();
+            text.text = engaged ? "\uAD50\uC804" : "ZOC";
+            text.color = engaged ? new Color(1f, 0.25f, 0.65f) : new Color(1f, 0.92f, 0.25f);
+        }
+
+        var remove = new List<int>();
+        foreach (var kv in _unitStatusBadges)
+            if (!keep.Contains(kv.Key)) remove.Add(kv.Key);
+        foreach (int id in remove)
+        {
+            Destroy(_unitStatusBadges[id]);
+            _unitStatusBadges.Remove(id);
+        }
+    }
+
+    GameObject CreateUnitStatusBadge(int unitId)
+    {
+        EnsureUnitFeedbackRoot();
+        var go = new GameObject($"UnitStatusBadge_{unitId}");
+        go.transform.SetParent(_unitFeedbackRoot.transform, false);
+        var text = go.AddComponent<TextMeshPro>();
+        text.alignment = TextAlignmentOptions.Center;
+        text.fontSize = 2.8f;
+        text.fontStyle = FontStyles.Bold;
+        text.enableWordWrapping = false;
+        text.text = string.Empty;
+        go.SetActive(false);
+        return go;
+    }
+
+    void SpawnWorldFeedback(SrpUnitRuntime unit, string text, Color color)
+    {
+        if (unit == null || unit.eliminated || string.IsNullOrEmpty(text))
+            return;
+
+        EnsureUnitFeedbackRoot();
+        var go = new GameObject("FloatingFeedback_" + text);
+        go.transform.SetParent(_unitFeedbackRoot.transform, false);
+        go.transform.position = GetUnitWorldCenter(unit) + Vector3.up * 0.58f;
+        go.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+        var label = go.AddComponent<TextMeshPro>();
+        label.alignment = TextAlignmentOptions.Center;
+        label.fontSize = 3.3f;
+        label.fontStyle = FontStyles.Bold;
+        label.enableWordWrapping = false;
+        label.text = text;
+        label.color = color;
+
+        _floatingFeedbackTexts.Add(go);
+        _feedbackTextSpawnCount++;
+        _lastFeedbackText = text;
+        _feedbackTextHistory.Add(text);
+        if (_feedbackTextHistory.Count > 24)
+            _feedbackTextHistory.RemoveAt(0);
+        StartCoroutine(AnimateWorldFeedback(go, label, color));
+    }
+
+    IEnumerator AnimateWorldFeedback(GameObject go, TextMeshPro label, Color color)
+    {
+        const float duration = 1.15f;
+        Vector3 start = go.transform.position;
+        float elapsed = 0f;
+        while (elapsed < duration && go != null && label != null)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            go.transform.position = start + Vector3.up * (0.58f * t);
+            var faded = color;
+            faded.a = 1f - t;
+            label.color = faded;
+            yield return null;
+        }
+        if (go != null)
+        {
+            _floatingFeedbackTexts.Remove(go);
+            Destroy(go);
+        }
+    }
+
+    void FlashUnit(SrpUnitRuntime unit, Color color)
+    {
+        if (unit == null || !_unitObjs.TryGetValue(unit.id, out var go) || go == null)
+            return;
+        var renderer = go.GetComponent<Renderer>();
+        if (renderer == null)
+            return;
+
+        if (_unitFlashCoroutines.TryGetValue(unit.id, out var running) && running != null)
+            StopCoroutine(running);
+        _unitFlashCoroutines[unit.id] = StartCoroutine(FlashUnitRoutine(unit.id, renderer, color));
+    }
+
+    IEnumerator FlashUnitRoutine(int unitId, Renderer renderer, Color flashColor)
+    {
+        const float duration = 0.36f;
+        _flashingUnitIds.Add(unitId);
+        float elapsed = 0f;
+        while (elapsed < duration && renderer != null)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            var unit = GetUnit(unitId);
+            Color baseColor = GetUnitBaseColor(unit);
+            ApplyColor(renderer, Color.Lerp(flashColor, baseColor, t));
+            yield return null;
+        }
+
+        _flashingUnitIds.Remove(unitId);
+        _unitFlashCoroutines.Remove(unitId);
+        var finalUnit = GetUnit(unitId);
+        if (renderer != null && finalUnit != null)
+            ApplyColor(renderer, GetUnitBaseColor(finalUnit));
+    }
+
+    struct UnitVitals
+    {
+        public int hp;
+        public int pg;
+    }
+
+    Dictionary<int, UnitVitals> CaptureUnitVitals()
+    {
+        var result = new Dictionary<int, UnitVitals>();
+        if (_state == null)
+            return result;
+        foreach (var unit in _state.Units)
+        {
+            if (unit == null || unit.eliminated)
+                continue;
+            result[unit.id] = new UnitVitals { hp = unit.hp, pg = unit.pg };
+        }
+        return result;
+    }
+
+    void FlashChangedUnits(Dictionary<int, UnitVitals> before)
+    {
+        if (before == null || _state == null)
+            return;
+        foreach (var unit in _state.Units)
+        {
+            if (unit == null || unit.eliminated || !before.TryGetValue(unit.id, out var old))
+                continue;
+            bool damaged = unit.hp < old.hp || unit.pg < old.pg;
+            bool restored = unit.hp > old.hp || unit.pg > old.pg;
+            if (damaged)
+                FlashUnit(unit, new Color(1f, 0.15f, 0.12f));
+            else if (restored)
+                FlashUnit(unit, new Color(0.1f, 1f, 0.65f));
+        }
+    }
+
+    void EnsureUnitFeedbackRoot()
+    {
+        if (_unitFeedbackRoot != null)
+            return;
+        _unitFeedbackRoot = new GameObject("SrpUnitFeedbackLayer");
+        _unitFeedbackRoot.transform.SetParent(transform, false);
+    }
+
+    void ClearUnitFeedbackObjects()
+    {
+        foreach (var running in _unitFlashCoroutines.Values)
+        {
+            if (running != null)
+                StopCoroutine(running);
+        }
+        if (_unitFeedbackRoot != null)
+            Destroy(_unitFeedbackRoot);
+        _unitFeedbackRoot = null;
+        _currentUnitRing = null;
+        _selectedUnitRing = null;
+        _hoverUnitRing = null;
+        _unitStatusBadges.Clear();
+        _unitFlashCoroutines.Clear();
+        _flashingUnitIds.Clear();
+        _floatingFeedbackTexts.Clear();
+        _feedbackTextHistory.Clear();
+        _feedbackTextSpawnCount = 0;
+        _lastFeedbackText = string.Empty;
+    }
+
     public static Quaternion GetFacingRotation(SrpFacing facing)
     {
         switch (facing)
@@ -438,4 +769,24 @@ public partial class SrpGameController
                 return Quaternion.identity;
         }
     }
+
+#if UNITY_INCLUDE_TESTS
+    public bool TestHasCurrentActionRing => _currentUnitRing != null && _currentUnitRing.activeInHierarchy;
+    public bool TestHasSelectedUnitRing => _selectedUnitRing != null && _selectedUnitRing.activeInHierarchy;
+    public bool TestHasHoverUnitRing => _hoverUnitRing != null && _hoverUnitRing.activeInHierarchy;
+    public int TestVisibleUnitStatusBadgeCount
+    {
+        get
+        {
+            int count = 0;
+            foreach (var badge in _unitStatusBadges.Values)
+                if (badge != null && badge.activeInHierarchy)
+                    count++;
+            return count;
+        }
+    }
+    public int TestFloatingFeedbackSpawnCount => _feedbackTextSpawnCount;
+    public string TestLastFloatingFeedbackText => _lastFeedbackText;
+    public string TestFloatingFeedbackHistory => string.Join("\n", _feedbackTextHistory);
+#endif
 }
