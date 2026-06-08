@@ -1,5 +1,13 @@
 # SRPG 변경 이력
 
+## 2026-06-09
+
+- 타일 overlay 시각 문법 개편 (`TBD-012`)
+  - 이동 가능 범위는 타일 중심 marker, 공격/위험은 외곽 테두리, ZOC/패링은 warning ring, 상호작용은 objective marker로 분리
+  - `M1OpeningPrototype` 첫 화면에서 북쪽 사격 루트와 남쪽 `신호 장치` 루트가 같은 색상 채움으로 묻히지 않도록 tile overlay를 별도 marker layer로 전환
+  - PR #61의 current/selected/hover 유닛 발밑 ring은 유지하고, tile overlay marker 최대 높이를 current ring보다 낮게 검증
+  - 검증 통과: `scripts/validate-repo.sh`, EditMode `77 passed / 0 failed`, PlayMode `7 passed / 0 failed`
+
 ## 2026-06-08
 
 - 첫 전투 화면 관찰 P2

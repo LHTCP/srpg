@@ -17,7 +17,7 @@ public partial class SrpGameController
     const int MaxLogLines = 80;
     const int QueuePreviewCount = 5;
     const float TopHudHeight = 170f;
-    const string OverlayLegendText = "범례: 초록=이동 | 주황=ZOC/주의 | 빨강=공격/위험 | 보라=스킬 | 청록=패링 가능 스킬 | 파랑=오버워치 | 연두=엄폐/방향엄폐 | 노랑=상호작용";
+    const string OverlayLegendText = "범례: 초록=이동 중심점 | 주황=ZOC/주의 ring | 빨강=공격/위험 테두리 | 보라=스킬 marker | 청록=패링 가능 스킬 ring | 파랑=오버워치 테두리 | 연두=엄폐/방향엄폐 테두리 | 노랑=상호작용 목표 marker";
     readonly List<string> _log = new List<string>();
 
     TextMeshProUGUI _txtTurn;

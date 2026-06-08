@@ -42,12 +42,18 @@ public class SrpM1OpeningObservationTests
             Assert.AreEqual(9, controller.TestAliveUnitCount(), "첫 전투 프리셋 유닛 수가 달라졌습니다.");
             Assert.IsTrue(controller.TestHasCurrentActionRing, "현재 행동 유닛 ring이 없습니다.");
             Assert.IsTrue(controller.TestHasSelectedUnitRing, "선택 유닛 ring이 없습니다.");
+            Assert.Greater(controller.TestMoveOverlayMarkerCount, 0, "이동 중심 marker가 없습니다.");
+            Assert.Greater(controller.TestInteractionObjectiveMarkerCount, 0, "신호 장치 objective marker가 없습니다.");
+            Assert.Greater(controller.TestInteractionObjectiveMarkerScale, controller.TestMoveOverlayMarkerScale, "신호 장치 marker가 이동 marker보다 작거나 같습니다.");
+            Assert.Less(controller.TestTileOverlayMaxWorldY, controller.TestCurrentActionRingWorldY, "타일 overlay가 유닛 발밑 ring과 같은 높이 이상입니다.");
 
             CaptureFrame(outputDir, "01_initial_screen.png");
             yield return null;
 
             controller.ToggleDangerArea();
             Assert.IsTrue(controller.TestDangerAreaVisible, "위험영역 토글이 켜지지 않았습니다.");
+            Assert.Greater(controller.TestDangerAttackBorderCount, 0, "공격/위험 테두리 marker가 없습니다.");
+            Assert.Greater(controller.TestDangerZocWarningRingCount, 0, "ZOC warning ring marker가 없습니다.");
             Assert.IsTrue(controller.TestTryHoverFirstMoveTile(), "첫 이동 후보 hover에 실패했습니다.");
             CaptureFrame(outputDir, "02_move_hover_and_danger.png");
             yield return null;
@@ -142,12 +148,14 @@ public class SrpM1OpeningObservationTests
         sb.AppendLine($"- Status HUD: `{OneLine(controller.TestStatusHudText)}`");
         sb.AppendLine($"- Active unit card: `{OneLine(controller.TestActiveUnitCardText)}`");
         sb.AppendLine($"- Floating feedback samples: `{OneLine(controller.TestFloatingFeedbackHistory)}`");
+        sb.AppendLine($"- Tile overlay markers: total {controller.TestTileOverlayVisualCount}, move centers {controller.TestMoveOverlayMarkerCount}, danger borders {controller.TestDangerAttackBorderCount}, ZOC rings {controller.TestDangerZocWarningRingCount}, objectives {controller.TestInteractionObjectiveMarkerCount}");
+        sb.AppendLine($"- Overlay height check: max tile marker y `{controller.TestTileOverlayMaxWorldY:0.000}`, current unit ring y `{controller.TestCurrentActionRingWorldY:0.000}`");
         sb.AppendLine();
         sb.AppendLine("## Captures");
         sb.AppendLine();
         sb.AppendLine("- `01_initial_screen.png`: initial world board, current/selected rings");
-        sb.AppendLine("- `02_move_hover_and_danger.png`: movement hover with danger area enabled");
-        sb.AppendLine("- `03_signal_interaction_hover.png`: southern signal interaction hover");
+        sb.AppendLine("- `02_move_hover_and_danger.png`: movement center markers plus danger border/ZOC ring grammar with danger area enabled");
+        sb.AppendLine("- `03_signal_interaction_hover.png`: southern signal interaction objective marker");
         sb.AppendLine("- `04_ring_badge_feedback_sample.png`: hover ring and stacked floating feedback sample");
         sb.AppendLine("- HUD and log readability are recorded as text fields above because the batchmode capture uses camera rendering.");
         sb.AppendLine();
