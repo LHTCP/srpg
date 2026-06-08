@@ -209,6 +209,21 @@
 - 로컬 Unity batchmode EditMode: `76 passed / 0 failed`.
 - 로컬 Unity batchmode PlayMode: `6 passed / 0 failed`.
 
+## 2026-06-08 첫 전투 밸런스 관찰 P2
+
+### AI matrix 결과
+
+- `M1OpeningPrototype` 전용 EditMode 관찰 테스트 `Run_M1OpeningPrototype_Ai_Policy_Matrix_For_BalanceObservation`을 추가했다.
+- 300 trials, max 16 rounds 기준 핵심 정책 케이스 평균 종료 라운드는 Heuristic vs Random `8.31`, Random vs Heuristic `7.65`, Heuristic vs Heuristic `8.00`이다.
+- 세 핵심 케이스가 6~10라운드 목표 범위에 들어오므로 이번 차수에서는 적 수, 초기 배치 간격, HP/PG, 속도, 사거리, 탄약, 엄폐/상호작용 배치를 조정하지 않는다.
+- Random vs Random은 평균 `15.64`라운드, 무승부 `0.827`로 장기전 편향이 크지만 완전 랜덤 정책 관찰용이므로 밸런스 게이트에서 제외한다.
+
+### 남은 판단
+
+1. Heuristic vs Heuristic에서 owner0 승률이 `1.000`이므로, 첫 전투가 플레이어 우세 학습 전투인지 더 팽팽한 AI 미러 검증 맵이어야 하는지는 후속 플레이 세션에서 확인한다.
+2. 북쪽 사격 루트와 남쪽 돌입/상호작용 루트가 실제 사람 플레이에서도 서로 다른 판단으로 읽히는지는 화면 관찰 표본이 더 필요하다.
+3. `blocksLineOfSight` 엄폐는 자동 시뮬레이션에서 총기 HP 비중과 근접 PG 비중을 무너뜨리지 않았지만, 시각적으로 답답한 차단인지 읽을 수 있는 위협인지는 `TBD-012` 화면 문법과 함께 재확인한다.
+
 ## 2026-06-08 P2 후보: 총기 발포 방향/조준 문법 (`TBD-010`)
 
 - 현상: 총기 발포 방향이 기본 공격/오버워치/발포 연출에서 모두 8방향 직선 사선처럼 고정되어 보이는 문제가 있다.
