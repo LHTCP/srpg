@@ -2,6 +2,12 @@
 
 ## 2026-06-08
 
+- 첫 전투 화면 관찰 P2
+  - `M1OpeningPrototype` 관찰용 PlayMode 캡처 테스트 추가: `SrpM1OpeningObservationTests.M1OpeningPrototype_Captures_FirstScreen_RouteObservation`
+  - 표본 산출물: `TestResults/SrpPlayObservation/`의 첫 화면, 위험영역/이동 hover, `신호 장치` hover, ring/floating text 캡처와 Markdown 요약
+  - 관찰: 첫 대치와 PR #61 ring/floating text는 읽히지만, 북쪽 사격 루트와 남쪽 신호 장치 루트의 차이는 현재 위험영역/상호작용 overlay 문법에 묻힘
+  - 판단: AI matrix가 6~10라운드 목표를 통과했으므로 이번 차수에서는 적 수/HP/PG/배치 데이터를 보정하지 않고, `TBD-012` overlay 문법 후속을 우선함
+  - 검증 통과: 관찰 PlayMode `1 passed / 0 failed`
 - 첫 전투 밸런스 관찰 P2
   - `M1OpeningPrototype` 전용 AI policy matrix 관찰 테스트 추가: `SrpM1AiSimAllEntry.Run_M1OpeningPrototype_Ai_Policy_Matrix_For_BalanceObservation`
   - 핵심 정책 케이스 평균 종료 라운드 확인: Heuristic vs Random `8.31`, Random vs Heuristic `7.65`, Heuristic vs Heuristic `8.00`
