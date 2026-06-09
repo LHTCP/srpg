@@ -23,6 +23,7 @@ public partial class SrpGameController
     const int OverlayDangerBlocked = 60;
     const int OverlayUnitHoverRange = 70;
     const int OverlayUnitHoverZoc = 80;
+    const int OverlayAimLine = 85;
     const int OverlayIntentPath = 90;
     const int OverlayIntentTarget = 100;
     const int OverlayHover = 110;
@@ -48,6 +49,7 @@ public partial class SrpGameController
         OverlayDangerBlocked,
         OverlayUnitHoverRange,
         OverlayUnitHoverZoc,
+        OverlayAimLine,
         OverlayIntentPath,
         OverlayIntentTarget,
         OverlayHover,
@@ -130,6 +132,7 @@ public partial class SrpGameController
         ClearOverlayLayer(OverlayHover);
         ClearOverlayLayer(OverlayUnitHoverRange);
         ClearOverlayLayer(OverlayUnitHoverZoc);
+        ClearOverlayLayer(OverlayAimLine);
         ClearOverlayLayer(OverlayDangerBlocked);
         ClearOverlayLayer(OverlayIntentPath);
         ClearOverlayLayer(OverlayIntentTarget);
@@ -286,6 +289,22 @@ public partial class SrpGameController
             return;
         foreach (var off in unit.footprintOffsets)
             SetOverlayTile(OverlayParryTelegraph, unit.anchorX + off.x, unit.anchorY + off.y, new Color(0.15f, 0.95f, 1f));
+    }
+
+    void HighlightFirearmAimLine(SrpUnitRuntime attacker, SrpUnitRuntime target)
+    {
+        ClearOverlayLayer(OverlayAimLine);
+        if (attacker == null || target == null || attacker.weaponClass != SrpWeaponClass.Firearm)
+            return;
+        if (!SrpFirearmAim.CanBasicAttack(_state, attacker, target, out var line))
+            return;
+        foreach (var tile in line.tiles)
+        {
+            var occupant = _state.GetOccupant(tile.x, tile.y);
+            if (occupant != null && occupant.id == attacker.id)
+                continue;
+            SetOverlayTile(OverlayAimLine, tile.x, tile.y, new Color(1f, 0.78f, 0.18f));
+        }
     }
 
     void ClearAllOverlayLayers()
@@ -915,6 +934,8 @@ public partial class SrpGameController
     public bool TestHasCurrentActionRing => _currentUnitRing != null && _currentUnitRing.activeInHierarchy;
     public bool TestHasSelectedUnitRing => _selectedUnitRing != null && _selectedUnitRing.activeInHierarchy;
     public bool TestHasHoverUnitRing => _hoverUnitRing != null && _hoverUnitRing.activeInHierarchy;
+    public bool TestHasAimLineOverlay => GetOverlayTileCount(OverlayAimLine) > 0;
+    public int TestAimLineOverlayCount => GetOverlayTileCount(OverlayAimLine);
     public float TestTileSurfaceY => TileSurfaceY;
     public float TestCurrentActionRingWorldY => _currentUnitRing != null ? _currentUnitRing.transform.position.y : -1f;
     public float TestSelectedUnitRingWorldY => _selectedUnitRing != null ? _selectedUnitRing.transform.position.y : -1f;
@@ -951,6 +972,11 @@ public partial class SrpGameController
         SpawnWorldFeedback(unit, "TEST A", Color.white);
         SpawnWorldFeedback(unit, "TEST B", Color.yellow);
         return TestHasStackedFeedbackStartPositions;
+    }
+
+    int GetOverlayTileCount(int layer)
+    {
+        return _tileOverlayLayers.TryGetValue(layer, out var map) ? map.Count : 0;
     }
 #endif
 }

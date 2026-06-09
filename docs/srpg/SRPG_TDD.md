@@ -29,6 +29,7 @@ SrpGameController
 - `SrpOverwatch`: AP 예약/RP 발동, 8방향 직선 사선, 장애물/유닛/`blocksLineOfSight` segment 차단, 1회 발동/해제, 다중 후보 우선순위 규칙 구현 완료
 - `SrpReaction`: 별도 파일 대신 `SrpCombatResolver`의 반응 선택/소비 흐름에 흡수
 - `SrpLineOfSight`: 현재는 `SrpOverwatch` helper로 유지, 다른 시스템이 사선을 공유할 때 별도 모듈 분리 검토
+- `SrpFirearmAim`: 총기 기본 공격 조준 helper. 기본 공격은 8방향 직선 제한을 요구하지 않고 공격자-대상 타일 벡터의 LOS/장애물/`blocksLineOfSight` 차단만 검증한다. 오버워치는 같은 경로 검증 위에 8방향 직선 lane 제한을 추가한다.
 
 ## 3. 핵심 데이터 계약
 
@@ -88,6 +89,8 @@ SrpGameController
 - `Firearm`: HP 압박 중심
   - 전장식 총기 기본 모델은 1발 고화력이다. 탄약을 소비하며, AP 1 재장전으로 탄약을 최대치까지 회복한다.
   - 기본 공격은 HP 피해를 크게 주고, 실제 HP 피해량의 50%를 PG 피해로 추가 파급한다.
+  - 기본 공격 사선은 `SrpFirearmAim`의 목표 벡터 LOS를 사용한다. 8방향 직선이 아니어도 사거리/LOS/장애물/`blocksLineOfSight` 차단을 통과하면 공격 가능하다.
+  - 오버워치 사격은 방어 행동 전용 규칙으로 8방향 직선 lane 제한을 유지한다.
   - 1차 구현은 최종 HP 피해량 기준으로 파급량을 산정하고, 남은 엄폐 GRD가 있으면 파급 PG를 줄인다. 50% 비율, 반올림 방식, 최소 PG 피해량, GRD 적용 순서는 밸런스 검사와 전투 시뮬레이션 후 조정 가능하게 둔다.
   - 엄폐 중인 원거리 대상에게는 HP/PG 피해 완충을 적용한다.
 - `Melee`: PG 붕괴 중심
@@ -173,6 +176,7 @@ SrpGameController
 30. 다음 P1 스프린트: 초기 4인 고유 패시브/대표 스킬 데이터, 방향성 엄폐 사선 차단, 오버워치 후보 우선순위, 마법 전장 개입 최소 스킬 구현
 31. 첫 전투 프로토타입 프리셋 분리: `M1QaIntegrated` QA 맵 deprecated 유지, `M1OpeningPrototype` 첫 전투 판단용 기본 맵 추가, 로비 첫 선택/프리셋 검증/PlayMode 초기화 스모크 추가
 32. 전투 UX 피드백 레이어 P1: 현재 행동/선택/hover ring, ZOC/교전 unit badge, 턴 시작/종료와 주요 행동 world-space feedback, 피해/회복/선택 flash 추가 및 PlayMode 계약 검증
+33. 총기 발포 방향/조준 문법 P2: 기본 총기 공격을 목표 벡터 LOS helper로 분리하고, 오버워치는 8방향 방어 lane으로 유지, hover aim line/preview 문구/facing 갱신 및 EditMode/PlayMode 계약 검증
 
 다음 구현 순서:
 
@@ -181,7 +185,7 @@ SrpGameController
 3. 메이커/맵 에디터 UX에서 엄폐 segment와 상호작용 포인트 편집 방식 검토
 4. 초기 4인 고유 패시브/대표 스킬 최종 수치와 전직 연계 확정
 5. 공용 전투 태그/패링/총기 파급 브릿지 수치 밸런스 검증
-6. 총기 기본 공격/오버워치/발포 연출의 방향 문법을 분리 검토하고, 8방향 고정으로 보이는 조준 문제를 P2에서 재정의
+6. 완료: 총기 기본 공격/오버워치/발포 연출의 방향 문법을 분리했다. 후속은 정식 VFX, 무기별 arc, diagonal facing 필요성 검증이다.
 7. 행동 순서 패널을 별도 initiative/turn order tracker로 분리할지 UI 구조를 확정
 8. 이동/공격/ZOC/오버워치/패링/상호작용 타일 overlay를 중심 원, 외곽 danger, 경고 ring 계열 문법으로 재정리
 9. 메이커 효과유형 드롭다운 성능과 필드 의미 툴팁은 P3 UX로 재현/설계
@@ -190,7 +194,7 @@ SrpGameController
 
 - GRD/경미 HP 피해 계산 공식
 - 총기 HP-PG 파급 비율/반올림/최소값/GRD 적용 순서
-- 총기 발포 방향/조준 문법: 기본 공격, 오버워치, 발포 연출/overlay가 모두 8방향 직선 사선을 따라야 하는지 재검토 (`TBD-010`)
+- 총기 발포 후속 의사결정: 정식 VFX/애니메이션, 무기별 arc, diagonal facing을 도입할지 검토 (`TBD-010` 후속)
 - 행동 순서 패널 구조: 상단 HUD에 남길 정보와 별도 tracker로 분리할 정보 범위 (`TBD-011`)
 - 타일 overlay 시각 문법: 이동/공격/ZOC/오버워치/패링/상호작용을 채움, 중심 원, 외곽 danger, 경고 ring 중 어떤 언어로 분리할지 (`TBD-012`)
 - 메이커 효과유형 드롭다운 성능과 필드 의미 툴팁 범위 (`TBD-013`)

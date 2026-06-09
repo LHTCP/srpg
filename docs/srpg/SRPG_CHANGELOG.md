@@ -1,5 +1,14 @@
 # SRPG 변경 이력
 
+## 2026-06-09
+
+- `TBD-010` 총기 발포 방향/조준 문법 브릿지 구현
+  - 총기 기본 공격을 오버워치 8방향 직선 helper에서 분리하고, 목표 벡터 기반 `SrpFirearmAim` LOS helper로 판정
+  - 오버워치는 기존 8방향 방어 lane 제한, 장애물/유닛/`blocksLineOfSight` 차단 규칙을 유지
+  - 총기 기본 공격 hover preview에 황색 aim line과 `총기 기본 조준` 문구를 추가하고, 발포 시 총기 유닛 facing을 목표 방향으로 갱신
+  - 비8방향 기본 총기 공격 허용/차단, 오버워치 helper 분리, aim line PlayMode smoke 테스트 추가
+  - 정식 VFX/애니메이션, 무기별 arc, diagonal facing은 후속 의사결정으로 유지
+
 ## 2026-06-03
 
 - 첫 전투 프로토타입 프리셋 추가

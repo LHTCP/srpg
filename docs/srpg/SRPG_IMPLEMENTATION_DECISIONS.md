@@ -82,7 +82,7 @@
 ### 방향성 엄폐 사선 차단 (`TBD-001`, `TBD-004`)
 
 - `blocksLineOfSight=true`인 `SrpCoverSegmentData`는 해당 edge를 통과하는 사선을 차단한다.
-- 오버워치와 총기 기본 공격 판정이 같은 사선 helper를 공유한다.
+- 오버워치와 총기 기본 공격은 `blocksLineOfSight` 차단을 공유하지만, `TBD-010` 이후 기본 공격은 목표 벡터 LOS, 오버워치는 8방향 직선 lane 제한으로 분리한다.
 - 대각선 사선은 이동 단계마다 수평/수직 edge를 함께 검사하는 최소 브릿지다.
 - 맵 메이커 엄폐 segment 편집 UI는 선행 조건이 아니라 후속 UX로 분리했다. 현재는 프리셋/JSON 데이터로 검증 가능하다.
 
@@ -219,6 +219,25 @@
   2. 오버워치 사격은 기존 8방향 규칙을 유지하더라도 기본 공격 UI/연출은 별도 문법을 쓸 수 있는지 검토
   3. 유닛 facing 4방향, 방향성 엄폐 edge, `blocksLineOfSight` 차단이 발포 방향 표시와 같은 언어로 읽히는지 실제 플레이 화면에서 검증
   4. 확정 후 `SrpOverwatch`, `SrpGameController`, `SrpGameController.Rendering`, 관련 PlayMode 시각/계약 테스트 갱신
+
+## 2026-06-09 총기 발포 방향/조준 문법 브릿지 결정 (`TBD-010`)
+
+### 브릿지 결정
+
+- 총기 기본 공격과 오버워치 사격의 사선 계약을 분리한다.
+- 기본 총기 공격은 `SrpFirearmAim`을 사용해 공격자-대상 타일 벡터의 LOS를 검증한다.
+  - 8방향 직선이 아니어도 사거리, walkable target, 중간 유닛/장애물, `blocksLineOfSight` segment 차단을 통과하면 공격 가능하다.
+  - 기본 공격 hover preview에는 황색 aim line과 `총기 기본 조준` 문구를 표시한다.
+- 오버워치는 기존 방어 행동 규칙으로 유지한다.
+  - `SrpOverwatch.IsTileInLineOfSight`는 같은 LOS helper 위에 8방향 직선 lane 제한을 추가한다.
+  - 오버워치 overlay는 기존 청색 경계 범위 문법을 유지하고, 기본 공격 aim line과 섞지 않는다.
+- 발포 시 총기 유닛 facing은 목표 벡터의 우세 축 방향으로 갱신한다. 현재 유닛 시각 방향성은 4방향만 지원하므로 diagonal facing은 만들지 않는다.
+
+### 후속 의사결정
+
+- 총기별 arc, 산탄/원뿔형 조준, diagonal facing, 정식 발포 VFX/애니메이션은 이번 브릿지 범위가 아니다.
+- 타일 overlay 전체 문법(`TBD-012`)을 재정리할 때 aim line이 공격 가능 범위/위험 범위/오버워치 경계와 충분히 구분되는지 실제 플레이 화면에서 다시 검증한다.
+- 목표 벡터 LOS의 샘플링 방식은 현재 프로토타입용 보수적 tile path다. 정식 탄도/시야 수학이 필요해지면 별도 `SrpLineOfSight` 모듈로 승격한다.
 
 ## 2026-06-08 P2/P3 UX 후속 범위 명시 (`TBD-011`~`TBD-013`)
 
