@@ -43,6 +43,7 @@
 | 항목 | 검증 테스트 | 상태 | 다음 액션 |
 | --- | --- | --- | --- |
 | 현재 행동/선택/hover 유닛 ring | `SrpM1PlayModeTests.DefaultOpeningPrototypePreset_InitializesRoundAndHud`, `SrpM1PlayModeTests.DangerAreaAndHoverPreview_UpdatesStatusText` | 부분 | 로컬 Unity 플레이 화면에서 ring 두께/겹침 가독성 추가 확인 |
+| 행동 순서 icon strip (`TBD-011`) | `SrpM1PlayModeTests.DefaultOpeningPrototypePreset_InitializesRoundAndHud`, `SrpM1AiPlaySampleTests.PlayMode_Runtime_Revalidation_For_AiQa` | 부분 | 정식 초상화/역할 아이콘 도입 시 토큰 구성과 밀도 재검증 |
 | ZOC/교전 unit badge | `SrpM1PlayModeTests.DangerAreaAndHoverPreview_UpdatesStatusText` | 부분 | 실제 교전 밀집 장면에서 badge 위치와 타일 오버레이 충돌 여부 확인 |
 | 턴 시작/종료 floating feedback | `SrpM1PlayModeTests.DefaultOpeningPrototypePreset_InitializesRoundAndHud` | 부분 | 정식 VFX 단계에서 지속시간/애니메이션 보정 |
 | 스킬 준비/사용 floating feedback | `SrpM1PlayModeTests.DirectControlUi_ChangesStanceFacingAndOverclocksSkill` | 부분 | 대표 스킬별 짧은 표시명 최종화 후 문구 보정 |

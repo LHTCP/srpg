@@ -2,6 +2,12 @@
 
 ## 2026-06-09
 
+- 행동 순서 패널 분리 (`TBD-011`)
+  - 상단 HUD의 현재 유닛/대기열 정보를 상단 우측의 별도 initiative/turn order icon strip으로 분리: `SrpGameController.Hud`
+  - 현재 유닛은 큰 얼굴 토큰과 포인터로 강조하고, 다음 3~5명은 owner/무기 계열을 반영한 런타임 생성 토큰으로 표시
+  - 상단 HUD는 라운드/상태/위험영역/맵 요약 중심으로 가볍게 정리
+  - PlayMode HUD 테스트에 패널 존재, 로그 패널과의 분리, 현재 아이콘 강조, preview 범위, 턴 종료 후 갱신 검증 추가
+  - 검증 통과: `scripts/validate-repo.sh`, EditMode `77 passed / 0 failed`, PlayMode `7 passed / 0 failed`
 - 타일 overlay 시각 문법 개편 (`TBD-012`)
   - 이동 가능 범위는 타일 중심 marker, 공격/위험은 외곽 테두리, ZOC/패링은 warning ring, 상호작용은 objective marker로 분리
   - `M1OpeningPrototype` 첫 화면에서 북쪽 사격 루트와 남쪽 `신호 장치` 루트가 같은 색상 채움으로 묻히지 않도록 tile overlay를 별도 marker layer로 전환

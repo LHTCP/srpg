@@ -17,6 +17,10 @@ public partial class SrpGameController
     const int MaxLogLines = 80;
     const int QueuePreviewCount = 5;
     const float TopHudHeight = 170f;
+    const float TurnOrderStripWidth = 560f;
+    const float TurnOrderStripHeight = 82f;
+    const float TurnOrderCurrentTokenSize = 66f;
+    const float TurnOrderNextTokenSize = 48f;
     const string OverlayLegendText = "범례: 초록=이동 중심점 | 주황=ZOC/주의 ring | 빨강=공격/위험 테두리 | 보라=스킬 marker | 청록=패링 가능 스킬 ring | 파랑=오버워치 테두리 | 연두=엄폐/방향엄폐 테두리 | 노랑=상호작용 목표 marker";
     readonly List<string> _log = new List<string>();
 
@@ -57,6 +61,7 @@ public partial class SrpGameController
     GameObject _skillListPanel;
     GameObject _topStatusPanel;
     GameObject _leftConsolePanel;
+    GameObject _turnOrderTrackerPanel;
     GameObject _activeUnitCardPanel;
     GameObject _actionPreviewPanel;
     readonly List<SkillListEntry> _skillListButtons = new List<SkillListEntry>();
@@ -70,6 +75,9 @@ public partial class SrpGameController
     TextMeshProUGUI _tooltipText;
     Canvas _hudCanvas;
     bool _postUndoHint;
+    readonly List<TurnOrderIconEntry> _turnOrderIcons = new List<TurnOrderIconEntry>();
+    readonly Dictionary<string, Sprite> _turnOrderSpriteCache = new Dictionary<string, Sprite>();
+    Sprite _turnOrderPipSprite;
 
     class SkillListEntry
     {
@@ -84,6 +92,16 @@ public partial class SrpGameController
         public TextMeshProUGUI label;
         public TextMeshProUGUI value;
         public Image fill;
+    }
+
+    class TurnOrderIconEntry
+    {
+        public GameObject root;
+        public LayoutElement layout;
+        public Image frame;
+        public Image portrait;
+        public Image ownerPip;
+        public GameObject currentPointer;
     }
 
     // ── HUD 생성 ─────────────────────────────────────────────────────────────
@@ -103,6 +121,7 @@ public partial class SrpGameController
 
         _hudCanvas = canvas;
         BuildTopStatusArea(canvasGo.transform);
+        BuildTurnOrderTracker(canvasGo.transform);
         BuildLeftPanel(canvasGo.transform);
         BuildRightPanel(canvasGo.transform);
         BuildBottomTacticalCards(canvasGo.transform);
@@ -121,7 +140,7 @@ public partial class SrpGameController
         rt.anchorMax = new Vector2(1f, 1f);
         rt.pivot = new Vector2(0.5f, 1f);
         rt.offsetMin = new Vector2(leftPanelWidth + 10f, -TopHudHeight);
-        rt.offsetMax = new Vector2(-(rightPanelWidth + 10f), 0f);
+        rt.offsetMax = new Vector2(-(rightPanelWidth + TurnOrderStripWidth + 26f), 0f);
         panel.AddComponent<Image>().color = new Color(0.05f, 0.06f, 0.09f, 0.82f);
 
         var vlg = panel.AddComponent<VerticalLayoutGroup>();
@@ -324,6 +343,90 @@ public partial class SrpGameController
 
         _logScrollRect.verticalScrollbar = sb;
         _logScrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
+    }
+
+    void BuildTurnOrderTracker(Transform parent)
+    {
+        var panel = new GameObject("TurnOrderTrackerPanel", typeof(RectTransform));
+        _turnOrderTrackerPanel = panel;
+        panel.transform.SetParent(parent, false);
+        var rt = panel.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(1f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(1f, 1f);
+        rt.anchoredPosition = new Vector2(-(rightPanelWidth + 16f), -14f);
+        rt.sizeDelta = new Vector2(TurnOrderStripWidth, TurnOrderStripHeight);
+        panel.AddComponent<Image>().color = new Color(0.045f, 0.055f, 0.075f, 0.92f);
+
+        var hlg = panel.AddComponent<HorizontalLayoutGroup>();
+        hlg.padding = new RectOffset(12, 12, 8, 8);
+        hlg.spacing = 8f;
+        hlg.childAlignment = TextAnchor.MiddleRight;
+        hlg.childControlHeight = true;
+        hlg.childControlWidth = true;
+        hlg.childForceExpandHeight = false;
+        hlg.childForceExpandWidth = false;
+
+        _turnOrderIcons.Clear();
+        for (int i = 0; i < QueuePreviewCount + 1; i++)
+            _turnOrderIcons.Add(MakeTurnOrderIconEntry(panel.transform, i));
+    }
+
+    TurnOrderIconEntry MakeTurnOrderIconEntry(Transform parent, int index)
+    {
+        var root = new GameObject(index == 0 ? "TurnOrderIcon_Current" : $"TurnOrderIcon_Next{index}", typeof(RectTransform));
+        root.transform.SetParent(parent, false);
+        var layout = root.AddComponent<LayoutElement>();
+        layout.minWidth = TurnOrderNextTokenSize;
+        layout.preferredWidth = TurnOrderNextTokenSize;
+        layout.minHeight = TurnOrderNextTokenSize + 10f;
+        layout.preferredHeight = TurnOrderNextTokenSize + 10f;
+
+        var frame = root.AddComponent<Image>();
+        frame.color = new Color(0.16f, 0.18f, 0.22f, 0.98f);
+
+        var portraitGo = new GameObject("Portrait", typeof(RectTransform));
+        portraitGo.transform.SetParent(root.transform, false);
+        var portraitRt = portraitGo.GetComponent<RectTransform>();
+        portraitRt.anchorMin = Vector2.zero;
+        portraitRt.anchorMax = Vector2.one;
+        portraitRt.offsetMin = new Vector2(4f, 8f);
+        portraitRt.offsetMax = new Vector2(-4f, -4f);
+        var portrait = portraitGo.AddComponent<Image>();
+        portrait.preserveAspect = true;
+
+        var ownerGo = new GameObject("OwnerPip", typeof(RectTransform));
+        ownerGo.transform.SetParent(root.transform, false);
+        var ownerRt = ownerGo.GetComponent<RectTransform>();
+        ownerRt.anchorMin = new Vector2(1f, 0f);
+        ownerRt.anchorMax = new Vector2(1f, 0f);
+        ownerRt.pivot = new Vector2(1f, 0f);
+        ownerRt.anchoredPosition = new Vector2(-4f, 4f);
+        ownerRt.sizeDelta = new Vector2(11f, 11f);
+        var ownerPip = ownerGo.AddComponent<Image>();
+        ownerPip.sprite = GetTurnOrderPipSprite();
+
+        var pointer = new GameObject("CurrentPointer", typeof(RectTransform));
+        pointer.transform.SetParent(root.transform, false);
+        var pointerRt = pointer.GetComponent<RectTransform>();
+        pointerRt.anchorMin = new Vector2(0.5f, 0f);
+        pointerRt.anchorMax = new Vector2(0.5f, 0f);
+        pointerRt.pivot = new Vector2(0.5f, 0.5f);
+        pointerRt.anchoredPosition = new Vector2(0f, -3f);
+        pointerRt.sizeDelta = new Vector2(12f, 12f);
+        pointerRt.localRotation = Quaternion.Euler(0f, 0f, 45f);
+        pointer.AddComponent<Image>().color = new Color(1f, 0.86f, 0.34f, 1f);
+        pointer.SetActive(false);
+
+        return new TurnOrderIconEntry
+        {
+            root = root,
+            layout = layout,
+            frame = frame,
+            portrait = portrait,
+            ownerPip = ownerPip,
+            currentPointer = pointer,
+        };
     }
 
     void BuildBottomTacticalCards(Transform canvasRoot)
@@ -874,6 +977,7 @@ public partial class SrpGameController
         _txtTurn.text = BuildTurnHudText();
         _txtStatus.text = BuildStatusHudText();
         _txtUnit.text = BuildUnitHudText();
+        UpdateTurnOrderTracker();
         UpdateBottomTacticalCards();
 
         bool unitActive = !_gameOver && _phase == Phase.UnitActive;
@@ -917,6 +1021,237 @@ public partial class SrpGameController
         var active = GetDisplayedUnit();
         UpdateActiveUnitCard(active);
         UpdateActionPreviewCard(active);
+    }
+
+    void UpdateTurnOrderTracker()
+    {
+        if (_turnOrderIcons.Count == 0)
+            return;
+
+        int entryIndex = 0;
+        var current = _state != null && _state.CurrentUnitId > 0 ? GetUnit(_state.CurrentUnitId) : null;
+        if (current != null && !_gameOver)
+            ApplyTurnOrderIcon(_turnOrderIcons[entryIndex++], current, true);
+
+        if (_state != null && _state.RoundQueue != null && !_gameOver)
+        {
+            for (int i = 0; i < _state.RoundQueue.Count && entryIndex < _turnOrderIcons.Count; i++)
+            {
+                var unit = GetUnit(_state.RoundQueue[i]);
+                if (unit == null || unit.eliminated)
+                    continue;
+                ApplyTurnOrderIcon(_turnOrderIcons[entryIndex++], unit, false);
+            }
+        }
+
+        for (int i = entryIndex; i < _turnOrderIcons.Count; i++)
+            _turnOrderIcons[i].root.SetActive(false);
+    }
+
+    void ApplyTurnOrderIcon(TurnOrderIconEntry entry, SrpUnitRuntime unit, bool isCurrent)
+    {
+        if (entry == null || unit == null)
+            return;
+
+        float size = isCurrent ? TurnOrderCurrentTokenSize : TurnOrderNextTokenSize;
+        entry.root.SetActive(true);
+        entry.layout.minWidth = size;
+        entry.layout.preferredWidth = size;
+        entry.layout.minHeight = size + (isCurrent ? 12f : 8f);
+        entry.layout.preferredHeight = size + (isCurrent ? 12f : 8f);
+        entry.frame.color = isCurrent
+            ? new Color(1f, 0.84f, 0.30f, 0.96f)
+            : new Color(0.13f, 0.15f, 0.20f, 0.94f);
+        entry.portrait.sprite = GetTurnOrderPortraitSprite(unit);
+        entry.ownerPip.sprite = GetTurnOrderPipSprite();
+        entry.ownerPip.color = GetTurnOrderOwnerColor(unit.owner);
+        entry.currentPointer.SetActive(isCurrent);
+        entry.root.transform.SetAsLastSibling();
+    }
+
+    Sprite GetTurnOrderPipSprite()
+    {
+        if (_turnOrderPipSprite != null)
+            return _turnOrderPipSprite;
+
+        var tex = new Texture2D(16, 16, TextureFormat.RGBA32, false);
+        tex.filterMode = FilterMode.Bilinear;
+        FillTexture(tex, Color.clear);
+        DrawDisc(tex, 8, 8, 7, Color.white);
+        DrawCircle(tex, 8, 8, 7, new Color(0.04f, 0.05f, 0.07f, 1f));
+        tex.Apply();
+        _turnOrderPipSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+        return _turnOrderPipSprite;
+    }
+
+    Sprite GetTurnOrderPortraitSprite(SrpUnitRuntime unit)
+    {
+        string key = unit == null ? "none" : $"{unit.owner}:{unit.weaponClass}";
+        if (_turnOrderSpriteCache.TryGetValue(key, out var cached) && cached != null)
+            return cached;
+
+        var tex = new Texture2D(64, 64, TextureFormat.RGBA32, false);
+        tex.filterMode = FilterMode.Bilinear;
+        FillTexture(tex, Color.clear);
+
+        Color ownerColor = GetTurnOrderOwnerColor(unit != null ? unit.owner : 0);
+        Color faceColor = Color.Lerp(ownerColor, Color.white, 0.58f);
+        Color ink = new Color(0.035f, 0.04f, 0.055f, 1f);
+        Color detail = Color.Lerp(ownerColor, ink, 0.35f);
+
+        DrawTriangle(tex, new Vector2Int(15, 42), new Vector2Int(24, 58), new Vector2Int(29, 43), faceColor);
+        DrawTriangle(tex, new Vector2Int(35, 43), new Vector2Int(42, 58), new Vector2Int(50, 42), faceColor);
+        DrawTriangle(tex, new Vector2Int(15, 42), new Vector2Int(24, 58), new Vector2Int(29, 43), ink, true);
+        DrawTriangle(tex, new Vector2Int(35, 43), new Vector2Int(42, 58), new Vector2Int(50, 42), ink, true);
+        DrawDisc(tex, 32, 30, 23, faceColor);
+        DrawCircle(tex, 32, 30, 23, ink);
+
+        DrawDisc(tex, 24, 34, 3, ink);
+        DrawDisc(tex, 40, 34, 3, ink);
+        DrawLine(tex, 28, 23, 32, 19, ink, 2);
+        DrawLine(tex, 32, 19, 36, 23, ink, 2);
+
+        if (unit != null)
+        {
+            switch (unit.weaponClass)
+            {
+                case SrpWeaponClass.Firearm:
+                    DrawRect(tex, 16, 45, 48, 51, detail);
+                    DrawRect(tex, 20, 47, 44, 49, ink);
+                    break;
+                case SrpWeaponClass.Magic:
+                    DrawDisc(tex, 32, 46, 5, detail);
+                    DrawLine(tex, 32, 39, 32, 53, ink, 1);
+                    DrawLine(tex, 25, 46, 39, 46, ink, 1);
+                    break;
+                default:
+                    DrawTriangle(tex, new Vector2Int(32, 51), new Vector2Int(24, 42), new Vector2Int(40, 42), detail);
+                    DrawTriangle(tex, new Vector2Int(32, 51), new Vector2Int(24, 42), new Vector2Int(40, 42), ink, true);
+                    break;
+            }
+        }
+
+        tex.Apply();
+        var sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+        _turnOrderSpriteCache[key] = sprite;
+        return sprite;
+    }
+
+    static Color GetTurnOrderOwnerColor(int owner)
+    {
+        return owner == 0
+            ? new Color(0.66f, 0.86f, 1f, 1f)
+            : new Color(0.95f, 0.60f, 0.45f, 1f);
+    }
+
+    static void FillTexture(Texture2D tex, Color color)
+    {
+        for (int y = 0; y < tex.height; y++)
+        for (int x = 0; x < tex.width; x++)
+            tex.SetPixel(x, y, color);
+    }
+
+    static void DrawDisc(Texture2D tex, int cx, int cy, int radius, Color color)
+    {
+        int r2 = radius * radius;
+        for (int y = cy - radius; y <= cy + radius; y++)
+        for (int x = cx - radius; x <= cx + radius; x++)
+        {
+            int dx = x - cx;
+            int dy = y - cy;
+            if (dx * dx + dy * dy <= r2)
+                SetPixelSafe(tex, x, y, color);
+        }
+    }
+
+    static void DrawCircle(Texture2D tex, int cx, int cy, int radius, Color color)
+    {
+        for (int a = 0; a < 360; a++)
+        {
+            float rad = a * Mathf.Deg2Rad;
+            int x = Mathf.RoundToInt(cx + Mathf.Cos(rad) * radius);
+            int y = Mathf.RoundToInt(cy + Mathf.Sin(rad) * radius);
+            SetPixelSafe(tex, x, y, color);
+            SetPixelSafe(tex, x + 1, y, color);
+            SetPixelSafe(tex, x, y + 1, color);
+        }
+    }
+
+    static void DrawRect(Texture2D tex, int x0, int y0, int x1, int y1, Color color)
+    {
+        for (int y = y0; y <= y1; y++)
+        for (int x = x0; x <= x1; x++)
+            SetPixelSafe(tex, x, y, color);
+    }
+
+    static void DrawLine(Texture2D tex, int x0, int y0, int x1, int y1, Color color, int thickness = 1)
+    {
+        int dx = Mathf.Abs(x1 - x0);
+        int sx = x0 < x1 ? 1 : -1;
+        int dy = -Mathf.Abs(y1 - y0);
+        int sy = y0 < y1 ? 1 : -1;
+        int err = dx + dy;
+        while (true)
+        {
+            for (int oy = -thickness; oy <= thickness; oy++)
+            for (int ox = -thickness; ox <= thickness; ox++)
+                SetPixelSafe(tex, x0 + ox, y0 + oy, color);
+            if (x0 == x1 && y0 == y1)
+                break;
+            int e2 = 2 * err;
+            if (e2 >= dy)
+            {
+                err += dy;
+                x0 += sx;
+            }
+            if (e2 <= dx)
+            {
+                err += dx;
+                y0 += sy;
+            }
+        }
+    }
+
+    static void DrawTriangle(Texture2D tex, Vector2Int a, Vector2Int b, Vector2Int c, Color color, bool outlineOnly = false)
+    {
+        if (outlineOnly)
+        {
+            DrawLine(tex, a.x, a.y, b.x, b.y, color, 1);
+            DrawLine(tex, b.x, b.y, c.x, c.y, color, 1);
+            DrawLine(tex, c.x, c.y, a.x, a.y, color, 1);
+            return;
+        }
+
+        int minX = Mathf.Min(a.x, Mathf.Min(b.x, c.x));
+        int maxX = Mathf.Max(a.x, Mathf.Max(b.x, c.x));
+        int minY = Mathf.Min(a.y, Mathf.Min(b.y, c.y));
+        int maxY = Mathf.Max(a.y, Mathf.Max(b.y, c.y));
+        for (int y = minY; y <= maxY; y++)
+        for (int x = minX; x <= maxX; x++)
+        {
+            var p = new Vector2Int(x, y);
+            if (SameSide(p, a, b, c) && SameSide(p, b, a, c) && SameSide(p, c, a, b))
+                SetPixelSafe(tex, x, y, color);
+        }
+    }
+
+    static bool SameSide(Vector2Int p1, Vector2Int p2, Vector2Int a, Vector2Int b)
+    {
+        int cp1 = Cross(b - a, p1 - a);
+        int cp2 = Cross(b - a, p2 - a);
+        return cp1 * cp2 >= 0;
+    }
+
+    static int Cross(Vector2Int a, Vector2Int b)
+    {
+        return a.x * b.y - a.y * b.x;
+    }
+
+    static void SetPixelSafe(Texture2D tex, int x, int y, Color color)
+    {
+        if (x < 0 || y < 0 || x >= tex.width || y >= tex.height)
+            return;
+        tex.SetPixel(x, y, color);
     }
 
     SrpUnitRuntime GetDisplayedUnit()
@@ -1127,22 +1462,51 @@ public partial class SrpGameController
         if (_state == null)
             return "초기화 중...";
         string mapName = initialMap != null ? initialMap.name : "?";
-        var current = _state.CurrentUnitId > 0 ? GetUnit(_state.CurrentUnitId) : null;
-        string currentText = current != null
-            ? $"{current.displayName}({current.id}) SPD:{current.speed}"
-            : "없음";
-        string queueText = BuildQueuePreviewText();
         return _gameOver
             ? "게임 종료"
-            : $"라운드 {_state.RoundNumber} | 현재: {currentText} | 대기: {queueText} | 맵: {mapName}";
+            : $"라운드 {_state.RoundNumber} | 상태: {BuildHudPhaseLabel()} | 위험영역 {(IsDangerAreaVisible ? "ON" : "OFF")} | 맵: {mapName}";
     }
 
     string BuildQueuePreviewText()
     {
+        return BuildTurnOrderPreviewText().Replace("\n", " > ");
+    }
+
+    string BuildHudPhaseLabel()
+    {
+        if (_gameOver)
+            return "종료";
+        switch (_phase)
+        {
+            case Phase.UnitActive:
+                return "행동 중";
+            case Phase.SelectingSkillTarget:
+                return "스킬 대상 선택";
+            default:
+                return "대기";
+        }
+    }
+
+    string BuildTurnOrderCurrentText()
+    {
+        if (_state == null)
+            return "NOW > -";
+        if (_gameOver)
+            return "NOW > 전투 종료";
+
+        var current = _state.CurrentUnitId > 0 ? GetUnit(_state.CurrentUnitId) : null;
+        if (current == null)
+            return "NOW > -";
+
+        return $"NOW > {BuildTurnOrderUnitLine(current)}";
+    }
+
+    string BuildTurnOrderPreviewText()
+    {
         if (_state == null)
             return "-";
         if (_state.RoundQueue == null || _state.RoundQueue.Count == 0)
-            return "-";
+            return "NEXT -";
 
         var queueSb = new StringBuilder();
         int shown = Mathf.Min(QueuePreviewCount, _state.RoundQueue.Count);
@@ -1151,12 +1515,19 @@ public partial class SrpGameController
             var qUnit = GetUnit(_state.RoundQueue[i]);
             if (qUnit == null) continue;
             if (queueSb.Length > 0)
-                queueSb.Append(" > ");
-            queueSb.Append($"{qUnit.displayName}({qUnit.id})");
+                queueSb.AppendLine();
+            queueSb.Append($"NEXT {i + 1}. {BuildTurnOrderUnitLine(qUnit)}");
         }
         if (_state.RoundQueue.Count > shown)
-            queueSb.Append($" ...+{_state.RoundQueue.Count - shown}");
+            queueSb.AppendLine().Append($"+{_state.RoundQueue.Count - shown} more");
         return queueSb.ToString();
+    }
+
+    string BuildTurnOrderUnitLine(SrpUnitRuntime unit)
+    {
+        if (unit == null)
+            return "-";
+        return $"{unit.displayName}({unit.id}) | P{unit.owner} | {unit.weaponClass} | SPD {unit.speed}";
     }
 
     string BuildStatusHudText()
@@ -1549,14 +1920,66 @@ public partial class SrpGameController
 
 #if UNITY_INCLUDE_TESTS
     public bool TestHudReady => _txtTurn != null && _txtStatus != null && _txtUnit != null
-        && _txtActiveCardTitle != null && _txtPreviewTitle != null;
+        && _txtActiveCardTitle != null && _txtPreviewTitle != null
+        && _turnOrderTrackerPanel != null && _turnOrderIcons.Count == QueuePreviewCount + 1;
     public bool TestHasTopStatusPanel => _topStatusPanel != null && _topStatusPanel.activeInHierarchy;
     public bool TestHasLeftConsolePanel => _leftConsolePanel != null && _leftConsolePanel.activeInHierarchy;
+    public bool TestHasTurnOrderTrackerPanel => _turnOrderTrackerPanel != null && _turnOrderTrackerPanel.activeInHierarchy;
+    public bool TestTurnOrderTrackerIsLogChild => _turnOrderTrackerPanel != null
+        && _turnOrderTrackerPanel.transform.parent != null
+        && _turnOrderTrackerPanel.transform.parent.name == "RightPanel";
+    public int TestTurnOrderVisibleIconCount
+    {
+        get
+        {
+            int count = 0;
+            foreach (var entry in _turnOrderIcons)
+            {
+                if (entry != null && entry.root != null && entry.root.activeSelf)
+                    count++;
+            }
+            return count;
+        }
+    }
+    public bool TestTurnOrderCurrentIconHighlighted
+    {
+        get
+        {
+            if (_turnOrderIcons.Count == 0)
+                return false;
+            var entry = _turnOrderIcons[0];
+            return entry != null
+                && entry.root != null
+                && entry.root.activeSelf
+                && entry.currentPointer != null
+                && entry.currentPointer.activeSelf;
+        }
+    }
     public bool TestHasActiveUnitCardPanel => _activeUnitCardPanel != null && _activeUnitCardPanel.activeInHierarchy;
     public bool TestHasActionPreviewPanel => _actionPreviewPanel != null && _actionPreviewPanel.activeInHierarchy;
     public string TestTurnHudText => _txtTurn != null ? _txtTurn.text : string.Empty;
     public string TestStatusHudText => _txtStatus != null ? _txtStatus.text : string.Empty;
     public string TestUnitHudText => _txtUnit != null ? _txtUnit.text : string.Empty;
+    public string TestTurnOrderCurrentText => BuildTurnOrderCurrentText();
+    public string TestTurnOrderPreviewText => BuildTurnOrderPreviewText();
+    public string TestTurnOrderTrackerText => $"{TestTurnOrderCurrentText}\n{TestTurnOrderPreviewText}";
+    public int TestTurnOrderPreviewLineCount
+    {
+        get
+        {
+            string text = TestTurnOrderPreviewText;
+            if (string.IsNullOrEmpty(text))
+                return 0;
+            int count = 0;
+            string[] lines = text.Split('\n');
+            foreach (var line in lines)
+            {
+                if (line.StartsWith("NEXT ", StringComparison.Ordinal))
+                    count++;
+            }
+            return count;
+        }
+    }
     public string TestActiveUnitCardText
     {
         get

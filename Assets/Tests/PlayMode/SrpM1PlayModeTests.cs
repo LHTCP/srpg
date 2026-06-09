@@ -31,6 +31,11 @@ public class SrpM1PlayModeTests
         Assert.AreEqual(9, controller.TestAliveUnitCount(), "기본 첫 전투 프리셋 유닛 수가 초기화 계약과 다릅니다.");
         Assert.IsTrue(controller.TestHasTopStatusPanel, "상단 전투 상태 헤더가 생성되지 않았습니다.");
         Assert.IsTrue(controller.TestHasLeftConsolePanel, "좌측 조작 콘솔이 생성되지 않았습니다.");
+        Assert.IsTrue(controller.TestHasTurnOrderTrackerPanel, "행동 순서 패널이 생성되지 않았습니다.");
+        Assert.IsFalse(controller.TestTurnOrderTrackerIsLogChild, "행동 순서 패널이 로그 패널 위/안에 배치되었습니다.");
+        Assert.IsTrue(controller.TestTurnOrderCurrentIconHighlighted, "현재 행동 유닛 아이콘 강조가 없습니다.");
+        Assert.GreaterOrEqual(controller.TestTurnOrderVisibleIconCount, 4, "행동 순서 아이콘 preview가 부족합니다.");
+        Assert.LessOrEqual(controller.TestTurnOrderVisibleIconCount, 6, "행동 순서 아이콘이 너무 많이 노출됩니다.");
         Assert.IsTrue(controller.TestHasActiveUnitCardPanel, "좌측 하단 현재 유닛 카드가 생성되지 않았습니다.");
         Assert.IsTrue(controller.TestHasActionPreviewPanel, "우측 하단 행동 preview 카드가 생성되지 않았습니다.");
 
@@ -54,12 +59,20 @@ public class SrpM1PlayModeTests
         StringAssert.Contains("\uD134 \uC2DC\uC791", controller.TestFloatingFeedbackHistory);
         Assert.IsTrue(controller.TestSpawnTwoFeedbackOnCurrentUnit(), "stacked feedback text starts at the same position");
         StringAssert.Contains($"라운드 {controller.TestRoundNumber}", turnHud);
-        StringAssert.Contains($"({controller.TestCurrentUnitId})", turnHud);
         StringAssert.Contains("m1_opening_prototype", turnHud);
         StringAssert.Contains("라운드", turnHud);
-        StringAssert.Contains("현재:", turnHud);
-        StringAssert.Contains("대기:", turnHud);
+        StringAssert.Contains("상태:", turnHud);
+        StringAssert.Contains("위험영역", turnHud);
+        Assert.IsFalse(turnHud.Contains("현재:"), "상단 HUD에 현재 유닛 정보가 다시 섞였습니다.");
+        Assert.IsFalse(turnHud.Contains("대기:"), "상단 HUD에 행동 순서 preview가 다시 섞였습니다.");
         StringAssert.Contains("맵:", turnHud);
+        StringAssert.Contains($"({controller.TestCurrentUnitId})", controller.TestTurnOrderCurrentText);
+        StringAssert.Contains("NOW >", controller.TestTurnOrderCurrentText);
+        StringAssert.Contains("NEXT 1.", controller.TestTurnOrderPreviewText);
+        StringAssert.Contains("SPD", controller.TestTurnOrderTrackerText);
+        StringAssert.Contains("P", controller.TestTurnOrderTrackerText);
+        Assert.GreaterOrEqual(controller.TestTurnOrderPreviewLineCount, 3, "다음 행동 순서 preview가 부족합니다.");
+        Assert.LessOrEqual(controller.TestTurnOrderPreviewLineCount, 5, "다음 행동 순서 preview가 너무 깁니다.");
         StringAssert.Contains("행동 단계", statusHud);
         StringAssert.Contains("공격 후 턴 종료", statusHud);
         StringAssert.Contains("범례:", statusHud);
@@ -95,8 +108,15 @@ public class SrpM1PlayModeTests
         StringAssert.Contains("SRPG 프로토타입", controller.TestLogText);
 
         int feedbackBeforeEndTurn = controller.TestFloatingFeedbackSpawnCount;
+        int currentBeforeEndTurn = controller.TestCurrentUnitId;
+        string trackerCurrentBeforeEndTurn = controller.TestTurnOrderCurrentText;
         Assert.IsTrue(controller.TestEndTurnSelectedUnit(), "test end turn failed");
         yield return null;
+        Assert.AreNotEqual(currentBeforeEndTurn, controller.TestCurrentUnitId, "행동 종료 후 현재 유닛이 갱신되지 않았습니다.");
+        Assert.AreNotEqual(trackerCurrentBeforeEndTurn, controller.TestTurnOrderCurrentText, "행동 순서 패널 현재 유닛 강조가 갱신되지 않았습니다.");
+        Assert.IsTrue(controller.TestTurnOrderCurrentIconHighlighted, "턴 진행 후 현재 행동 유닛 아이콘 강조가 사라졌습니다.");
+        StringAssert.Contains($"({controller.TestCurrentUnitId})", controller.TestTurnOrderCurrentText);
+        StringAssert.Contains("NEXT 1.", controller.TestTurnOrderPreviewText);
         Assert.GreaterOrEqual(controller.TestFloatingFeedbackSpawnCount, feedbackBeforeEndTurn + 2, "turn end/start feedback contract broke");
         StringAssert.Contains("\uD134 \uC885\uB8CC", controller.TestFloatingFeedbackHistory);
 
