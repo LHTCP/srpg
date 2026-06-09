@@ -78,7 +78,7 @@ public static class SrpCombatResolver
         if (dist > attacker.attackRange)
             return false;
         if (attacker.weaponClass == SrpWeaponClass.Firearm && dist > 1)
-            return SrpOverwatch.IsTileInLineOfSight(state, attacker, defender.anchorX, defender.anchorY, attacker.attackRange, defender.id);
+            return SrpFirearmAim.CanBasicAttack(state, attacker, defender, out _);
         return true;
     }
 

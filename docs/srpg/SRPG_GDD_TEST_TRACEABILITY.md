@@ -48,6 +48,7 @@
 | 턴 시작/종료 floating feedback | `SrpM1PlayModeTests.DefaultOpeningPrototypePreset_InitializesRoundAndHud` | 부분 | 정식 VFX 단계에서 지속시간/애니메이션 보정 |
 | 스킬 준비/사용 floating feedback | `SrpM1PlayModeTests.DirectControlUi_ChangesStanceFacingAndOverclocksSkill` | 부분 | 대표 스킬별 짧은 표시명 최종화 후 문구 보정 |
 | 피해/회복/중립 flash | PlayMode 피드백 생성 계약과 런타임 HP/PG 변화 기반 flash 연결 | 부분 | 실제 화면 기준 과도한 flash 여부 확인 |
+| 총기 기본 조준/aim line (`TBD-010`) | `SrpM1RuleSpecTests.FirearmBasicAttack_AllowsClearNonEightDirectionAimWhileOverwatchKeepsLaneLimit`, `SrpM1RuleSpecTests.FirearmBasicAttack_NonEightDirectionAimStillRespectsBlockers`, `SrpM1PlayModeTests.FirearmAimPreview_ShowsNonEightDirectionAimLine` | 부분 | 정식 VFX/무기별 arc/diagonal facing 도입 여부 확정 후 확장 |
 
 ## 운영 규칙
 

@@ -1682,6 +1682,12 @@ public partial class SrpGameController
             $"결과 예상: HP {Mathf.Max(0, target.hp - outcome.damageToHp)}/{target.maxHp}, PG {Mathf.Max(0, target.pg - outcome.damageToPg)}/{target.maxPg}",
             active.UsesAmmo ? "소모: AP-1, 탄약-1" : "소모: AP-1",
         };
+        if (active.weaponClass == SrpWeaponClass.Firearm
+            && SrpFirearmAim.CanBasicAttack(_state, active, target, out var aim))
+        {
+            string laneText = aim.isEightDirectionLane ? "8방향 일치" : "비8방향 조준";
+            parts.Add($"총기 기본 조준: {laneText}, 거리 {aim.distance}, 방향 {aim.facing}");
+        }
         if (outcome.wasExecution)
             parts.Add("처단 공격 예상");
         if (outcome.becameGroggy)

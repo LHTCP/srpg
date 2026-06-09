@@ -23,6 +23,7 @@ public partial class SrpGameController
     const int OverlayDangerBlocked = 60;
     const int OverlayUnitHoverRange = 70;
     const int OverlayUnitHoverZoc = 80;
+    const int OverlayAimLine = 85;
     const int OverlayIntentPath = 90;
     const int OverlayIntentTarget = 100;
     const int OverlayHover = 110;
@@ -50,6 +51,7 @@ public partial class SrpGameController
         OverlayDangerBlocked,
         OverlayUnitHoverRange,
         OverlayUnitHoverZoc,
+        OverlayAimLine,
         OverlayIntentPath,
         OverlayIntentTarget,
         OverlayHover,
@@ -139,6 +141,7 @@ public partial class SrpGameController
         ClearOverlayLayer(OverlayHover);
         ClearOverlayLayer(OverlayUnitHoverRange);
         ClearOverlayLayer(OverlayUnitHoverZoc);
+        ClearOverlayLayer(OverlayAimLine);
         ClearOverlayLayer(OverlayDangerBlocked);
         ClearOverlayLayer(OverlayIntentPath);
         ClearOverlayLayer(OverlayIntentTarget);
@@ -295,6 +298,22 @@ public partial class SrpGameController
             return;
         foreach (var off in unit.footprintOffsets)
             SetOverlayTile(OverlayParryTelegraph, unit.anchorX + off.x, unit.anchorY + off.y, new Color(0.15f, 0.95f, 1f));
+    }
+
+    void HighlightFirearmAimLine(SrpUnitRuntime attacker, SrpUnitRuntime target)
+    {
+        ClearOverlayLayer(OverlayAimLine);
+        if (attacker == null || target == null || attacker.weaponClass != SrpWeaponClass.Firearm)
+            return;
+        if (!SrpFirearmAim.CanBasicAttack(_state, attacker, target, out var line))
+            return;
+        foreach (var tile in line.tiles)
+        {
+            var occupant = _state.GetOccupant(tile.x, tile.y);
+            if (occupant != null && occupant.id == attacker.id)
+                continue;
+            SetOverlayTile(OverlayAimLine, tile.x, tile.y, new Color(1f, 0.78f, 0.18f));
+        }
     }
 
     void ClearAllOverlayLayers()
@@ -1246,6 +1265,8 @@ public partial class SrpGameController
     public int TestDangerAttackBorderCount => CountTileOverlayVisualsForLayer(OverlayDangerAttack);
     public int TestDangerZocWarningRingCount => CountTileOverlayVisualsForLayer(OverlayDangerZoc);
     public int TestInteractionObjectiveMarkerCount => CountTileOverlayVisualsForLayer(OverlayInteraction);
+    public bool TestHasAimLineOverlay => CountTileOverlayVisualsForLayer(OverlayAimLine) > 0;
+    public int TestAimLineOverlayCount => CountTileOverlayVisualsForLayer(OverlayAimLine);
     public float TestTileOverlayMaxWorldY => GetMaxTileOverlayWorldY();
     public float TestMoveOverlayMarkerScale => GetFirstTileOverlayScaleForLayer(OverlayMove);
     public float TestInteractionObjectiveMarkerScale => GetFirstTileOverlayScaleForLayer(OverlayInteraction);

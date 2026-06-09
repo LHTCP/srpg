@@ -457,6 +457,61 @@ public class SrpM1RuleSpecTests
     }
 
     [Test]
+    public void FirearmBasicAttack_AllowsClearNonEightDirectionAimWhileOverwatchKeepsLaneLimit()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var shooter = FindUnit(state, owner: 0, templateId: "mover");
+        var target = FindUnit(state, owner: 1, templateId: "enemy");
+        shooter.weaponClass = SrpWeaponClass.Firearm;
+        shooter.attackRange = 4;
+        shooter.attackPower = 8;
+        shooter.actionPoints = 2;
+        shooter.reactionPoints = 1;
+        shooter.maxAmmo = 1;
+        shooter.ammo = 1;
+        shooter.facing = SrpFacing.North;
+        target.anchorX = 3;
+        target.anchorY = 2;
+        target.reactionPoints = 0;
+
+        Assert.IsTrue(SrpFirearmAim.CanBasicAttack(state, shooter, target, out var aim), "clear non-8-direction firearm aim should be valid for basic attack");
+        Assert.IsTrue(SrpCombatResolver.CanAttack(state, shooter, target), "basic firearm attack inherited the overwatch 8-direction lane limit");
+        Assert.IsFalse(aim.isEightDirectionLane, "non-8-direction basic aim was mislabeled as an overwatch lane");
+        Assert.AreEqual(SrpFacing.East, aim.facing, "basic firearm aim should face the dominant target vector");
+        Assert.IsTrue(SrpOverwatch.Arm(state, shooter), "overwatch reservation setup failed");
+        Assert.IsFalse(SrpOverwatch.CanTrigger(state, shooter, target), "overwatch must keep the 8-direction defensive lane limit");
+
+        Assert.IsTrue(SrpFirearmAim.TurnShooterTowardTarget(shooter, target), "facing helper failed to turn firearm shooter");
+        Assert.AreEqual(SrpFacing.East, shooter.facing, "firearm facing did not update toward the target vector");
+    }
+
+    [Test]
+    public void FirearmBasicAttack_NonEightDirectionAimStillRespectsBlockers()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var shooter = FindUnit(state, owner: 0, templateId: "mover");
+        var target = FindUnit(state, owner: 1, templateId: "enemy");
+        shooter.weaponClass = SrpWeaponClass.Firearm;
+        shooter.attackRange = 4;
+        target.anchorX = 3;
+        target.anchorY = 2;
+
+        state.Units.Add(CreateExtraEnemy(id: 100, x: 2, y: 1));
+        Assert.IsFalse(SrpFirearmAim.CanBasicAttack(state, shooter, target, out _), "intermediate unit should block non-8-direction basic firearm aim");
+        state.Units.RemoveAt(state.Units.Count - 1);
+
+        state.CoverSegments.Add(new SrpCoverSegmentData
+        {
+            x = 2,
+            y = 1,
+            edge = SrpCoverEdge.West,
+            shape = SrpCoverShape.Linear,
+            blocksLineOfSight = true,
+        });
+        Assert.IsFalse(SrpFirearmAim.CanBasicAttack(state, shooter, target, out _), "blocking cover segment should block non-8-direction basic firearm aim");
+    }
+
+    [Test]
     public void Overwatch_CanTrigger_BlocksWhenLineOfSightIsObstructed()
     {
         var state = SrpBattleState.FromMap(CreateZocTestMap());

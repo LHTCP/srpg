@@ -346,6 +346,7 @@ public partial class SrpGameController : MonoBehaviour
 
         ClearOverlayLayer(OverlayHover);
         ClearOverlayLayer(OverlayDangerBlocked);
+        ClearOverlayLayer(OverlayAimLine);
 
         var u = GetUnit(_selectedId.Value);
         if (u == null)
@@ -398,6 +399,7 @@ public partial class SrpGameController : MonoBehaviour
         }
         ClearOverlayLayer(OverlayHover);
         ClearOverlayLayer(OverlayDangerBlocked);
+        ClearOverlayLayer(OverlayAimLine);
         _hoverStatusHint = string.Empty;
         UpdateHud();
     }
@@ -413,7 +415,22 @@ public partial class SrpGameController : MonoBehaviour
         _hoverUnitId = unitId;
         _hoverTileX = unit.anchorX;
         _hoverTileY = unit.anchorY;
+        ClearOverlayLayer(OverlayAimLine);
         RenderUnitHoverOverlays(unit);
+        var active = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+        if (_phase == Phase.UnitActive
+            && active != null
+            && unit.owner != active.owner
+            && _attackIds.Contains(unit.id))
+        {
+            HighlightFirearmAimLine(active, unit);
+            _hoverStatusHint = active.weaponClass == SrpWeaponClass.Firearm
+                ? $"총기 조준: {active.displayName} -> {unit.displayName} | 실제 대상 벡터"
+                : $"공격 미리보기: {active.displayName} -> {unit.displayName}";
+            UpdateUnitFeedbackVisuals();
+            UpdateHud();
+            return;
+        }
         _hoverStatusHint = $"유닛 미리보기: {unit.displayName} 공격범위/ZOC 표시";
         UpdateUnitFeedbackVisuals();
         UpdateHud();
@@ -428,6 +445,7 @@ public partial class SrpGameController : MonoBehaviour
         _hoverTileY = -1;
         ClearOverlayLayer(OverlayUnitHoverRange);
         ClearOverlayLayer(OverlayUnitHoverZoc);
+        ClearOverlayLayer(OverlayAimLine);
         _hoverStatusHint = string.Empty;
         UpdateUnitFeedbackVisuals();
         UpdateHud();
@@ -747,6 +765,8 @@ public partial class SrpGameController : MonoBehaviour
             UpdateHud();
             return;
         }
+        if (atk.weaponClass == SrpWeaponClass.Firearm)
+            SrpFirearmAim.TurnShooterTowardTarget(atk, def);
         SpawnWorldFeedback(atk, "\uACF5\uACA9!", new Color(1f, 0.42f, 0.35f));
         var outcome = SrpCombatResolver.ApplyAttack(_state, atk, def);
         SrpSkills.OnAttackResolved(atk, def, outcome, _state, LogLine);
