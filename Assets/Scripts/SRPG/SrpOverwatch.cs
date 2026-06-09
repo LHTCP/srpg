@@ -14,6 +14,18 @@ public enum SrpOverwatchArmStatus
     NoAmmo,
 }
 
+public enum SrpAimSector8
+{
+    East,
+    NorthEast,
+    North,
+    NorthWest,
+    West,
+    SouthWest,
+    South,
+    SouthEast,
+}
+
 public static class SrpOverwatch
 {
     public const int MaxTriggersPerReservation = 1;
@@ -103,7 +115,6 @@ public static class SrpOverwatch
             targetY,
             range,
             exceptUnitId,
-            true,
             out _);
     }
 
@@ -150,7 +161,7 @@ public static class SrpOverwatch
 public struct SrpFirearmAimLine
 {
     public bool canAim;
-    public bool isEightDirectionLane;
+    public SrpAimSector8 sector8;
     public int distance;
     public int dx;
     public int dy;
@@ -176,7 +187,6 @@ public static class SrpFirearmAim
             target.anchorY,
             attacker != null ? attacker.attackRange : -1,
             target.id,
-            false,
             out line);
     }
 
@@ -187,7 +197,6 @@ public static class SrpFirearmAim
         int targetY,
         int range,
         int exceptUnitId,
-        bool requireEightDirectionLane,
         out SrpFirearmAimLine line)
     {
         line = new SrpFirearmAimLine
@@ -211,10 +220,6 @@ public static class SrpFirearmAim
         if (distance > effectiveRange)
             return false;
 
-        bool isEightDirectionLane = IsStraightEightDirection(dx, dy);
-        if (requireEightDirectionLane && !isEightDirectionLane)
-            return false;
-
         var tiles = BuildAimTiles(shooter.anchorX, shooter.anchorY, targetX, targetY);
         int fromX = shooter.anchorX;
         int fromY = shooter.anchorY;
@@ -232,7 +237,7 @@ public static class SrpFirearmAim
         }
 
         line.canAim = true;
-        line.isEightDirectionLane = isEightDirectionLane;
+        line.sector8 = ResolveSector8(dx, dy);
         line.distance = distance;
         line.dx = dx;
         line.dy = dy;
@@ -275,11 +280,6 @@ public static class SrpFirearmAim
         return tiles;
     }
 
-    static bool IsStraightEightDirection(int dx, int dy)
-    {
-        return dx == 0 || dy == 0 || Mathf.Abs(dx) == Mathf.Abs(dy);
-    }
-
     static bool IsLineTileOpen(SrpBattleState state, int shooterId, int exceptUnitId, int x, int y)
     {
         if (!state.InBounds(x, y) || !state.IsWalkableTile(x, y))
@@ -294,5 +294,33 @@ public static class SrpFirearmAim
         if (Mathf.Abs(dx) >= Mathf.Abs(dy))
             return dx >= 0 ? SrpFacing.East : SrpFacing.West;
         return dy >= 0 ? SrpFacing.North : SrpFacing.South;
+    }
+
+    static SrpAimSector8 ResolveSector8(int dx, int dy)
+    {
+        float degrees = Mathf.Atan2(dy, dx) * Mathf.Rad2Deg;
+        if (degrees < 0f)
+            degrees += 360f;
+
+        int index = Mathf.FloorToInt((degrees + 22.5f) / 45f) % 8;
+        switch (index)
+        {
+            case 0:
+                return SrpAimSector8.East;
+            case 1:
+                return SrpAimSector8.NorthEast;
+            case 2:
+                return SrpAimSector8.North;
+            case 3:
+                return SrpAimSector8.NorthWest;
+            case 4:
+                return SrpAimSector8.West;
+            case 5:
+                return SrpAimSector8.SouthWest;
+            case 6:
+                return SrpAimSector8.South;
+            default:
+                return SrpAimSector8.SouthEast;
+        }
     }
 }

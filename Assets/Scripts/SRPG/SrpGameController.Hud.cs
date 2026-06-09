@@ -1685,8 +1685,7 @@ public partial class SrpGameController
         if (active.weaponClass == SrpWeaponClass.Firearm
             && SrpFirearmAim.CanBasicAttack(_state, active, target, out var aim))
         {
-            string laneText = aim.isEightDirectionLane ? "8방향 일치" : "비8방향 조준";
-            parts.Add($"총기 기본 조준: {laneText}, 거리 {aim.distance}, 방향 {aim.facing}");
+            parts.Add($"총기 기본 조준: 벡터 조준, 거리 {aim.distance}, 방향 {aim.facing}, sector {aim.sector8}");
         }
         if (outcome.wasExecution)
             parts.Add("처단 공격 예상");

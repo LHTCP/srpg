@@ -204,7 +204,8 @@ public class SrpM1PlayModeTests
         Assert.IsTrue(controller.TestHasAimLineOverlay, "firearm aim line overlay was not rendered for hovered target");
         Assert.GreaterOrEqual(controller.TestAimLineOverlayCount, 2, "firearm aim line should show the shot path, not only the target tile");
         StringAssert.Contains("총기 기본 조준", controller.TestActionPreviewText);
-        StringAssert.Contains("비8방향 조준", controller.TestActionPreviewText);
+        StringAssert.Contains("벡터 조준", controller.TestActionPreviewText);
+        StringAssert.Contains("sector", controller.TestActionPreviewText);
 
         Object.Destroy(go);
         SrpGameSettings.CustomMap = null;

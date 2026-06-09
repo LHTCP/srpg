@@ -434,7 +434,7 @@ public class SrpM1RuleSpecTests
     }
 
     [Test]
-    public void Overwatch_CanTrigger_RequiresEightDirectionLineOfSight()
+    public void Overwatch_CanTrigger_AllowsVectorAimOutsideAxisOrDiagonalLine()
     {
         var state = SrpBattleState.FromMap(CreateZocTestMap());
         var watcher = FindUnit(state, owner: 0, templateId: "mover");
@@ -449,15 +449,15 @@ public class SrpM1RuleSpecTests
 
         Assert.IsTrue(SrpOverwatch.Arm(state, watcher), "오버워치 예약 실패");
 
-        Assert.IsFalse(SrpOverwatch.CanTrigger(state, watcher, target), "8방향 직선 사선 밖 대상에게 오버워치가 발동 가능으로 판정되었습니다.");
+        Assert.IsTrue(SrpOverwatch.CanTrigger(state, watcher, target), "비8방향 목표가 사거리/LOS를 통과했는데 오버워치가 발동 불가로 판정되었습니다.");
 
         target.anchorX = 3;
         target.anchorY = 1;
-        Assert.IsTrue(SrpOverwatch.CanTrigger(state, watcher, target), "직선 사선 내 대상에게 오버워치가 발동 불가로 판정되었습니다.");
+        Assert.IsTrue(SrpOverwatch.CanTrigger(state, watcher, target), "직선 목표도 오버워치 발동 가능해야 합니다.");
     }
 
     [Test]
-    public void FirearmBasicAttack_AllowsClearNonEightDirectionAimWhileOverwatchKeepsLaneLimit()
+    public void FirearmAim_HelperIsSharedByBasicAttackAndOverwatch()
     {
         var state = SrpBattleState.FromMap(CreateZocTestMap());
         var shooter = FindUnit(state, owner: 0, templateId: "mover");
@@ -475,11 +475,11 @@ public class SrpM1RuleSpecTests
         target.reactionPoints = 0;
 
         Assert.IsTrue(SrpFirearmAim.CanBasicAttack(state, shooter, target, out var aim), "clear non-8-direction firearm aim should be valid for basic attack");
-        Assert.IsTrue(SrpCombatResolver.CanAttack(state, shooter, target), "basic firearm attack inherited the overwatch 8-direction lane limit");
-        Assert.IsFalse(aim.isEightDirectionLane, "non-8-direction basic aim was mislabeled as an overwatch lane");
+        Assert.IsTrue(SrpCombatResolver.CanAttack(state, shooter, target), "basic firearm attack should use vector LOS targetability");
+        Assert.AreEqual(SrpAimSector8.NorthEast, aim.sector8, "non-8-direction aim should still expose an atan2-based 8-sector display value");
         Assert.AreEqual(SrpFacing.East, aim.facing, "basic firearm aim should face the dominant target vector");
         Assert.IsTrue(SrpOverwatch.Arm(state, shooter), "overwatch reservation setup failed");
-        Assert.IsFalse(SrpOverwatch.CanTrigger(state, shooter, target), "overwatch must keep the 8-direction defensive lane limit");
+        Assert.IsTrue(SrpOverwatch.CanTrigger(state, shooter, target), "overwatch should share the same vector aim targetability as basic firearm attack");
 
         Assert.IsTrue(SrpFirearmAim.TurnShooterTowardTarget(shooter, target), "facing helper failed to turn firearm shooter");
         Assert.AreEqual(SrpFacing.East, shooter.facing, "firearm facing did not update toward the target vector");

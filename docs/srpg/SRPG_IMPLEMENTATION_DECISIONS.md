@@ -82,7 +82,7 @@
 ### 방향성 엄폐 사선 차단 (`TBD-001`, `TBD-004`)
 
 - `blocksLineOfSight=true`인 `SrpCoverSegmentData`는 해당 edge를 통과하는 사선을 차단한다.
-- 오버워치와 총기 기본 공격은 `blocksLineOfSight` 차단을 공유하지만, `TBD-010` 이후 기본 공격은 목표 벡터 LOS, 오버워치는 8방향 직선 lane 제한으로 분리한다.
+- 오버워치와 총기 기본 공격은 `TBD-010` 이후 같은 목표 벡터 LOS와 `blocksLineOfSight` 차단을 공유한다. 8-sector 분류는 표시/디버그/방향성 판정 보조값이며 targetability 제한이 아니다.
 - 대각선 사선은 이동 단계마다 수평/수직 edge를 함께 검사하는 최소 브릿지다.
 - 맵 메이커 엄폐 segment 편집 UI는 선행 조건이 아니라 후속 UX로 분리했다. 현재는 프리셋/JSON 데이터로 검증 가능하다.
 
@@ -250,11 +250,11 @@
 ## 2026-06-08 P2 후보: 총기 발포 방향/조준 문법 (`TBD-010`)
 
 - 현상: 총기 발포 방향이 기본 공격/오버워치/발포 연출에서 모두 8방향 직선 사선처럼 고정되어 보이는 문제가 있다.
-- 기존 확정 범위: 명시형 `ReactionShot`/오버워치의 1차 규칙은 8방향 직선 사선, 장애물/유닛/`blocksLineOfSight` segment 차단이다.
-- 분리 필요성: 총기 기본 공격까지 항상 같은 8방향 문법을 따라야 하는지는 아직 확정하지 않았다. 플레이어가 보는 조준 가능 방향, 발포 연출, 타일 overlay가 오버워치 규칙을 그대로 복사하면 유닛 facing 4방향/정면·측면·후방 판정과 충돌해 보일 수 있다.
+- 기존 1차 구현 범위: 명시형 `ReactionShot`/오버워치는 한때 8방향 직선 사선, 장애물/유닛/`blocksLineOfSight` segment 차단으로 구현되어 있었다. `TBD-010`에서 8방향 직선 제한은 폐기하고 목표 벡터 LOS로 통합한다.
+- 문제 해석: 총기 기본 공격과 오버워치가 모두 8방향 고정 사선처럼 보이면 플레이어가 보는 조준 가능 방향, 발포 연출, 타일 overlay, 유닛 facing 4방향/정면·측면·후방 판정이 서로 충돌해 보일 수 있다.
 - P2 확인 항목:
-  1. 총기 기본 공격의 조준 가능 범위를 8방향 직선 사선으로 유지할지, 목표 타일 기반 사선/무기별 arc로 분리할지 결정
-  2. 오버워치 사격은 기존 8방향 규칙을 유지하더라도 기본 공격 UI/연출은 별도 문법을 쓸 수 있는지 검토
+  1. 총기 기본 공격과 오버워치의 조준 가능 범위를 목표 벡터 LOS로 통합할지, 무기별 arc로 분리할지 결정
+  2. 8-sector를 targetability 제한이 아니라 UI/facing/엄폐 설명용 보조값으로만 둘 수 있는지 검토
   3. 유닛 facing 4방향, 방향성 엄폐 edge, `blocksLineOfSight` 차단이 발포 방향 표시와 같은 언어로 읽히는지 실제 플레이 화면에서 검증
   4. 확정 후 `SrpOverwatch`, `SrpGameController`, `SrpGameController.Rendering`, 관련 PlayMode 시각/계약 테스트 갱신
 
@@ -262,13 +262,13 @@
 
 ### 브릿지 결정
 
-- 총기 기본 공격과 오버워치 사격의 사선 계약을 분리한다.
-- 기본 총기 공격은 `SrpFirearmAim`을 사용해 공격자-대상 타일 벡터의 LOS를 검증한다.
-  - 8방향 직선이 아니어도 사거리, walkable target, 중간 유닛/장애물, `blocksLineOfSight` segment 차단을 통과하면 공격 가능하다.
+- 총기 기본 공격과 오버워치 사격의 targetability 계약을 통합한다.
+- 기본 총기 공격과 오버워치는 `SrpFirearmAim`을 사용해 공격자-대상 중심 360도 벡터의 LOS를 검증한다.
+  - 8방향 직선이 아니어도 사거리, walkable target, 중간 유닛/장애물, `blocksLineOfSight` segment 차단을 통과하면 발포 가능하다.
+  - `SrpOverwatch.IsTileInLineOfSight`는 같은 LOS helper를 그대로 사용하며 8방향 직선 lane 제한을 추가하지 않는다.
   - 기본 공격 hover preview에는 황색 aim line과 `총기 기본 조준` 문구를 표시한다.
-- 오버워치는 기존 방어 행동 규칙으로 유지한다.
-  - `SrpOverwatch.IsTileInLineOfSight`는 같은 LOS helper 위에 8방향 직선 lane 제한을 추가한다.
-  - 오버워치 overlay는 기존 청색 경계 범위 문법을 유지하고, 기본 공격 aim line과 섞지 않는다.
+- 8-sector(`SrpAimSector8`)는 `atan2` 기반 표시/디버그/방향성 판정 보조값으로만 둔다. dx/dy가 가로/세로/대각선일 때만 발포 가능하다는 제한은 없다.
+- 오버워치 overlay는 기존 청색 경계 범위 문법을 유지하고, 기본 공격 aim line과 섞지 않는다.
 - 발포 시 총기 유닛 facing은 목표 벡터의 우세 축 방향으로 갱신한다. 현재 유닛 시각 방향성은 4방향만 지원하므로 diagonal facing은 만들지 않는다.
 
 ### 후속 의사결정

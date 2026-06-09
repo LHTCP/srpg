@@ -84,7 +84,7 @@
   - PlayMode HUD 스모크 테스트를 범례, 반응 상태, 오버워치 버튼 라벨까지 확장
   - EditMode 테스트 `43 passed / 0 failed`, PlayMode 테스트 `4 passed / 0 failed`
 - [x] Phase2 오버워치 사선/횟수/해제 상세 규칙
-  - 오버워치 발동을 8방향 직선 사선으로 제한
+  - 오버워치 발동을 사거리/LOS/장애물/유닛 차단으로 제한하며, `TBD-010` 이후 8방향 직선 lane 제한은 사용하지 않는다.
   - 장애물 타일과 중간 유닛이 사선을 차단하도록 처리
   - 예약 1회당 1회 발동, 발동/라운드 리셋 시 예약 해제 정책을 문서화
   - EditMode 테스트 `45 passed / 0 failed`, PlayMode 테스트 `4 passed / 0 failed`
@@ -231,8 +231,9 @@
   - 판단: 첫 화면의 좌우 대치와 PR #61 ring/floating text는 읽히지만, 북쪽 사격 루트와 남쪽 신호 장치 루트의 차이는 위험영역/상호작용 overlay 문법에 묻힘
   - 데이터 보정은 하지 않음: AI matrix 목표 통과 상태이므로 적 수/HP/PG/배치가 아니라 `TBD-012` overlay 문법과 초기 판단 지원을 후속으로 둠
 - [x] 총기 발포 방향/조준 문법 재정의 (`TBD-010`)
-  - 총기 기본 공격 판정은 오버워치 8방향 직선 helper에서 분리하고, 실제 공격자-대상 타일 벡터 기반 LOS helper(`SrpFirearmAim`)로 판정한다.
-  - 오버워치 사격은 기존 8방향 직선 사선, 장애물/유닛/`blocksLineOfSight` 차단을 유지하고 HUD/overlay/테스트에서 오버워치 전용 제한으로 고정한다.
+  - 총기 기본 공격과 오버워치 사격은 모두 실제 공격자-대상 중심 360도 벡터 기반 LOS helper(`SrpFirearmAim`)로 판정한다.
+  - `SrpOverwatch.IsTileInLineOfSight`는 8방향 직선 lane을 요구하지 않는다. 사거리, walkable target, 중간 유닛/장애물, `blocksLineOfSight` segment 차단만 발포 가능 여부를 제한한다.
+  - 8-sector(`SrpAimSector8`)는 `atan2` 기반 표시/디버그/방향성 판정 보조값이며, dx/dy가 가로/세로/대각선일 때만 발포 가능하다는 제한이 아니다.
   - 총기 기본 공격 hover preview에는 황색 aim line과 `총기 기본 조준` 문구를 추가해 공격 가능 범위/위험 범위/오버워치 경계와 다른 의미로 읽히게 한다.
   - 발포 시 총기 유닛 facing은 목표 벡터의 우세 축 방향으로 갱신한다. 정식 VFX/애니메이션, 무기별 arc, diagonal facing은 후속 의사결정으로 남긴다.
 - [ ] 전투 UX 피드백 레이어 P2

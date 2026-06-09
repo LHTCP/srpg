@@ -21,6 +21,7 @@ public static class SrpCombatResolver
     const int SideAttackPgBonus = 1;
     const int BackAttackHpBonus = 2;
     const int BackAttackPgBonus = 2;
+    const float DirectionalArcDotThreshold = 0.7071067f;
     const int FirearmHpToPgSpilloverPercent = 50;
     const int ParryCounterPgDamage = 8;
     const int MarkedPgBonus = 2;
@@ -112,24 +113,7 @@ public static class SrpCombatResolver
         if (attacker == null || defender == null)
             return false;
 
-        int dx = attacker.anchorX - defender.anchorX;
-        int dy = attacker.anchorY - defender.anchorY;
-        if (dx == 0 && dy == 0)
-            return false;
-
-        switch (defender.facing)
-        {
-            case SrpFacing.North:
-                return dy > 0 && Mathf.Abs(dy) >= Mathf.Abs(dx);
-            case SrpFacing.East:
-                return dx > 0 && Mathf.Abs(dx) >= Mathf.Abs(dy);
-            case SrpFacing.South:
-                return dy < 0 && Mathf.Abs(dy) >= Mathf.Abs(dx);
-            case SrpFacing.West:
-                return dx < 0 && Mathf.Abs(dx) >= Mathf.Abs(dy);
-            default:
-                return false;
-        }
+        return GetFacingDotToSource(attacker, defender) >= DirectionalArcDotThreshold;
     }
 
     public static AttackOutcome ApplyAttack(SrpUnitRuntime attacker, SrpUnitRuntime defender)
@@ -610,23 +594,35 @@ public static class SrpCombatResolver
 
     static bool IsAttackerBehindDefender(SrpUnitRuntime attacker, SrpUnitRuntime defender)
     {
-        int dx = attacker.anchorX - defender.anchorX;
-        int dy = attacker.anchorY - defender.anchorY;
-        if (dx == 0 && dy == 0)
-            return false;
+        return GetFacingDotToSource(attacker, defender) <= -DirectionalArcDotThreshold;
+    }
 
-        switch (defender.facing)
+    static float GetFacingDotToSource(SrpUnitRuntime source, SrpUnitRuntime defender)
+    {
+        if (source == null || defender == null)
+            return 0f;
+
+        var toSource = new Vector2(source.anchorX - defender.anchorX, source.anchorY - defender.anchorY);
+        if (toSource.sqrMagnitude <= Mathf.Epsilon)
+            return 0f;
+
+        return Vector2.Dot(FacingToVector(defender.facing), toSource.normalized);
+    }
+
+    static Vector2 FacingToVector(SrpFacing facing)
+    {
+        switch (facing)
         {
             case SrpFacing.North:
-                return dy < 0 && Mathf.Abs(dy) >= Mathf.Abs(dx);
+                return Vector2.up;
             case SrpFacing.East:
-                return dx < 0 && Mathf.Abs(dx) >= Mathf.Abs(dy);
+                return Vector2.right;
             case SrpFacing.South:
-                return dy > 0 && Mathf.Abs(dy) >= Mathf.Abs(dx);
+                return Vector2.down;
             case SrpFacing.West:
-                return dx > 0 && Mathf.Abs(dx) >= Mathf.Abs(dy);
+                return Vector2.left;
             default:
-                return false;
+                return Vector2.zero;
         }
     }
 

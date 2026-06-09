@@ -26,10 +26,10 @@ SrpGameController
 
 2차 확장/후속 모듈:
 
-- `SrpOverwatch`: AP 예약/RP 발동, 8방향 직선 사선, 장애물/유닛/`blocksLineOfSight` segment 차단, 1회 발동/해제, 다중 후보 우선순위 규칙 구현 완료
+- `SrpOverwatch`: AP 예약/RP 발동, 목표 벡터 기반 LOS, 장애물/유닛/`blocksLineOfSight` segment 차단, 1회 발동/해제, 다중 후보 우선순위 규칙 구현 완료
 - `SrpReaction`: 별도 파일 대신 `SrpCombatResolver`의 반응 선택/소비 흐름에 흡수
 - `SrpLineOfSight`: 현재는 `SrpOverwatch` helper로 유지, 다른 시스템이 사선을 공유할 때 별도 모듈 분리 검토
-- `SrpFirearmAim`: 총기 기본 공격 조준 helper. 기본 공격은 8방향 직선 제한을 요구하지 않고 공격자-대상 타일 벡터의 LOS/장애물/`blocksLineOfSight` 차단만 검증한다. 오버워치는 같은 경로 검증 위에 8방향 직선 lane 제한을 추가한다.
+- `SrpFirearmAim`: 총기 기본 공격/오버워치 공용 조준 helper. 공격자-대상 중심 360도 벡터의 LOS/장애물/`blocksLineOfSight` 차단만 targetability로 검증하고, 8-sector는 `atan2` 기반 표시/디버그/방향성 판정 보조값으로만 제공한다.
 
 ## 3. 핵심 데이터 계약
 
@@ -89,8 +89,8 @@ SrpGameController
 - `Firearm`: HP 압박 중심
   - 전장식 총기 기본 모델은 1발 고화력이다. 탄약을 소비하며, AP 1 재장전으로 탄약을 최대치까지 회복한다.
   - 기본 공격은 HP 피해를 크게 주고, 실제 HP 피해량의 50%를 PG 피해로 추가 파급한다.
-  - 기본 공격 사선은 `SrpFirearmAim`의 목표 벡터 LOS를 사용한다. 8방향 직선이 아니어도 사거리/LOS/장애물/`blocksLineOfSight` 차단을 통과하면 공격 가능하다.
-  - 오버워치 사격은 방어 행동 전용 규칙으로 8방향 직선 lane 제한을 유지한다.
+  - 기본 공격과 오버워치 사선은 `SrpFirearmAim`의 목표 벡터 LOS를 공유한다. 8방향 직선이 아니어도 사거리/LOS/장애물/`blocksLineOfSight` 차단을 통과하면 발포 가능하다.
+  - `SrpAimSector8`은 UI/facing/엄폐 설명용 보조값이며, 발포 가능 여부를 제한하지 않는다.
   - 1차 구현은 최종 HP 피해량 기준으로 파급량을 산정하고, 남은 엄폐 GRD가 있으면 파급 PG를 줄인다. 50% 비율, 반올림 방식, 최소 PG 피해량, GRD 적용 순서는 밸런스 검사와 전투 시뮬레이션 후 조정 가능하게 둔다.
   - 엄폐 중인 원거리 대상에게는 HP/PG 피해 완충을 적용한다.
 - `Melee`: PG 붕괴 중심
@@ -160,7 +160,7 @@ SrpGameController
 14. RP/HUD 노출 정책 정리: RP 원시 수치 대신 반응 준비/소모/예약 상태 중심 표기
 15. 기획 대조 P1 보정: 기본공격 패링 제거, Dodge 확률형 시도/실패 브릿지, 측후면 방어 불리 브릿지 추가
 16. HUD/로그 가독성 동기화: 범례/반응/오버워치/스킬 자원/로그 문구 용어 통일 및 PlayMode 스모크 보강
-17. 오버워치 사선/횟수/해제 상세 규칙: 8방향 직선 사선, 장애물/유닛 차단, 예약 1회당 1회 발동, 라운드 리셋 해제
+17. 오버워치 사선/횟수/해제 상세 규칙: 목표 벡터 LOS, 장애물/유닛 차단, 예약 1회당 1회 발동, 라운드 리셋 해제
 18. 테스트 프리셋 v2 + HUD 레이아웃 개편: 최신 기능 체험용 `M1QaIntegrated`, 상단 헤더/정보 바/좌측 조작 콘솔 분리
 19. 전투 직접 조작 UI 보강: 태세 선택, 최종 방향 선택, 오버클럭 실행을 좌측 전술 콘솔에 연결
 20. 오버클럭 성능 증폭: 다음 스킬 사용 1회 피해/회복 보너스와 HUD/로그 상태 표기 추가
@@ -180,7 +180,7 @@ SrpGameController
 34. 첫 전투 화면 관찰 P2: PlayMode 관찰 테스트로 첫 화면/위험영역/상호작용/ring feedback 캡처 표본을 생성하고, 데이터 보정보다 overlay 문법 후속이 우선임을 기록
 35. 타일 overlay 시각 문법 P2: 이동은 중심 marker, 공격/위험은 외곽 테두리, ZOC/패링은 warning ring, 상호작용은 objective marker로 분리하고, tile overlay 높이가 PR #61 유닛 발밑 ring 아래에 머무르는 계약을 PlayMode에 추가
 36. 행동 순서 패널 분리 P2: 상단 HUD의 현재 유닛/대기열 정보를 상단 우측 `TurnOrderTrackerPanel` icon strip으로 분리하고, 현재 유닛 강조와 다음 3~5명 preview 및 턴 진행 후 갱신을 PlayMode에 추가
-37. 총기 발포 방향/조준 문법 P2: 기본 총기 공격을 목표 벡터 LOS helper로 분리하고, 오버워치는 8방향 방어 lane으로 유지, hover aim line/preview 문구/facing 갱신 및 EditMode/PlayMode 계약 검증
+37. 총기 발포 방향/조준 문법 P2: 기본 총기 공격과 오버워치를 공용 목표 벡터 LOS helper로 통합하고, 8-sector는 표시/디버그 보조값으로만 유지, hover aim line/preview 문구/facing 갱신 및 EditMode/PlayMode 계약 검증
 
 다음 구현 순서:
 
