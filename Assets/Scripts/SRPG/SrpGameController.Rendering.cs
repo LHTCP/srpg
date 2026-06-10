@@ -163,7 +163,7 @@ public partial class SrpGameController
             var d = GetUnit(id);
             if (d == null) continue;
             foreach (var off in d.footprintOffsets)
-                SetOverlayTile(OverlayAttack, d.anchorX + off.x, d.anchorY + off.y, new Color(0.95f, 0.35f, 0.25f));
+                SetOverlayTile(OverlayAttack, d.anchorX + off.x, d.anchorY + off.y, new Color(0.70f, 0.24f, 0.20f));
         }
     }
 
@@ -404,8 +404,12 @@ public partial class SrpGameController
     {
         if (layer == OverlayMove)
             return new TileOverlayVisualSpec(TileOverlayStyle.CenterDisc, TileOverlayBaseY, 0.28f, Quaternion.identity, 1);
-        if (layer == OverlayAttack || layer == OverlayDangerAttack || layer == OverlayUnitHoverRange)
-            return new TileOverlayVisualSpec(TileOverlayStyle.Border, TileOverlayBaseY + 0.006f, 0.92f, Quaternion.identity, 2);
+        if (layer == OverlayAttack)
+            return new TileOverlayVisualSpec(TileOverlayStyle.CenterDisc, TileOverlayBaseY + 0.006f, 0.34f, Quaternion.identity, 2);
+        if (layer == OverlayDangerAttack)
+            return new TileOverlayVisualSpec(TileOverlayStyle.CenterDisc, TileOverlayBaseY + 0.006f, 0.30f, Quaternion.identity, 2);
+        if (layer == OverlayUnitHoverRange)
+            return new TileOverlayVisualSpec(TileOverlayStyle.CenterDisc, TileOverlayBaseY + 0.006f, 0.26f, Quaternion.identity, 2);
         if (layer == OverlayDangerZoc || layer == OverlayUnitHoverZoc)
             return new TileOverlayVisualSpec(TileOverlayStyle.WarningRing, TileOverlayBaseY + 0.010f, 0.68f, Quaternion.identity, 3);
         if (layer == OverlayOverwatch)
@@ -1262,7 +1266,8 @@ public partial class SrpGameController
         && Vector3.Distance(_previousFeedbackStartPosition, _lastFeedbackStartPosition) > 0.01f;
     public int TestTileOverlayVisualCount => CountActiveTileOverlayVisuals();
     public int TestMoveOverlayMarkerCount => CountTileOverlayVisualsForLayer(OverlayMove);
-    public int TestDangerAttackBorderCount => CountTileOverlayVisualsForLayer(OverlayDangerAttack);
+    public int TestDangerAttackMarkerCount => CountTileOverlayVisualsForLayer(OverlayDangerAttack);
+    public bool TestDangerAttackUsesQuietCenterMarkers => LayerUsesMesh(OverlayDangerAttack, "SrpTileOverlayCenterDisc");
     public int TestDangerZocWarningRingCount => CountTileOverlayVisualsForLayer(OverlayDangerZoc);
     public int TestInteractionObjectiveMarkerCount => CountTileOverlayVisualsForLayer(OverlayInteraction);
     public bool TestHasAimLineOverlay => CountTileOverlayVisualsForLayer(OverlayAimLine) > 0;
@@ -1324,6 +1329,22 @@ public partial class SrpGameController
                 return go.transform.localScale.x;
         }
         return 0f;
+    }
+
+    bool LayerUsesMesh(int layer, string meshName)
+    {
+        int count = 0;
+        string prefix = $"TileOverlay_{layer}_";
+        foreach (var go in _tileOverlayVisuals.Values)
+        {
+            if (go == null || !go.activeInHierarchy || !go.name.StartsWith(prefix))
+                continue;
+            count++;
+            var filter = go.GetComponent<MeshFilter>();
+            if (filter == null || filter.sharedMesh == null || filter.sharedMesh.name != meshName)
+                return false;
+        }
+        return count > 0;
     }
 #endif
 }

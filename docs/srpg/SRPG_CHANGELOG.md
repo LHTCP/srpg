@@ -1,5 +1,15 @@
 # SRPG 변경 이력
 
+## 2026-06-10
+
+- 전투 UX 추가 피드백 후속 구현 (`TBD-014`, `BUG-001`, `TBD-012` 후속)
+  - 플레이어-facing HUD/버튼/로그/floating text/QA 프리셋 표시명을 `경계태세`/`경계사격` 기준으로 정리
+  - 예약 문구는 `경계태세 준비`, 발동 world-space text는 `경계사격!`, 불가/예약 상태는 `경계태세 불가`/`경계태세 준비 중`으로 고정
+  - 경계태세 발동으로 대상이 사망하면 선택/hover/aim overlay를 정리하고 유닛 mesh, HUD, 행동 순서 패널을 즉시 갱신
+  - 공격/위험 범위는 과밀 외곽선 대신 낮은 채도 중심 marker로 낮추고, ZOC warning ring/경계태세 테두리/이동 marker와 mesh 계약을 분리
+  - PlayMode에 경계태세 사망 직후 갱신 시나리오와 공격/위험 중심 marker 계약 검증 추가
+  - 검증 통과: `scripts/validate-repo.sh`, EditMode `79 passed / 0 failed`, PlayMode `9 passed / 0 failed`
+
 ## 2026-06-09
 
 - 행동 순서 패널 분리 (`TBD-011`)

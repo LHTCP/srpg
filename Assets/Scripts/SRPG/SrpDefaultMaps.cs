@@ -23,7 +23,7 @@ public static class SrpDefaultMaps
     /// M1 통합 QA 프리셋.
     /// - 속도 기반 턴 순환
     /// - 총기(HP 압박) / 근접(PG 압박) 비교
-    /// - 장애물/유닛 차단을 통한 오버워치 사선 확인
+    /// - 장애물/유닛 차단을 통한 경계태세 사선 확인
     /// - 스킬 자원, 패링 텔레그래프, 측후면 노출 확인
     /// </summary>
     public static SrpMapFileV1 CreateM1QaIntegrated()
@@ -475,7 +475,7 @@ public static class SrpDefaultMaps
     /// 교전/둘러싸임 QA 프리셋.
     /// - 탱커가 두 적에게 인접한 상태로 시작해 다중 교전 완충을 확인한다.
     /// - 서쪽으로 한 칸 이탈하면 교전 이탈 비용/기회공격을 확인할 수 있다.
-    /// - 사격수는 오버워치 예약과 위험 범위 확인용으로 배치한다.
+    /// - 사격수는 경계태세 예약과 위험 범위 확인용으로 배치한다.
     /// </summary>
     public static SrpMapFileV1 CreateM1EngagementLab()
     {
@@ -572,7 +572,7 @@ public static class SrpDefaultMaps
             new SrpUnitTemplateData
             {
                 id = "engage_overwatch",
-                displayName = "오버워치 사격수",
+                displayName = "경계태세 사격수",
                 moveRange = 3,
                 attackRange = 4,
                 attackPower = 8,

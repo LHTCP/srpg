@@ -83,11 +83,11 @@
 - `SrpMapPreset.cs`, `SrpDefaultMaps.cs`: 첫 전투 프로토타입 내장 프리셋 `M1OpeningPrototype` 추가
 - `SrpGameSettings.cs`, `SrpGameController.cs`, `SrpLobbyController.cs`: 기본 전투 진입값과 로비 첫 선택을 `M1OpeningPrototype`으로 교체하고 `M1QaIntegrated`는 로비 후순위 QA 선택지와 코드/자동 테스트용 deprecated 프리셋으로 유지
 - `SrpM1OpeningObservationTests.cs`: `M1OpeningPrototype` 첫 화면/위험영역/상호작용/ring feedback 관찰용 PlayMode 캡처 표본 추가
-- `SrpGameController.Rendering.cs`: 타일 overlay를 색상 채움 대신 이동 중심 marker, 공격/위험 테두리, ZOC/패링 warning ring, 상호작용 objective marker 계열로 분리하고 PR #61 유닛 발밑 ring보다 낮은 레이어에 배치
-- `SrpGameController.Hud.cs`: overlay 범례를 색상만이 아니라 중심점/테두리/ring/목표 marker 문법으로 갱신
+- `SrpGameController.Rendering.cs`: 타일 overlay를 색상 채움 대신 이동 중심 marker, 공격/위험 중심 marker, ZOC/패링 warning ring, 경계태세/엄폐 테두리, 상호작용 objective marker 계열로 분리하고 PR #61 유닛 발밑 ring보다 낮은 레이어에 배치
+- `SrpGameController.Hud.cs`: overlay 범례를 색상만이 아니라 중심점/테두리/ring/목표 marker 문법으로 갱신하고, 사용자-facing 경계태세 문구를 정리
 - `SrpDefaultSkills.cs`: 플레이어가 보는 기본 스킬 설명에서 `브릿지`/`호환용` 표현을 줄이고 임시 수치는 문서로 분리
 - EditMode 테스트: 교전/반응 클론 독립성, Guard RP 소비, 라운드 RP 리셋, 교전 이탈 비용, 기회공격 발생/미발생, 쿨다운/충전/오버클럭, 오버클럭 성능 증폭, 패링 가능/불가 조건, Parry/Dodge/명시형 ReactionShot, 오버워치 사선/차단/후보 우선순위, 수비 지속 완충/탱커 다중 대응, 메이커 JSON 메타 보존, 중간 점검 회귀, 유닛 뷰 방향 회전, 프리셋 기반 교전/포위 검증, QA 프리셋 v2 스킬/태그/초기 4인/사선 차단 검증, 오버클럭 가능 조건, 오버워치 상태 helper, 탄약/재장전/오버워치 탄약 소비, 엄폐 판정/완충/사선 차단, 상호작용 탐색/실행/owner 제한/클론/JSON/프리셋, 총기 HP-PG 파급, 공용 전투 태그, 패링 보상, 완벽한 수비, 마법 전장 개입, `M1OpeningPrototype` AI policy matrix 검증 추가
-- PlayMode 테스트: HUD의 반응 상태 표기(`반응: 준비/소모/예약`), 상단 헤더/좌측 콘솔/행동 순서 아이콘 strip/하단 유닛 카드/행동 preview 카드, 태세/방향/오버클럭/재장전/엄폐/상호작용 직접 조작, 범례, 오버워치 버튼, hover 문구, 로그 핵심 문구, tile overlay marker/ring/border 존재와 유닛 ring 아래 높이 계약을 스모크 검증
+- PlayMode 테스트: HUD의 반응 상태 표기(`반응: 준비/소모/예약`), 상단 헤더/좌측 콘솔/행동 순서 아이콘 strip/하단 유닛 카드/행동 preview 카드, 태세/방향/오버클럭/재장전/엄폐/상호작용 직접 조작, 범례, 경계태세 버튼, hover 문구, 로그 핵심 문구, 경계태세 사망 직후 갱신, tile overlay marker/ring/border 존재와 유닛 ring 아래 높이 계약을 스모크 검증
 
 주의:
 

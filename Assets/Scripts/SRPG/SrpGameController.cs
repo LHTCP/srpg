@@ -706,7 +706,7 @@ public partial class SrpGameController : MonoBehaviour
 
         if (!SrpOverwatch.TryTrigger(_state, watcher, target, out var outcome))
             return false;
-        SpawnWorldFeedback(watcher, "\uC624\uBC84\uC6CC\uCE58!", new Color(0.35f, 0.55f, 1f));
+        SpawnWorldFeedback(watcher, "\uACBD\uACC4\uC0AC\uACA9!", new Color(0.35f, 0.55f, 1f));
         SrpSkills.OnAttackResolved(watcher, target, outcome, _state, LogLine);
         if (outcome.damageToHp > 0 || outcome.damageToPg > 0)
         {
@@ -715,7 +715,7 @@ public partial class SrpGameController : MonoBehaviour
         }
 
         LogLine(
-            $"오버워치 사격: {watcher.displayName}({watcher.id}) → {target.displayName}({target.id}) | " +
+            $"경계사격: {watcher.displayName}({watcher.id}) → {target.displayName}({target.id}) | " +
             $"피해 PG-{outcome.damageToPg} HP-{outcome.damageToHp} | 반응 사격 소모 | 탄약 {watcher.ammo}/{watcher.maxAmmo}");
         LogDefenseBuffers(target, outcome);
         LogReactionOutcome(target, outcome);
@@ -725,8 +725,22 @@ public partial class SrpGameController : MonoBehaviour
         {
             _state.RemoveUnit(target);
             _state.RebuildEngagements();
+            if (_selectedId == target.id)
+                _selectedId = null;
+            if (_hoverUnitId == target.id)
+                _hoverUnitId = -1;
+            if (_hoverTileX == target.anchorX && _hoverTileY == target.anchorY)
+            {
+                _hoverTileX = -1;
+                _hoverTileY = -1;
+            }
+            ClearOverlayLayer(OverlayHover);
+            ClearOverlayLayer(OverlayDangerBlocked);
+            ClearOverlayLayer(OverlayAimLine);
             LogLine($"사망: {target.displayName}({target.id})");
             CheckWin();
+            RefreshUnitViews();
+            UpdateHud();
         }
 
         return outcome.defenderDied;
@@ -1303,7 +1317,7 @@ public partial class SrpGameController : MonoBehaviour
             {
                 int dist = Mathf.Max(Mathf.Abs(unit.anchorX - x), Mathf.Abs(unit.anchorY - y));
                 if (dist > 0 && dist <= unit.attackRange)
-                    SetOverlayTile(OverlayUnitHoverRange, x, y, new Color(0.35f, 0.55f, 1f));
+                    SetOverlayTile(OverlayUnitHoverRange, x, y, new Color(0.42f, 0.48f, 0.70f));
             }
         }
 
@@ -1335,7 +1349,7 @@ public partial class SrpGameController : MonoBehaviour
                 {
                     int dist = Mathf.Max(Mathf.Abs(enemy.anchorX - x), Mathf.Abs(enemy.anchorY - y));
                     if (dist > 0 && dist <= enemy.attackRange)
-                        SetOverlayTile(OverlayDangerAttack, x, y, new Color(0.95f, 0.22f, 0.22f));
+                        SetOverlayTile(OverlayDangerAttack, x, y, new Color(0.64f, 0.18f, 0.18f));
                 }
             }
 
@@ -1434,6 +1448,65 @@ public partial class SrpGameController : MonoBehaviour
             return true;
         }
         return false;
+    }
+
+    public bool TestForceLethalOverwatchAgainstCurrentUnit()
+    {
+        if (_state == null || _state.CurrentUnitId <= 0)
+            return false;
+
+        var target = GetUnit(_state.CurrentUnitId);
+        if (target == null || target.eliminated)
+            return false;
+
+        SrpUnitRuntime watcher = null;
+        foreach (var candidate in _state.Units)
+        {
+            if (candidate != null && !candidate.eliminated && candidate.owner != target.owner)
+            {
+                watcher = candidate;
+                break;
+            }
+        }
+        if (watcher == null || !_state.InBounds(0, 1) || !_state.InBounds(2, 1))
+            return false;
+
+        int targetId = target.id;
+        target.anchorX = 2;
+        target.anchorY = 1;
+        target.hp = 1;
+        target.pg = 0;
+        target.groggy = true;
+        target.eliminated = false;
+
+        watcher.anchorX = 0;
+        watcher.anchorY = 1;
+        watcher.weaponClass = SrpWeaponClass.Firearm;
+        watcher.attackRange = 4;
+        watcher.attackPower = Mathf.Max(watcher.attackPower, 8);
+        watcher.maxAmmo = Mathf.Max(watcher.maxAmmo, 1);
+        watcher.ammo = watcher.maxAmmo;
+        watcher.maxReactionPoints = Mathf.Max(watcher.maxReactionPoints, 1);
+        watcher.reactionPoints = watcher.maxReactionPoints;
+        watcher.overwatchArmed = true;
+        watcher.overwatchRange = watcher.attackRange;
+        watcher.overwatchRound = _state.RoundNumber;
+
+        _selectedId = target.id;
+        _state.CurrentUnitId = target.id;
+        _phase = Phase.UnitActive;
+        _state.RebuildEngagements();
+        RefreshUnitViews();
+        UpdateHud();
+
+        bool died = TryResolveOverwatchAgainst(target);
+        if (died)
+            FinishActivation();
+
+        bool viewRemoved = !_unitObjs.TryGetValue(targetId, out var go) || go == null || !go.activeInHierarchy;
+        bool hudCleared = !TestUnitHudText.Contains($"({targetId})")
+            && !TestTurnOrderTrackerText.Contains($"({targetId})");
+        return died && target.eliminated && viewRemoved && hudCleared;
     }
 
     public bool TestTryHoverFirstInteractionPoint()
