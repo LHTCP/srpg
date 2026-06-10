@@ -222,10 +222,14 @@
   - 정책별 평균 종료 라운드: Heuristic vs Random `8.31`, Random vs Heuristic `7.65`, Heuristic vs Heuristic `8.00`
   - 핵심 정책 케이스가 6~10라운드 목표에 들어와 프리셋 적 수/HP/PG/배치 간격은 이번 차수에서 변경하지 않음
   - Random vs Random은 평균 `15.64`라운드/무승부 `0.827`로 관찰용 경향으로만 유지하고 밸런스 게이트에서 제외
-- [ ] `M1OpeningPrototype` 후속 실플레이 표본 기록
+- [x] `M1OpeningPrototype` 후속 실플레이 표본 기록
   - 북쪽 사격 루트와 남쪽 돌입/상호작용 루트가 사람 플레이에서도 서로 다른 판단으로 읽히는지 확인한다.
   - 첫 전투가 플레이어 우세 학습 전투로 충분한지, Heuristic vs Heuristic owner0 `1.000` 승률을 더 팽팽하게 조정해야 하는지 판단한다.
   - 방향성 엄폐와 `blocksLineOfSight`가 시각적으로 답답한 차단이 아니라 읽을 수 있는 위협으로 보이는지 기록한다.
+  - PlayMode 관찰 테스트 `SrpM1OpeningObservationTests.M1OpeningPrototype_Captures_FirstScreen_RouteObservation` 추가
+  - 캡처/표본 산출물: `TestResults/SrpPlayObservation/`
+  - 판단: 첫 화면의 좌우 대치와 PR #61 ring/floating text는 읽히지만, 북쪽 사격 루트와 남쪽 신호 장치 루트의 차이는 위험영역/상호작용 overlay 문법에 묻힘
+  - 데이터 보정은 하지 않음: AI matrix 목표 통과 상태이므로 적 수/HP/PG/배치가 아니라 `TBD-012` overlay 문법과 초기 판단 지원을 후속으로 둠
 - [ ] 총기 발포 방향/조준 문법 재정의 (`TBD-010`)
   - 현재 총기 발포 방향이 오버워치의 8방향 직선 사선 규칙처럼 고정되어 보이는 문제를 확인한다.
   - 총기 기본 공격, 오버워치 사격, 발포 연출/타일 overlay가 같은 방향 규칙을 공유해야 하는지 분리해야 하는지 결정한다.
