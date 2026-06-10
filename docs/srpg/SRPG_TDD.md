@@ -178,10 +178,10 @@ SrpGameController
 32. 전투 UX 피드백 레이어 P1: 현재 행동/선택/hover ring, ZOC/교전 unit badge, 턴 시작/종료와 주요 행동 world-space feedback, 피해/회복/선택 flash 추가 및 PlayMode 계약 검증
 33. 첫 전투 밸런스 관찰 P2: `M1OpeningPrototype` AI policy matrix를 EditMode에 추가하고, 핵심 정책 케이스 평균 종료 라운드 6~10 범위를 확인
 34. 첫 전투 화면 관찰 P2: PlayMode 관찰 테스트로 첫 화면/위험영역/상호작용/ring feedback 캡처 표본을 생성하고, 데이터 보정보다 overlay 문법 후속이 우선임을 기록
-35. 타일 overlay 시각 문법 P2: 이동은 중심 marker, 공격/위험은 1차 외곽 테두리에서 후속 중심 marker로 낮추고, ZOC/패링은 warning ring, 상호작용은 objective marker로 분리하며, tile overlay 높이가 PR #61 유닛 발밑 ring 아래에 머무르는 계약을 PlayMode에 추가
+35. 타일 overlay 시각 문법 P2: 이동은 중심 marker, 공격/위험과 경계태세는 반투명 타일막, ZOC/패링은 warning ring, 상호작용은 objective marker로 분리하며, tile overlay marker 높이가 PR #61 유닛 발밑 ring 아래에 머무르는 계약을 PlayMode에 추가
 36. 행동 순서 패널 분리 P2: 상단 HUD의 현재 유닛/대기열 정보를 상단 우측 `TurnOrderTrackerPanel` icon strip으로 분리하고, 현재 유닛 강조와 다음 3~5명 preview 및 턴 진행 후 갱신을 PlayMode에 추가
 37. 총기 발포 방향/조준 문법 P2: 기본 총기 공격과 오버워치를 공용 목표 벡터 LOS helper로 통합하고, 8-sector는 표시/디버그 보조값으로만 유지, hover aim line/preview 문구/facing 갱신 및 EditMode/PlayMode 계약 검증
-38. 전투 UX 추가 피드백 후속: 오버워치 사용자 노출 명칭을 `경계태세`로 교체하고, 예약 `경계태세 준비`/발동 `경계사격!` 문구를 고정했으며, 경계태세 사망 직후 렌더링/HUD/행동 순서 갱신과 공격/위험 중심 marker 계약을 PlayMode/관찰 QA로 검증
+38. 전투 UX 추가 피드백 후속: 오버워치 사용자 노출 명칭을 `경계태세`로 교체하고, 예약 `경계태세 준비`/발동 `경계사격!` 문구를 고정했으며, 경계태세 사망 직후 렌더링/HUD/행동 순서 갱신과 공격/위험·경계태세 반투명 타일막 계약을 PlayMode/관찰 QA로 검증
 
 다음 구현 순서:
 
@@ -197,7 +197,7 @@ SrpGameController
 - 총기 HP-PG 파급 비율/반올림/최소값/GRD 적용 순서
 - 총기 발포 후속 의사결정: 정식 VFX/애니메이션, 무기별 arc, diagonal facing을 도입할지 검토 (`TBD-010` 후속)
 - 행동 순서 패널 후속 polish: `TBD-011` 1차 구현은 런타임 생성 얼굴 토큰 icon strip으로 고정했고, 정식 초상화/역할 아이콘/크기 미세 조정은 아트 에셋과 실제 플레이 피드백 후 결정한다.
-- 타일 overlay 세부 튜닝: `TBD-012` 공격/위험 범위는 후속 피드백 기준으로 중심 marker까지 낮췄다. 정식 VFX/투명도/펄스 같은 화면 미세 조정은 실제 플레이 피드백 후 결정한다.
+- 타일 overlay 세부 튜닝: `TBD-012` 공격/위험 범위와 경계태세 범위는 후속 피드백 기준으로 반투명 타일막을 사용한다. 정식 VFX/투명도/펄스 같은 화면 미세 조정은 실제 플레이 피드백 후 결정한다.
 - 경계태세 후속 UX/버그: 사용자-facing 명칭과 사망 직후 갱신은 구현했다. 정식 경계태세 사격 VFX/애니메이션은 후속 아트 튜닝으로 둔다 (`TBD-014`, `BUG-001`).
 - 메이커 효과유형 드롭다운 성능과 필드 의미 툴팁 범위 (`TBD-013`)
 - 회피 확률 계산식

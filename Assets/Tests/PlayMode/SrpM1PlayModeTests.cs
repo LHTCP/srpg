@@ -78,7 +78,7 @@ public class SrpM1PlayModeTests
         StringAssert.Contains("범례:", statusHud);
         StringAssert.Contains("초록=이동", statusHud);
         StringAssert.Contains("청록=패링 가능 스킬", statusHud);
-        StringAssert.Contains("파랑=경계태세", statusHud);
+        StringAssert.Contains("파랑=경계태세 타일막", statusHud);
         StringAssert.Contains("연두=엄폐", statusHud);
         StringAssert.Contains("방향엄폐", statusHud);
         StringAssert.Contains("노랑=상호작용", statusHud);
@@ -269,13 +269,15 @@ public class SrpM1PlayModeTests
         controller.ToggleDangerArea();
         yield return null;
         Assert.IsTrue(controller.TestDangerAreaVisible, "위험영역 토글 상태 반영 실패");
-        Assert.Greater(controller.TestDangerAttackMarkerCount, 0, "danger attack center markers missing");
-        Assert.IsTrue(controller.TestDangerAttackUsesQuietCenterMarkers, "공격/위험 범위가 과밀 외곽선 mesh를 계속 사용합니다.");
+        Assert.Greater(controller.TestDangerAttackTintTileCount, 0, "danger attack tile tint missing");
+        Assert.IsTrue(controller.TestDangerAttackUsesFullTileTint, "공격/위험 범위가 반투명 타일막 계약을 사용하지 않습니다.");
         Assert.Greater(controller.TestDangerZocWarningRingCount, 0, "danger ZOC warning rings missing");
         Assert.Less(controller.TestTileOverlayMaxWorldY, controller.TestCurrentActionRingWorldY, "danger overlays should not cover unit foot rings");
         StringAssert.Contains("위험영역 ON", controller.TestStatusHudText);
         StringAssert.Contains("범례:", controller.TestStatusHudText);
-        StringAssert.Contains("빨강=공격/위험 중심 marker", controller.TestStatusHudText);
+        StringAssert.Contains("빨강=공격/위험 타일막", controller.TestStatusHudText);
+        Assert.IsTrue(controller.TestShowCurrentOverwatchRange(), "경계태세 범위 타일막 표시 실패");
+        Assert.IsTrue(controller.TestOverwatchUsesFullTileTint, "경계태세 범위가 파란 선형 mesh를 계속 사용합니다.");
 
         bool hovered = controller.TestTryHoverFirstMoveTile();
         Assert.IsTrue(hovered, "hover 가능한 이동 타일이 없음");

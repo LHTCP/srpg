@@ -53,8 +53,8 @@ public class SrpM1OpeningObservationTests
 
             controller.ToggleDangerArea();
             Assert.IsTrue(controller.TestDangerAreaVisible, "위험영역 토글이 켜지지 않았습니다.");
-            Assert.Greater(controller.TestDangerAttackMarkerCount, 0, "공격/위험 중심 marker가 없습니다.");
-            Assert.IsTrue(controller.TestDangerAttackUsesQuietCenterMarkers, "공격/위험 범위가 과밀 외곽선 mesh를 계속 사용합니다.");
+            Assert.Greater(controller.TestDangerAttackTintTileCount, 0, "공격/위험 타일막이 없습니다.");
+            Assert.IsTrue(controller.TestDangerAttackUsesFullTileTint, "공격/위험 범위가 반투명 타일막 계약을 사용하지 않습니다.");
             Assert.Greater(controller.TestDangerZocWarningRingCount, 0, "ZOC warning ring marker가 없습니다.");
             Assert.IsTrue(controller.TestTryHoverFirstMoveTile(), "첫 이동 후보 hover에 실패했습니다.");
             CaptureFrame(outputDir, "02_move_hover_and_danger.png");
@@ -158,13 +158,13 @@ public class SrpM1OpeningObservationTests
         sb.AppendLine($"- Status HUD: `{OneLine(controller.TestStatusHudText)}`");
         sb.AppendLine($"- Active unit card: `{OneLine(controller.TestActiveUnitCardText)}`");
         sb.AppendLine($"- Floating feedback samples: `{OneLine(controller.TestFloatingFeedbackHistory)}`");
-        sb.AppendLine($"- Tile overlay markers: total {controller.TestTileOverlayVisualCount}, move centers {controller.TestMoveOverlayMarkerCount}, danger centers {controller.TestDangerAttackMarkerCount}, ZOC rings {controller.TestDangerZocWarningRingCount}, objectives {controller.TestInteractionObjectiveMarkerCount}");
+        sb.AppendLine($"- Tile overlay markers: total {controller.TestTileOverlayVisualCount}, move centers {controller.TestMoveOverlayMarkerCount}, danger tint tiles {controller.TestDangerAttackTintTileCount}, ZOC rings {controller.TestDangerZocWarningRingCount}, objectives {controller.TestInteractionObjectiveMarkerCount}");
         sb.AppendLine($"- Overlay height check: max tile marker y `{controller.TestTileOverlayMaxWorldY:0.000}`, current unit ring y `{controller.TestCurrentActionRingWorldY:0.000}`");
         sb.AppendLine();
         sb.AppendLine("## Captures");
         sb.AppendLine();
         sb.AppendLine("- `01_initial_screen.png`: initial world board, current/selected rings");
-        sb.AppendLine("- `02_move_hover_and_danger.png`: movement center markers plus quiet danger center/ZOC ring grammar with danger area enabled");
+        sb.AppendLine("- `02_move_hover_and_danger.png`: movement center markers plus translucent danger tile/ZOC ring grammar with danger area enabled");
         sb.AppendLine("- `03_signal_interaction_hover.png`: southern signal interaction objective marker");
         sb.AppendLine("- `04_ring_badge_feedback_sample.png`: hover ring and stacked floating feedback sample");
         sb.AppendLine("- HUD and log readability are recorded as text fields above because the batchmode capture uses camera rendering.");

@@ -21,7 +21,7 @@ public partial class SrpGameController
     const float TurnOrderStripHeight = 82f;
     const float TurnOrderCurrentTokenSize = 66f;
     const float TurnOrderNextTokenSize = 48f;
-    const string OverlayLegendText = "범례: 초록=이동 중심점 | 주황=ZOC/주의 ring | 빨강=공격/위험 중심 marker | 보라=스킬 marker | 청록=패링 가능 스킬 ring | 파랑=경계태세 테두리 | 연두=엄폐/방향엄폐 테두리 | 노랑=상호작용 목표 marker";
+    const string OverlayLegendText = "범례: 초록=이동 중심점 | 주황=ZOC/주의 ring | 빨강=공격/위험 타일막 | 보라=스킬 marker | 청록=패링 가능 스킬 ring | 파랑=경계태세 타일막 | 연두=엄폐/방향엄폐 테두리 | 노랑=상호작용 목표 marker";
     readonly List<string> _log = new List<string>();
 
     TextMeshProUGUI _txtTurn;

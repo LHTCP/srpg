@@ -358,20 +358,28 @@ public partial class SrpGameController
         {
             int layer = OverlayComposeOrder[i];
             if (ShouldTintTileLayer(layer) && _tileOverlayLayers.TryGetValue(layer, out var map) && map.TryGetValue(idx, out var tint))
-                final = Color.Lerp(final, tint, 0.62f);
+                final = Color.Lerp(final, tint, 0.45f);
         }
         ApplyColor(_tileRenderers[x, y], final);
     }
 
     static bool ShouldTintTileLayer(int layer)
     {
-        // TBD-012 uses mesh markers instead of full-tile color fills.
-        return false;
+        return layer == OverlayAttack
+            || layer == OverlayOverwatch
+            || layer == OverlayDangerAttack;
+    }
+
+    static bool ShouldUseTileOverlayVisual(int layer)
+    {
+        return !ShouldTintTileLayer(layer);
     }
 
     void UpdateTileOverlayVisual(int layer, int x, int y, Color tint)
     {
         if (_state == null)
+            return;
+        if (!ShouldUseTileOverlayVisual(layer))
             return;
 
         var spec = GetTileOverlayVisualSpec(layer);
@@ -1266,8 +1274,12 @@ public partial class SrpGameController
         && Vector3.Distance(_previousFeedbackStartPosition, _lastFeedbackStartPosition) > 0.01f;
     public int TestTileOverlayVisualCount => CountActiveTileOverlayVisuals();
     public int TestMoveOverlayMarkerCount => CountTileOverlayVisualsForLayer(OverlayMove);
-    public int TestDangerAttackMarkerCount => CountTileOverlayVisualsForLayer(OverlayDangerAttack);
-    public bool TestDangerAttackUsesQuietCenterMarkers => LayerUsesMesh(OverlayDangerAttack, "SrpTileOverlayCenterDisc");
+    public int TestDangerAttackTintTileCount => CountTintOverlayTilesForLayer(OverlayDangerAttack);
+    public int TestOverwatchTintTileCount => CountTintOverlayTilesForLayer(OverlayOverwatch);
+    public int TestDangerAttackMeshVisualCount => CountTileOverlayVisualsForLayer(OverlayDangerAttack);
+    public int TestOverwatchMeshVisualCount => CountTileOverlayVisualsForLayer(OverlayOverwatch);
+    public bool TestDangerAttackUsesFullTileTint => TestDangerAttackTintTileCount > 0 && TestDangerAttackMeshVisualCount == 0;
+    public bool TestOverwatchUsesFullTileTint => TestOverwatchTintTileCount > 0 && TestOverwatchMeshVisualCount == 0;
     public int TestDangerZocWarningRingCount => CountTileOverlayVisualsForLayer(OverlayDangerZoc);
     public int TestInteractionObjectiveMarkerCount => CountTileOverlayVisualsForLayer(OverlayInteraction);
     public bool TestHasAimLineOverlay => CountTileOverlayVisualsForLayer(OverlayAimLine) > 0;
@@ -1275,6 +1287,21 @@ public partial class SrpGameController
     public float TestTileOverlayMaxWorldY => GetMaxTileOverlayWorldY();
     public float TestMoveOverlayMarkerScale => GetFirstTileOverlayScaleForLayer(OverlayMove);
     public float TestInteractionObjectiveMarkerScale => GetFirstTileOverlayScaleForLayer(OverlayInteraction);
+
+    public bool TestShowCurrentOverwatchRange()
+    {
+        if (_state == null || _state.CurrentUnitId <= 0)
+            return false;
+        var unit = GetUnit(_state.CurrentUnitId);
+        if (unit == null)
+            return false;
+        unit.actionPoints = Mathf.Max(unit.actionPoints, 1);
+        unit.reactionPoints = Mathf.Max(unit.reactionPoints, 1);
+        if (unit.weaponClass == SrpWeaponClass.Firearm && unit.UsesAmmo)
+            unit.ammo = Mathf.Max(unit.ammo, 1);
+        HighlightOverwatchTiles(unit);
+        return TestOverwatchTintTileCount > 0;
+    }
 
     public bool TestSpawnTwoFeedbackOnCurrentUnit()
     {
@@ -1306,6 +1333,16 @@ public partial class SrpGameController
             if (go != null && go.activeInHierarchy && go.name.StartsWith(prefix))
                 count++;
         }
+        return count;
+    }
+
+    int CountTintOverlayTilesForLayer(int layer)
+    {
+        if (!_tileOverlayLayers.TryGetValue(layer, out var map))
+            return 0;
+        int count = 0;
+        foreach (var kv in map)
+            count++;
         return count;
     }
 
