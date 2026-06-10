@@ -217,7 +217,15 @@
 - [ ] 공용 전투 태그 수치/지속시간/소모 조건 확정 (`TBD-007`)
 - [ ] 초기 4인 대표 스킬 수치 확정 (`TBD-008`)
 - [ ] 초기 4인 고유 패시브 이름/서사/전직 연계 최종 확정 (`TBD-008`)
-- [ ] `M1OpeningPrototype` 실제 플레이/AI 시뮬레이션 후 적 수, 배치 간격, 루트별 위험도, 6~10턴 종료 밀도 조정
+- [x] `M1OpeningPrototype` AI 시뮬레이션 기반 6~10턴 종료 밀도 검증
+  - EditMode AI matrix 관찰 테스트 `Run_M1OpeningPrototype_Ai_Policy_Matrix_For_BalanceObservation` 추가
+  - 정책별 평균 종료 라운드: Heuristic vs Random `8.31`, Random vs Heuristic `7.65`, Heuristic vs Heuristic `8.00`
+  - 핵심 정책 케이스가 6~10라운드 목표에 들어와 프리셋 적 수/HP/PG/배치 간격은 이번 차수에서 변경하지 않음
+  - Random vs Random은 평균 `15.64`라운드/무승부 `0.827`로 관찰용 경향으로만 유지하고 밸런스 게이트에서 제외
+- [ ] `M1OpeningPrototype` 후속 실플레이 표본 기록
+  - 북쪽 사격 루트와 남쪽 돌입/상호작용 루트가 사람 플레이에서도 서로 다른 판단으로 읽히는지 확인한다.
+  - 첫 전투가 플레이어 우세 학습 전투로 충분한지, Heuristic vs Heuristic owner0 `1.000` 승률을 더 팽팽하게 조정해야 하는지 판단한다.
+  - 방향성 엄폐와 `blocksLineOfSight`가 시각적으로 답답한 차단이 아니라 읽을 수 있는 위협으로 보이는지 기록한다.
 - [ ] 총기 발포 방향/조준 문법 재정의 (`TBD-010`)
   - 현재 총기 발포 방향이 오버워치의 8방향 직선 사선 규칙처럼 고정되어 보이는 문제를 확인한다.
   - 총기 기본 공격, 오버워치 사격, 발포 연출/타일 overlay가 같은 방향 규칙을 공유해야 하는지 분리해야 하는지 결정한다.

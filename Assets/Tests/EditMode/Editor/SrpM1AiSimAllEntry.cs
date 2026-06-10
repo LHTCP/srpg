@@ -159,4 +159,117 @@ public class SrpM1AiSimAllEntry
 
         Debug.Log($"[SRPG][AI-Sim][Matrix] summary={matrixPath}");
     }
+
+    [Test]
+    public void Run_M1OpeningPrototype_Ai_Policy_Matrix_For_BalanceObservation()
+    {
+        const int trialsPerCase = 300;
+        const int maxRounds = 16;
+        const int baseSeed = 20260608;
+        const float minAverageRounds = 6f;
+        const float maxAverageRounds = 10f;
+        var thresholds = SrpSimThresholdConfig.Default();
+
+        var cases = new List<PolicyCase>
+        {
+            new PolicyCase
+            {
+                name = "Opening_Heuristic_vs_Random",
+                owner0Factory = () => new SrpHeuristicAiPolicy(),
+                owner1Factory = () => new SrpRandomAiPolicy(),
+                enforceThreshold = true,
+            },
+            new PolicyCase
+            {
+                name = "Opening_Random_vs_Heuristic",
+                owner0Factory = () => new SrpRandomAiPolicy(),
+                owner1Factory = () => new SrpHeuristicAiPolicy(),
+                enforceThreshold = true,
+            },
+            new PolicyCase
+            {
+                name = "Opening_Heuristic_vs_Heuristic",
+                owner0Factory = () => new SrpHeuristicAiPolicy(),
+                owner1Factory = () => new SrpHeuristicAiPolicy(),
+                enforceThreshold = true,
+            },
+            new PolicyCase
+            {
+                name = "Opening_Random_vs_Random",
+                owner0Factory = () => new SrpRandomAiPolicy(),
+                owner1Factory = () => new SrpRandomAiPolicy(),
+                enforceThreshold = false,
+            },
+        };
+
+        var matrix = new SrpSimPolicyMatrixReport
+        {
+            timestampUtc = DateTime.UtcNow.ToString("o"),
+            mapPreset = SrpMapPreset.M1OpeningPrototype.ToString(),
+            trialsPerCase = trialsPerCase,
+            maxRounds = maxRounds,
+        };
+
+        for (int i = 0; i < cases.Count; i++)
+        {
+            var c = cases[i];
+            var config = new SrpBattleSimConfig
+            {
+                mapPreset = SrpMapPreset.M1OpeningPrototype,
+                trials = trialsPerCase,
+                maxRounds = maxRounds,
+                baseSeed = baseSeed + (i * 100000),
+                sampleSeedCount = 5,
+                owner0Policy = c.owner0Factory(),
+                owner1Policy = c.owner1Factory(),
+                thresholds = thresholds,
+            };
+
+            var output = SrpBattleSimRunner.RunBatch(config, writeReport: true);
+            Assert.IsNotNull(output.report, $"[{c.name}] 리포트 생성 실패");
+            Assert.IsFalse(string.IsNullOrEmpty(output.reportPath), $"[{c.name}] JSON 경로 누락");
+
+            matrix.cases.Add(new SrpSimPolicyMatrixCaseResult
+            {
+                caseName = c.name,
+                owner0Policy = output.report.runMeta.owner0Policy,
+                owner1Policy = output.report.runMeta.owner1Policy,
+                trials = output.report.runMeta.trials,
+                owner0WinRate = output.report.outcome.owner0WinRate,
+                owner1WinRate = output.report.outcome.owner1WinRate,
+                drawRate = output.report.outcome.drawRate,
+                averageRounds = output.report.outcome.averageRounds,
+                firearmHpShare = output.report.combat.firearmHpShare,
+                meleePgShare = output.report.combat.meleePgShare,
+                zocPenaltyAverage = output.report.control.zocPenaltyAverage,
+                thresholdPass = output.report.threshold.pass,
+                warnings = new List<string>(output.report.threshold.warnings),
+                reportPath = output.reportPath,
+            });
+
+            Debug.Log(
+                $"[SRPG][AI-Sim][OpeningMatrix] {c.name} | " +
+                $"w0={output.report.outcome.owner0WinRate:F3}, " +
+                $"w1={output.report.outcome.owner1WinRate:F3}, " +
+                $"draw={output.report.outcome.drawRate:F3}, " +
+                $"avgR={output.report.outcome.averageRounds:F2}");
+        }
+
+        string matrixPath = SrpSimReportWriter.WriteMatrix(matrix);
+        Assert.IsFalse(string.IsNullOrEmpty(matrixPath), "첫 전투 정책 매트릭스 요약 JSON 생성 실패");
+
+        for (int i = 0; i < matrix.cases.Count; i++)
+        {
+            var row = matrix.cases[i];
+            if (cases[i].enforceThreshold)
+            {
+                Assert.GreaterOrEqual(row.averageRounds, minAverageRounds,
+                    $"[첫 전투 밸런스 관찰 실패] {row.caseName} 평균 라운드가 너무 짧습니다.");
+                Assert.LessOrEqual(row.averageRounds, maxAverageRounds,
+                    $"[첫 전투 밸런스 관찰 실패] {row.caseName} 평균 라운드가 너무 깁니다.");
+            }
+        }
+
+        Debug.Log($"[SRPG][AI-Sim][OpeningMatrix] summary={matrixPath}");
+    }
 }

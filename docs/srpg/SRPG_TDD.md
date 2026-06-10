@@ -173,11 +173,12 @@ SrpGameController
 30. 다음 P1 스프린트: 초기 4인 고유 패시브/대표 스킬 데이터, 방향성 엄폐 사선 차단, 오버워치 후보 우선순위, 마법 전장 개입 최소 스킬 구현
 31. 첫 전투 프로토타입 프리셋 분리: `M1QaIntegrated` QA 맵 deprecated 유지, `M1OpeningPrototype` 첫 전투 판단용 기본 맵 추가, 로비 첫 선택/프리셋 검증/PlayMode 초기화 스모크 추가
 32. 전투 UX 피드백 레이어 P1: 현재 행동/선택/hover ring, ZOC/교전 unit badge, 턴 시작/종료와 주요 행동 world-space feedback, 피해/회복/선택 flash 추가 및 PlayMode 계약 검증
+33. 첫 전투 밸런스 관찰 P2: `M1OpeningPrototype` AI policy matrix를 EditMode에 추가하고, 핵심 정책 케이스 평균 종료 라운드 6~10 범위를 확인
 
 다음 구현 순서:
 
 1. 로컬 Unity 에디터 플레이로 전투 UX 피드백 레이어의 ring 두께, badge 위치, floating text 지속시간을 가독성 기준으로 튜닝
-2. `M1OpeningPrototype` 실제 플레이/AI 시뮬레이션으로 첫 전투의 적 수, 배치 간격, 루트별 위험도를 검증
+2. `M1OpeningPrototype` 후속 플레이 세션에서 북쪽 사격 루트/남쪽 돌입 루트 선택 이유와 실제 화면 가독성을 표본 기록
 3. 메이커/맵 에디터 UX에서 엄폐 segment와 상호작용 포인트 편집 방식 검토
 4. 초기 4인 고유 패시브/대표 스킬 최종 수치와 전직 연계 확정
 5. 공용 전투 태그/패링/총기 파급 브릿지 수치 밸런스 검증

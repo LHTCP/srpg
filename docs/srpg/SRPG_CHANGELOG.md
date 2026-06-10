@@ -1,5 +1,14 @@
 # SRPG 변경 이력
 
+## 2026-06-08
+
+- 첫 전투 밸런스 관찰 P2
+  - `M1OpeningPrototype` 전용 AI policy matrix 관찰 테스트 추가: `SrpM1AiSimAllEntry.Run_M1OpeningPrototype_Ai_Policy_Matrix_For_BalanceObservation`
+  - 핵심 정책 케이스 평균 종료 라운드 확인: Heuristic vs Random `8.31`, Random vs Heuristic `7.65`, Heuristic vs Heuristic `8.00`
+  - 6~10라운드 목표 범위에 들어와 이번 차수에서는 적 수, 배치 간격, HP/PG, 속도, 사거리, 탄약, 엄폐/상호작용 배치를 조정하지 않음
+  - Random vs Random은 평균 `15.64`라운드/무승부 `0.827`로 관찰용 경향으로만 유지
+  - 검증 통과: EditMode `77 passed / 0 failed`, PlayMode `6 passed / 0 failed`
+
 ## 2026-06-03
 
 - 첫 전투 프로토타입 프리셋 추가

@@ -16,6 +16,7 @@
 - EditMode 단일 엔트리: `Assets/Tests/EditMode/Editor/SrpM1AiSimAllEntry.cs`
 - PlayMode 표본 검증: `Assets/Tests/PlayMode/Editor/SrpM1AiPlaySampleTests.cs`
 - 메뉴 실행: `Assets/Tests/Editor/SrpAiSimMenu.cs`
+- 첫 전투 밸런스 관찰: `SrpM1AiSimAllEntry.Run_M1OpeningPrototype_Ai_Policy_Matrix_For_BalanceObservation`
 
 ## 실행 방법 (초보자용)
 
@@ -27,6 +28,13 @@
    - `[SRPG][AI-Sim] 하이브리드 QA 완료`
 4. JSON 결과 파일 위치를 확인한다.
    - 기본 경로: `TestResults/SrpSim/`
+
+## `M1OpeningPrototype` 관찰 기준
+
+- 첫 전투 관찰 테스트는 `M1OpeningPrototype`을 네 정책 조합으로 300회씩 실행한다.
+- 회귀 게이트는 Heuristic vs Random, Random vs Heuristic, Heuristic vs Heuristic의 평균 종료 라운드가 6~10 범위에 들어오는지에 둔다.
+- Random vs Random은 장기전/무승부 편향을 관찰하기 위한 케이스이며, 실패하더라도 단독 밸런스 조정 근거로 쓰지 않는다.
+- 2026-06-08 기준 결과는 `8.31`, `7.65`, `8.00`라운드로 목표 범위를 통과했고, 프리셋 데이터는 조정하지 않았다.
 
 ## JSON 핵심 필드
 
