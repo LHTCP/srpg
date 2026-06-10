@@ -13,6 +13,16 @@
   - `M1OpeningPrototype` 첫 화면에서 북쪽 사격 루트와 남쪽 `신호 장치` 루트가 같은 색상 채움으로 묻히지 않도록 tile overlay를 별도 marker layer로 전환
   - PR #61의 current/selected/hover 유닛 발밑 ring은 유지하고, tile overlay marker 최대 높이를 current ring보다 낮게 검증
   - 검증 통과: `scripts/validate-repo.sh`, EditMode `77 passed / 0 failed`, PlayMode `7 passed / 0 failed`
+- `TBD-010` 총기 발포 방향/조준 문법 브릿지 구현
+  - 총기 기본 공격과 오버워치를 공용 목표 벡터 기반 `SrpFirearmAim` LOS helper로 판정
+  - 오버워치의 8방향 직선 lane 제한을 제거하고, 사거리/장애물/유닛/`blocksLineOfSight` 차단만 targetability 제한으로 유지
+  - `SrpAimSector8`은 `atan2` 기반 표시/디버그/방향성 판정 보조값으로 추가
+  - 총기 기본 공격 hover preview에 황색 aim line과 `총기 기본 조준` 문구를 추가하고, 발포 시 총기 유닛 facing을 목표 방향으로 갱신
+  - 비8방향 기본 총기 공격/오버워치 허용, LOS 차단, aim line PlayMode smoke 테스트 추가
+  - 정식 VFX/애니메이션, 무기별 arc, diagonal facing은 후속 의사결정으로 유지
+- 전투 UX 추가 피드백 문서화 (`TBD-014`, `BUG-001`)
+  - 사용자 노출 명칭을 `오버워치`에서 `경계태세`로 변경하는 후속 작업을 등록
+  - 경계태세 발동 가이드 텍스트 선정, 경계태세 사망 렌더링 지연 수정, 공격/위험 범위 다이아몬드 표시 재검토를 다음 UX 작업으로 정리
 
 ## 2026-06-08
 
@@ -176,7 +186,7 @@
   - PlayMode HUD 스모크 테스트를 범례, 반응 상태, 오버워치 버튼, hover 문구, 로그 핵심 문구까지 확장
   - 검증 통과: EditMode `43 passed / 0 failed`, PlayMode `4 passed / 0 failed`
 - Phase2 오버워치 사선/횟수/해제 상세 규칙 완료
-  - 오버워치 발동을 8방향 직선 사선으로 제한하고 중간 장애물/유닛 차단을 반영: `SrpOverwatch`
+  - 오버워치 발동을 1차로 8방향 직선 사선으로 제한하고 중간 장애물/유닛 차단을 반영했으나, 이 lane 제한은 `TBD-010`에서 목표 벡터 LOS로 교체: `SrpOverwatch`
   - 오버워치 범위 오버레이가 실제 발동 가능한 사선 타일만 표시하도록 동기화: `SrpGameController.Rendering`
   - 예약 1회당 1회 발동, 발동/라운드 리셋 시 예약 해제 정책을 기준서와 백로그에 반영
   - 사선/차단 회귀 테스트 추가 및 검증 통과: EditMode `45 passed / 0 failed`, PlayMode `4 passed / 0 failed`
@@ -340,7 +350,7 @@
   - 검증: EditMode `76 passed / 0 failed`, PlayMode `6 passed / 0 failed`
 - P2 총기 발포 방향/조준 문법 이슈 문서화
   - 총기 발포 방향이 기본 공격/오버워치/발포 연출에서 모두 8방향 직선 사선처럼 보이는 문제를 `TBD-010`으로 분리
-  - 오버워치의 8방향 규칙과 총기 기본 공격 UI/연출 문법을 같은 계약으로 둘지 P2에서 재검토
+  - 당시 오버워치 8방향 구현과 총기 기본 공격 UI/연출 문법을 같은 계약으로 둘지 P2에서 재검토 대상으로 등록
 - P2/P3 UX 후속 항목 문서화
   - 행동 순서 패널 분리를 `TBD-011`로 명시
   - 이동/공격/ZOC/오버워치/패링/상호작용 타일 overlay 시각 문법 개편을 `TBD-012`로 분리

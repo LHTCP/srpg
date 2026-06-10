@@ -183,6 +183,36 @@ public class SrpM1PlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator FirearmAimPreview_ShowsNonEightDirectionAimLine()
+    {
+        SrpGameSettings.CustomMap = CreateNonEightDirectionFirearmMap();
+        SrpGameSettings.HasSelectedPreset = false;
+        var go = new GameObject("SrpM1PlayModeTests_FirearmAimController");
+        var controller = go.AddComponent<SrpGameController>();
+
+        const int maxWaitFrames = 120;
+        int waited = 0;
+        while (!controller.TestHudReady && waited < maxWaitFrames)
+        {
+            waited++;
+            yield return null;
+        }
+        Assert.IsTrue(controller.TestHudReady, "firearm aim smoke HUD setup failed");
+
+        Assert.IsTrue(controller.TestTryHoverFirstAttackTarget(), "non-8-direction firearm target was not exposed as a basic attack target");
+        yield return null;
+        Assert.IsTrue(controller.TestHasAimLineOverlay, "firearm aim line overlay was not rendered for hovered target");
+        Assert.GreaterOrEqual(controller.TestAimLineOverlayCount, 2, "firearm aim line should show the shot path, not only the target tile");
+        StringAssert.Contains("총기 기본 조준", controller.TestActionPreviewText);
+        StringAssert.Contains("벡터 조준", controller.TestActionPreviewText);
+        StringAssert.Contains("sector", controller.TestActionPreviewText);
+
+        Object.Destroy(go);
+        SrpGameSettings.CustomMap = null;
+        yield return null;
+    }
+
+    [UnityTest]
     public IEnumerator DangerAreaAndHoverPreview_UpdatesStatusText()
     {
         SrpGameSettings.CustomMap = null;
@@ -338,6 +368,66 @@ public class SrpM1PlayModeTests
             pg = 24,
             maxPg = 24,
             stance = SrpStance.Defensive,
+        };
+    }
+
+    static SrpMapFileV1 CreateNonEightDirectionFirearmMap()
+    {
+        int width = 5;
+        int height = 5;
+        var walkable = new bool[width * height];
+        for (int i = 0; i < walkable.Length; i++)
+            walkable[i] = true;
+
+        return new SrpMapFileV1
+        {
+            version = 2,
+            name = "firearm_non_eight_aim_smoke",
+            width = width,
+            height = height,
+            walkable = walkable,
+            playerOrder = new[] { 0, 1 },
+            templates = new[]
+            {
+                new SrpUnitTemplateData
+                {
+                    id = "shooter",
+                    displayName = "Shooter",
+                    moveRange = 2,
+                    attackRange = 4,
+                    attackPower = 8,
+                    maxHp = 30,
+                    maxPg = 18,
+                    maxActionPoints = 2,
+                    maxReactionPoints = 1,
+                    speed = 20,
+                    weaponClass = SrpWeaponClass.Firearm,
+                    stance = SrpStance.Aggressive,
+                    facing = SrpFacing.North,
+                    maxAmmo = 1,
+                },
+                new SrpUnitTemplateData
+                {
+                    id = "target",
+                    displayName = "Target",
+                    moveRange = 2,
+                    attackRange = 1,
+                    attackPower = 1,
+                    maxHp = 30,
+                    maxPg = 18,
+                    maxActionPoints = 2,
+                    maxReactionPoints = 1,
+                    speed = 10,
+                    weaponClass = SrpWeaponClass.Melee,
+                    stance = SrpStance.Aggressive,
+                    facing = SrpFacing.West,
+                },
+            },
+            placements = new[]
+            {
+                new SrpPlacementData { templateId = "shooter", owner = 0, x = 1, y = 1 },
+                new SrpPlacementData { templateId = "target", owner = 1, x = 3, y = 2 },
+            },
         };
     }
 }
