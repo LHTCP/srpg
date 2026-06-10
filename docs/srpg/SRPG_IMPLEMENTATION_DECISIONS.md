@@ -373,16 +373,15 @@
 ### 공격/위험 overlay 후속
 
 - 추가 확인 결과, 사용자가 어지럽다고 지적한 파란 선 다이아몬드는 공격/위험 범위가 아니라 경계태세 범위였다.
-- 공격/위험 범위와 경계태세 범위는 모두 낮은 알파의 타일 전체 반투명 overlay로 표시한다.
-- 이동 가능 범위는 중심 marker, ZOC/패링은 warning ring, 상호작용은 objective marker로 유지해 타일막 레이어와 의미를 분리한다.
-- PlayMode와 관찰 테스트는 공격/위험 및 경계태세 레이어가 mesh visual 없이 tile tint를 사용하는지 검증한다.
+- 공격/위험 범위와 경계태세 범위는 모두 낮은 밀도의 중심 marker로 표시한다. 타일 전체 채움과 전장 전체 다이아몬드 선은 사용하지 않는다.
+- 이동 가능 범위는 중심 marker, ZOC/패링은 warning ring, 상호작용은 objective marker로 유지해 범위 marker와 의미를 분리한다.
+- PlayMode와 관찰 테스트는 공격/위험 및 경계태세 레이어가 tile tint 없이 mesh marker를 사용하는지 검증한다.
 
 ### 검증 메모
 
 - `git diff --check`와 `scripts/validate-repo.sh`는 통과했다.
-- 직전 동일 PR 브랜치에서 EditMode `79 passed / 0 failed`, PlayMode `9 passed / 0 failed`를 확인했다.
-- 타일막 후속 조정 뒤 Unity batchmode 재실행은 `C:\workdir\srpg` 기존 에디터 lock으로 시작하지 못했다. PR 본문에 이 제한을 별도로 남긴다.
+- marker 후속 보정 뒤 Unity batchmode EditMode `79 passed / 0 failed`, PlayMode `9 passed / 0 failed`를 확인했다 (`TestResults/EditMode-TBD-014-review-fix.xml`, `TestResults/PlayMode-TBD-014-review-fix.xml`).
 
 ### 후속 의사결정
 
-- 경계태세 사격 VFX/애니메이션, 타일막 투명도/펄스, 정식 초상/행동 순서 아트는 실제 에디터 플레이와 아트 에셋이 생긴 뒤 별도 튜닝한다.
+- 경계태세 사격 VFX/애니메이션, marker 크기/채도/펄스, 정식 초상/행동 순서 아트는 실제 에디터 플레이와 아트 에셋이 생긴 뒤 별도 튜닝한다.

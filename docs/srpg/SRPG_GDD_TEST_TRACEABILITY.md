@@ -50,7 +50,7 @@
 | 피해/회복/중립 flash | PlayMode 피드백 생성 계약과 런타임 HP/PG 변화 기반 flash 연결 | 부분 | 실제 화면 기준 과도한 flash 여부 확인 |
 | 총기 기본 조준/aim line (`TBD-010`) | `SrpM1RuleSpecTests.FirearmAim_HelperIsSharedByBasicAttackAndOverwatch`, `SrpM1RuleSpecTests.FirearmBasicAttack_NonEightDirectionAimStillRespectsBlockers`, `SrpM1PlayModeTests.FirearmAimPreview_ShowsNonEightDirectionAimLine` | 부분 | 정식 VFX/무기별 arc/diagonal facing 도입 여부 확정 후 확장 |
 | 경계태세 사용자-facing 문구/사망 즉시 갱신 (`TBD-014`, `BUG-001`) | `SrpM1PlayModeTests.DefaultOpeningPrototypePreset_InitializesRoundAndHud`, `SrpM1PlayModeTests.OverwatchReactionKill_RefreshesWorldAndHudImmediately`, `SrpM1AiPlaySampleTests.PlayMode_Runtime_Revalidation_For_AiQa` | 부분 | 정식 사격 VFX/애니메이션 도입 시 발동 연출 재검증 |
-| 공격/위험·경계태세 타일막 (`TBD-012` 후속) | `SrpM1PlayModeTests.DangerAreaAndHoverPreview_UpdatesStatusText`, `SrpM1OpeningObservationTests.M1OpeningPrototype_Captures_FirstScreen_RouteObservation` | 부분 | 실제 에디터 플레이 화면에서 타일막 투명도/색상 미세 조정 |
+| 공격/위험·경계태세 marker (`TBD-012` 후속) | `SrpM1PlayModeTests.DangerAreaAndHoverPreview_UpdatesStatusText`, `SrpM1OpeningObservationTests.M1OpeningPrototype_Captures_FirstScreen_RouteObservation` | 부분 | 실제 에디터 플레이 화면에서 marker 크기/채도 미세 조정 |
 
 ## 운영 규칙
 

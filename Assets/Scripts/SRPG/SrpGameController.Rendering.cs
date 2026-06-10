@@ -324,27 +324,34 @@ public partial class SrpGameController
 
     void ClearOverlayLayer(int layer)
     {
+        bool hadTintOverlay = false;
         if (_tileOverlayLayers.TryGetValue(layer, out var map) && map.Count > 0)
         {
             map.Clear();
-            ClearTileOverlayVisualsForLayer(layer);
-            RebuildAllTileColors();
+            hadTintOverlay = true;
         }
+        ClearTileOverlayVisualsForLayer(layer);
+        if (hadTintOverlay)
+            RebuildAllTileColors();
     }
 
     void SetOverlayTile(int layer, int x, int y, Color tint)
     {
         if (x < 0 || y < 0 || x >= _state.Width || y >= _state.Height)
             return;
-        if (!_tileOverlayLayers.TryGetValue(layer, out var map))
+        if (ShouldTintTileLayer(layer))
         {
-            map = new Dictionary<int, Color>();
-            _tileOverlayLayers[layer] = map;
+            if (!_tileOverlayLayers.TryGetValue(layer, out var map))
+            {
+                map = new Dictionary<int, Color>();
+                _tileOverlayLayers[layer] = map;
+            }
+            int idx = _state.Index(x, y);
+            map[idx] = tint;
         }
-        int idx = _state.Index(x, y);
-        map[idx] = tint;
         UpdateTileOverlayVisual(layer, x, y, tint);
-        RebuildTileColor(x, y);
+        if (ShouldTintTileLayer(layer))
+            RebuildTileColor(x, y);
     }
 
     void RebuildTileColor(int x, int y)
@@ -365,9 +372,7 @@ public partial class SrpGameController
 
     static bool ShouldTintTileLayer(int layer)
     {
-        return layer == OverlayAttack
-            || layer == OverlayOverwatch
-            || layer == OverlayDangerAttack;
+        return false;
     }
 
     static bool ShouldUseTileOverlayVisual(int layer)
@@ -421,7 +426,7 @@ public partial class SrpGameController
         if (layer == OverlayDangerZoc || layer == OverlayUnitHoverZoc)
             return new TileOverlayVisualSpec(TileOverlayStyle.WarningRing, TileOverlayBaseY + 0.010f, 0.68f, Quaternion.identity, 3);
         if (layer == OverlayOverwatch)
-            return new TileOverlayVisualSpec(TileOverlayStyle.Border, TileOverlayBaseY + 0.012f, 0.70f, Quaternion.Euler(0f, 45f, 0f), 4);
+            return new TileOverlayVisualSpec(TileOverlayStyle.CenterDisc, TileOverlayBaseY + 0.012f, 0.32f, Quaternion.identity, 4);
         if (layer == OverlayCover)
             return new TileOverlayVisualSpec(TileOverlayStyle.Border, TileOverlayBaseY + 0.014f, 0.56f, Quaternion.identity, 5);
         if (layer == OverlayInteraction)
@@ -1278,8 +1283,8 @@ public partial class SrpGameController
     public int TestOverwatchTintTileCount => CountTintOverlayTilesForLayer(OverlayOverwatch);
     public int TestDangerAttackMeshVisualCount => CountTileOverlayVisualsForLayer(OverlayDangerAttack);
     public int TestOverwatchMeshVisualCount => CountTileOverlayVisualsForLayer(OverlayOverwatch);
-    public bool TestDangerAttackUsesFullTileTint => TestDangerAttackTintTileCount > 0 && TestDangerAttackMeshVisualCount == 0;
-    public bool TestOverwatchUsesFullTileTint => TestOverwatchTintTileCount > 0 && TestOverwatchMeshVisualCount == 0;
+    public bool TestDangerAttackUsesMarker => TestDangerAttackTintTileCount == 0 && TestDangerAttackMeshVisualCount > 0;
+    public bool TestOverwatchUsesMarker => TestOverwatchTintTileCount == 0 && TestOverwatchMeshVisualCount > 0;
     public int TestDangerZocWarningRingCount => CountTileOverlayVisualsForLayer(OverlayDangerZoc);
     public int TestInteractionObjectiveMarkerCount => CountTileOverlayVisualsForLayer(OverlayInteraction);
     public bool TestHasAimLineOverlay => CountTileOverlayVisualsForLayer(OverlayAimLine) > 0;
@@ -1300,7 +1305,7 @@ public partial class SrpGameController
         if (unit.weaponClass == SrpWeaponClass.Firearm && unit.UsesAmmo)
             unit.ammo = Mathf.Max(unit.ammo, 1);
         HighlightOverwatchTiles(unit);
-        return TestOverwatchTintTileCount > 0;
+        return TestOverwatchMeshVisualCount > 0;
     }
 
     public bool TestSpawnTwoFeedbackOnCurrentUnit()
