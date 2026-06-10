@@ -50,7 +50,8 @@ public class SrpM1AiPlaySampleTests
         StringAssert.Contains("AP", controller.TestUnitHudText);
         StringAssert.Contains("반응:", controller.TestUnitHudText);
         StringAssert.Contains("PG", controller.TestUnitHudText);
-        StringAssert.Contains("오버워치", controller.TestOverwatchButtonText);
+        StringAssert.Contains("경계태세", controller.TestOverwatchButtonText);
+        Assert.IsFalse(controller.TestOverwatchButtonText.Contains("오버워치"), "플레이어-facing 버튼에 이전 오버워치 명칭이 남았습니다.");
         StringAssert.Contains("행동 시작", controller.TestLogText);
 
         Object.Destroy(go);

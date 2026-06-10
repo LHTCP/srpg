@@ -78,7 +78,7 @@ public class SrpM1PlayModeTests
         StringAssert.Contains("범례:", statusHud);
         StringAssert.Contains("초록=이동", statusHud);
         StringAssert.Contains("청록=패링 가능 스킬", statusHud);
-        StringAssert.Contains("파랑=오버워치", statusHud);
+        StringAssert.Contains("파랑=경계태세 marker", statusHud);
         StringAssert.Contains("연두=엄폐", statusHud);
         StringAssert.Contains("방향엄폐", statusHud);
         StringAssert.Contains("노랑=상호작용", statusHud);
@@ -87,7 +87,8 @@ public class SrpM1PlayModeTests
         StringAssert.Contains("PG", unitHud);
         StringAssert.Contains("태세", unitHud);
         StringAssert.Contains("방향", unitHud);
-        StringAssert.Contains("오버워치", controller.TestOverwatchButtonText);
+        StringAssert.Contains("경계태세", controller.TestOverwatchButtonText);
+        Assert.IsFalse(controller.TestOverwatchButtonText.Contains("오버워치"), "플레이어-facing 버튼에 이전 오버워치 명칭이 남았습니다.");
         StringAssert.Contains("오버클럭", controller.TestOverclockButtonText);
         StringAssert.Contains("재장전", controller.TestReloadButtonText);
         StringAssert.Contains("엄폐", controller.TestCoverButtonText);
@@ -213,6 +214,40 @@ public class SrpM1PlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator OverwatchReactionKill_RefreshesWorldAndHudImmediately()
+    {
+        SrpGameSettings.CustomMap = CreateLethalOverwatchMap();
+        SrpGameSettings.HasSelectedPreset = false;
+        var go = new GameObject("SrpM1PlayModeTests_LethalOverwatchController");
+        var controller = go.AddComponent<SrpGameController>();
+
+        const int maxWaitFrames = 120;
+        int waited = 0;
+        while (!controller.TestHudReady && waited < maxWaitFrames)
+        {
+            waited++;
+            yield return null;
+        }
+        Assert.IsTrue(controller.TestHudReady, "lethal overwatch HUD setup failed");
+
+        int targetId = controller.TestCurrentUnitId;
+        Assert.IsTrue(controller.TestForceLethalOverwatchAgainstCurrentUnit(), "경계태세 사망 직후 mesh/HUD/행동 순서 갱신이 실패했습니다.");
+        yield return null;
+
+        Assert.AreEqual(2, controller.TestAliveUnitCount(), "경계태세 사망 결과가 즉시 전투 상태에 반영되지 않았습니다.");
+        Assert.AreNotEqual(targetId, controller.TestCurrentUnitId, "사망한 현재 유닛이 행동 순서에 남았습니다.");
+        StringAssert.Contains("경계사격", controller.TestLogText);
+        StringAssert.Contains("사망", controller.TestLogText);
+        StringAssert.Contains("경계사격!", controller.TestFloatingFeedbackHistory);
+        Assert.IsFalse(controller.TestLogText.Contains("오버워치"), "플레이어-facing 로그에 이전 오버워치 명칭이 남았습니다.");
+
+        Object.Destroy(go);
+        SrpGameSettings.CustomMap = null;
+        yield return null;
+    }
+
+
+    [UnityTest]
     public IEnumerator DangerAreaAndHoverPreview_UpdatesStatusText()
     {
         SrpGameSettings.CustomMap = null;
@@ -234,12 +269,16 @@ public class SrpM1PlayModeTests
         controller.ToggleDangerArea();
         yield return null;
         Assert.IsTrue(controller.TestDangerAreaVisible, "위험영역 토글 상태 반영 실패");
-        Assert.Greater(controller.TestDangerAttackBorderCount, 0, "danger attack border markers missing");
+        Assert.AreEqual(0, controller.TestDangerAttackTintTileCount, "공격/위험 범위는 타일 전체 tint를 쓰지 않아야 합니다.");
+        Assert.Greater(controller.TestDangerAttackMeshVisualCount, 0, "공격/위험 범위 marker가 없습니다.");
         Assert.Greater(controller.TestDangerZocWarningRingCount, 0, "danger ZOC warning rings missing");
         Assert.Less(controller.TestTileOverlayMaxWorldY, controller.TestCurrentActionRingWorldY, "danger overlays should not cover unit foot rings");
         StringAssert.Contains("위험영역 ON", controller.TestStatusHudText);
         StringAssert.Contains("범례:", controller.TestStatusHudText);
-        StringAssert.Contains("빨강=공격/위험", controller.TestStatusHudText);
+        StringAssert.Contains("빨강=공격/위험 marker", controller.TestStatusHudText);
+        Assert.IsTrue(controller.TestShowCurrentOverwatchRange(), "경계태세 범위 marker 표시 실패");
+        Assert.AreEqual(0, controller.TestOverwatchTintTileCount, "경계태세 범위는 타일 전체 tint를 쓰지 않아야 합니다.");
+        Assert.Greater(controller.TestOverwatchMeshVisualCount, 0, "경계태세 범위 marker가 없습니다.");
 
         bool hovered = controller.TestTryHoverFirstMoveTile();
         Assert.IsTrue(hovered, "hover 가능한 이동 타일이 없음");
@@ -427,6 +466,83 @@ public class SrpM1PlayModeTests
             {
                 new SrpPlacementData { templateId = "shooter", owner = 0, x = 1, y = 1 },
                 new SrpPlacementData { templateId = "target", owner = 1, x = 3, y = 2 },
+            },
+        };
+    }
+
+    static SrpMapFileV1 CreateLethalOverwatchMap()
+    {
+        int width = 5;
+        int height = 5;
+        var walkable = new bool[width * height];
+        for (int i = 0; i < walkable.Length; i++)
+            walkable[i] = true;
+
+        return new SrpMapFileV1
+        {
+            version = 2,
+            name = "lethal_overwatch_refresh_smoke",
+            width = width,
+            height = height,
+            walkable = walkable,
+            playerOrder = new[] { 0, 1 },
+            templates = new[]
+            {
+                new SrpUnitTemplateData
+                {
+                    id = "runner",
+                    displayName = "Runner",
+                    moveRange = 3,
+                    attackRange = 1,
+                    attackPower = 1,
+                    maxHp = 12,
+                    maxPg = 8,
+                    maxActionPoints = 2,
+                    maxReactionPoints = 1,
+                    speed = 30,
+                    weaponClass = SrpWeaponClass.Melee,
+                    stance = SrpStance.Aggressive,
+                    facing = SrpFacing.West,
+                },
+                new SrpUnitTemplateData
+                {
+                    id = "ally",
+                    displayName = "Ally",
+                    moveRange = 3,
+                    attackRange = 1,
+                    attackPower = 1,
+                    maxHp = 12,
+                    maxPg = 8,
+                    maxActionPoints = 2,
+                    maxReactionPoints = 1,
+                    speed = 10,
+                    weaponClass = SrpWeaponClass.Melee,
+                    stance = SrpStance.Defensive,
+                    facing = SrpFacing.North,
+                },
+                new SrpUnitTemplateData
+                {
+                    id = "watcher",
+                    displayName = "Watcher",
+                    moveRange = 2,
+                    attackRange = 4,
+                    attackPower = 8,
+                    maxHp = 16,
+                    maxPg = 8,
+                    maxActionPoints = 2,
+                    maxReactionPoints = 1,
+                    speed = 20,
+                    weaponClass = SrpWeaponClass.Firearm,
+                    stance = SrpStance.Aggressive,
+                    facing = SrpFacing.East,
+                    maxAmmo = 1,
+                },
+            },
+            placements = new[]
+            {
+                new SrpPlacementData { templateId = "runner", owner = 0, x = 2, y = 1 },
+                new SrpPlacementData { templateId = "ally", owner = 0, x = 4, y = 4 },
+                new SrpPlacementData { templateId = "watcher", owner = 1, x = 0, y = 1 },
             },
         };
     }

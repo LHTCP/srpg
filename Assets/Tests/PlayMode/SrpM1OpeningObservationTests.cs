@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.TestTools;
 
 [Category("SrpObservation")]
@@ -52,7 +53,8 @@ public class SrpM1OpeningObservationTests
 
             controller.ToggleDangerArea();
             Assert.IsTrue(controller.TestDangerAreaVisible, "위험영역 토글이 켜지지 않았습니다.");
-            Assert.Greater(controller.TestDangerAttackBorderCount, 0, "공격/위험 테두리 marker가 없습니다.");
+            Assert.AreEqual(0, controller.TestDangerAttackTintTileCount, "공격/위험 범위는 타일 전체 tint를 쓰지 않아야 합니다.");
+            Assert.Greater(controller.TestDangerAttackMeshVisualCount, 0, "공격/위험 범위 marker가 없습니다.");
             Assert.Greater(controller.TestDangerZocWarningRingCount, 0, "ZOC warning ring marker가 없습니다.");
             Assert.IsTrue(controller.TestTryHoverFirstMoveTile(), "첫 이동 후보 hover에 실패했습니다.");
             CaptureFrame(outputDir, "02_move_hover_and_danger.png");
@@ -109,6 +111,14 @@ public class SrpM1OpeningObservationTests
         if (File.Exists(path))
             File.Delete(path);
 
+        if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
+        {
+            File.WriteAllText(
+                Path.ChangeExtension(path, ".skipped.txt"),
+                "Skipped image capture because PlayMode is running with a null graphics device.");
+            return;
+        }
+
         var camera = Camera.main;
         Assert.IsNotNull(camera, "캡처용 Main Camera가 없습니다.");
         var previousTarget = camera.targetTexture;
@@ -148,13 +158,13 @@ public class SrpM1OpeningObservationTests
         sb.AppendLine($"- Status HUD: `{OneLine(controller.TestStatusHudText)}`");
         sb.AppendLine($"- Active unit card: `{OneLine(controller.TestActiveUnitCardText)}`");
         sb.AppendLine($"- Floating feedback samples: `{OneLine(controller.TestFloatingFeedbackHistory)}`");
-        sb.AppendLine($"- Tile overlay markers: total {controller.TestTileOverlayVisualCount}, move centers {controller.TestMoveOverlayMarkerCount}, danger borders {controller.TestDangerAttackBorderCount}, ZOC rings {controller.TestDangerZocWarningRingCount}, objectives {controller.TestInteractionObjectiveMarkerCount}");
+        sb.AppendLine($"- Tile overlay markers: total {controller.TestTileOverlayVisualCount}, move centers {controller.TestMoveOverlayMarkerCount}, danger markers {controller.TestDangerAttackMeshVisualCount}, ZOC rings {controller.TestDangerZocWarningRingCount}, objectives {controller.TestInteractionObjectiveMarkerCount}");
         sb.AppendLine($"- Overlay height check: max tile marker y `{controller.TestTileOverlayMaxWorldY:0.000}`, current unit ring y `{controller.TestCurrentActionRingWorldY:0.000}`");
         sb.AppendLine();
         sb.AppendLine("## Captures");
         sb.AppendLine();
         sb.AppendLine("- `01_initial_screen.png`: initial world board, current/selected rings");
-        sb.AppendLine("- `02_move_hover_and_danger.png`: movement center markers plus danger border/ZOC ring grammar with danger area enabled");
+        sb.AppendLine("- `02_move_hover_and_danger.png`: movement center markers plus danger marker/ZOC ring grammar with danger area enabled");
         sb.AppendLine("- `03_signal_interaction_hover.png`: southern signal interaction objective marker");
         sb.AppendLine("- `04_ring_badge_feedback_sample.png`: hover ring and stacked floating feedback sample");
         sb.AppendLine("- HUD and log readability are recorded as text fields above because the batchmode capture uses camera rendering.");

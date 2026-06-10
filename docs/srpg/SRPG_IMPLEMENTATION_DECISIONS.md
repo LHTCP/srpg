@@ -354,3 +354,34 @@
 - 공격 범위는 기본적으로 낮은 채도/낮은 밀도의 중심 marker 또는 짧은 edge segment를 사용하고, 유닛 hover/선택 시에만 범위를 확장 표시한다.
 - 전체 위험영역 토글은 “읽기용”이어야 하며, 전장이 움직이는 선 패턴처럼 보이면 실패로 본다.
 - 경계태세 발동으로 대상이 사망하는 시나리오를 QA 프리셋 또는 전용 PlayMode 테스트에 넣고, 사망 mesh 제거/행동 순서 갱신/HUD 로그를 함께 검증한다.
+
+## 2026-06-10 전투 UX 추가 피드백 구현 (`TBD-014`, `BUG-001`, `TBD-012` 후속)
+
+### 사용자-facing 명칭
+
+- 사용자 노출 명칭은 `경계태세`로 고정한다.
+- 내부 코드 식별자 `SrpOverwatch`, `overwatchArmed` 등은 이번 범위에서 유지한다. 대규모 리네임은 별도 리팩터링 후보로 남긴다.
+- 화면 문구는 짧게 읽히는 쪽을 우선해 예약 `경계태세 준비`, 발동 `경계사격!`, 불가 `경계태세 불가`, 예약 상태 `경계태세 준비 중`으로 둔다.
+- 로그 발동 문구는 `경계사격: 사수 -> 대상` 형식을 사용한다.
+
+### BUG-001 사망 즉시 갱신
+
+- 경계태세 발동으로 대상이 사망하면 `RemoveUnit`/교전 재계산 직후 선택/hover/aim overlay를 정리하고 `RefreshUnitViews()`와 `UpdateHud()`를 호출한다.
+- 이후 기존 activation 종료 흐름이 다음 유닛으로 넘기며, 행동 순서 패널은 제거된 유닛을 보여주지 않는다.
+- PlayMode에 현재 행동 유닛이 경계태세로 사망하는 전용 3유닛 맵을 추가해 유닛 mesh 제거, HUD/행동 순서 갱신, `경계사격!` floating text, 사망 로그를 함께 검증한다.
+
+### 공격/위험 overlay 후속
+
+- 추가 확인 결과, 사용자가 어지럽다고 지적한 파란 선 다이아몬드는 공격/위험 범위가 아니라 경계태세 범위였다.
+- 공격/위험 범위와 경계태세 범위는 모두 낮은 밀도의 중심 marker로 표시한다. 타일 전체 채움과 전장 전체 다이아몬드 선은 사용하지 않는다.
+- 이동 가능 범위는 중심 marker, ZOC/패링은 warning ring, 상호작용은 objective marker로 유지해 범위 marker와 의미를 분리한다.
+- PlayMode와 관찰 테스트는 공격/위험 및 경계태세 레이어가 tile tint 없이 mesh marker를 사용하는지 검증한다.
+
+### 검증 메모
+
+- `git diff --check`와 `scripts/validate-repo.sh`는 통과했다.
+- marker 후속 보정 뒤 Unity batchmode EditMode `79 passed / 0 failed`, PlayMode `9 passed / 0 failed`를 확인했다 (`TestResults/EditMode-TBD-014-review-fix.xml`, `TestResults/PlayMode-TBD-014-review-fix.xml`).
+
+### 후속 의사결정
+
+- 경계태세 사격 VFX/애니메이션, marker 크기/채도/펄스, 정식 초상/행동 순서 아트는 실제 에디터 플레이와 아트 에셋이 생긴 뒤 별도 튜닝한다.

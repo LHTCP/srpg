@@ -21,7 +21,7 @@ public partial class SrpGameController
     const float TurnOrderStripHeight = 82f;
     const float TurnOrderCurrentTokenSize = 66f;
     const float TurnOrderNextTokenSize = 48f;
-    const string OverlayLegendText = "범례: 초록=이동 중심점 | 주황=ZOC/주의 ring | 빨강=공격/위험 테두리 | 보라=스킬 marker | 청록=패링 가능 스킬 ring | 파랑=오버워치 테두리 | 연두=엄폐/방향엄폐 테두리 | 노랑=상호작용 목표 marker";
+    const string OverlayLegendText = "범례: 초록=이동 중심점 | 주황=ZOC/주의 ring | 빨강=공격/위험 marker | 보라=스킬 marker | 청록=패링 가능 스킬 ring | 파랑=경계태세 marker | 연두=엄폐/방향엄폐 테두리 | 노랑=상호작용 목표 marker";
     readonly List<string> _log = new List<string>();
 
     TextMeshProUGUI _txtTurn;
@@ -226,7 +226,7 @@ public partial class SrpGameController
         _btnCover.GetComponent<Image>().color = new Color(0.24f, 0.42f, 0.18f, 0.9f);
         _btnInteract = MakeButton(panel.transform, "상호작용", OnInteractUi, 48, 20);
         _btnInteract.GetComponent<Image>().color = new Color(0.45f, 0.36f, 0.12f, 0.9f);
-        _btnOverwatch = MakeButton(panel.transform, "오버워치", OnOverwatchUi, 48, 20);
+        _btnOverwatch = MakeButton(panel.transform, "경계태세", OnOverwatchUi, 48, 20);
         _btnOverwatch.GetComponent<Image>().color = new Color(0.15f, 0.24f, 0.55f, 0.9f);
         _btnDangerArea = MakeButton(panel.transform, "위험영역 보기", OnToggleDangerAreaUi, 48, 20);
         _btnDangerArea.GetComponent<Image>().color = new Color(0.25f, 0.22f, 0.15f, 0.9f);
@@ -759,7 +759,7 @@ public partial class SrpGameController
         var status = SrpOverwatch.GetArmStatus(unit);
         if (status != SrpOverwatchArmStatus.Ready)
         {
-            LogLine($"오버워치 불가: {unit.displayName}({unit.id}) | {DescribeOverwatchArmStatus(status)}");
+            LogLine($"경계태세 불가: {unit.displayName}({unit.id}) | {DescribeOverwatchArmStatus(status)}");
             UpdateHud();
             return;
         }
@@ -770,9 +770,9 @@ public partial class SrpGameController
             UpdateHud();
             return;
         }
-        SpawnWorldFeedback(unit, "\uC624\uBC84\uC6CC\uCE58", new Color(0.35f, 0.55f, 1f));
+        SpawnWorldFeedback(unit, "\uACBD\uACC4\uD0DC\uC138 \uC900\uBE44", new Color(0.35f, 0.55f, 1f));
         FlashUnit(unit, new Color(0.35f, 0.55f, 1f));
-        LogLine($"오버워치 예약: {unit.displayName}({unit.id}) | 사거리 {unit.overwatchRange} | 행동 소모");
+        LogLine($"경계태세 준비: {unit.displayName}({unit.id}) | 사거리 {unit.overwatchRange} | 행동 소모");
         RefreshUnitViews();
         FinishActivation();
     }
@@ -1300,7 +1300,7 @@ public partial class SrpGameController
         if (unit.coverActive)
             parts.Add($"엄폐 ({unit.coverSourceX},{unit.coverSourceY})");
         if (unit.overwatchArmed)
-            parts.Add($"오버워치 사거리 {unit.overwatchRange}");
+            parts.Add($"경계태세 사거리 {unit.overwatchRange}");
         if (_state != null && _state.TryGetAdjacentInteraction(unit, out var point))
             parts.Add($"상호작용: {GetInteractionLabel(point)}");
         _txtActiveCardState.text = string.Join(" | ", parts);
@@ -1591,7 +1591,7 @@ public partial class SrpGameController
         if (unit.stance == SrpStance.Defensive && unit.defensiveHitsRound == _state.RoundNumber)
             stateParts.Add($"수비 압박 {unit.defensiveHitsTakenThisRound}");
         if (unit.overwatchArmed)
-            stateParts.Add($"오버워치 사거리 {unit.overwatchRange}");
+            stateParts.Add($"경계태세 사거리 {unit.overwatchRange}");
         if (unit.UsesAmmo)
             stateParts.Add($"탄약 {unit.ammo}/{unit.maxAmmo}");
         if (unit.coverActive)
@@ -1776,7 +1776,7 @@ public partial class SrpGameController
         if (target.coverActive)
             parts.Add($"엄폐 중 ({target.coverSourceX},{target.coverSourceY})");
         if (target.overwatchArmed)
-            parts.Add($"오버워치 예약 사거리 {target.overwatchRange}");
+            parts.Add($"경계태세 예약 사거리 {target.overwatchRange}");
         return string.Join("\n", parts);
     }
 
@@ -1892,8 +1892,8 @@ public partial class SrpGameController
     static string BuildOverwatchButtonLabel(SrpUnitRuntime unit, SrpOverwatchArmStatus status)
     {
         if (unit != null && unit.overwatchArmed)
-            return "오버워치 예약 중";
-        return status == SrpOverwatchArmStatus.Ready ? "오버워치 예약" : "오버워치 불가";
+            return "경계태세 준비 중";
+        return status == SrpOverwatchArmStatus.Ready ? "경계태세 준비" : "경계태세 불가";
     }
 
     static string DescribeOverwatchArmStatus(SrpOverwatchArmStatus status)
