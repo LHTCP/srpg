@@ -44,6 +44,10 @@ public class SrpM1PlayModeTests
         Assert.Greater(controller.TestCurrentActionRingWorldY, controller.TestTileSurfaceY, "current action ring is buried in tile");
         Assert.Greater(controller.TestSelectedUnitRingWorldY, controller.TestCurrentActionRingWorldY, "selected ring y offset must be distinct");
         Assert.Greater(controller.TestCurrentActionRingRadiusScale, controller.TestSelectedUnitRingRadiusScale, "current action ring should be the outer ring");
+        Assert.Greater(controller.TestMoveOverlayMarkerCount, 0, "movement overlay center markers missing");
+        Assert.Greater(controller.TestInteractionObjectiveMarkerCount, 0, "interaction objective marker missing");
+        Assert.Greater(controller.TestInteractionObjectiveMarkerScale, controller.TestMoveOverlayMarkerScale, "objective marker should read larger than movement markers");
+        Assert.Less(controller.TestTileOverlayMaxWorldY, controller.TestCurrentActionRingWorldY, "tile overlay markers should stay below PR #61 unit rings");
         Assert.GreaterOrEqual(controller.TestWorldFeedbackDuration, 1.8f, "feedback text lifetime is too short");
         Assert.GreaterOrEqual(controller.TestWorldFeedbackHoldDuration, 1.0f, "feedback text hold time is too short");
         Assert.GreaterOrEqual(controller.TestFloatingFeedbackSpawnCount, 1, "turn start floating feedback missing");
@@ -180,6 +184,9 @@ public class SrpM1PlayModeTests
         controller.ToggleDangerArea();
         yield return null;
         Assert.IsTrue(controller.TestDangerAreaVisible, "위험영역 토글 상태 반영 실패");
+        Assert.Greater(controller.TestDangerAttackBorderCount, 0, "danger attack border markers missing");
+        Assert.Greater(controller.TestDangerZocWarningRingCount, 0, "danger ZOC warning rings missing");
+        Assert.Less(controller.TestTileOverlayMaxWorldY, controller.TestCurrentActionRingWorldY, "danger overlays should not cover unit foot rings");
         StringAssert.Contains("위험영역 ON", controller.TestStatusHudText);
         StringAssert.Contains("범례:", controller.TestStatusHudText);
         StringAssert.Contains("빨강=공격/위험", controller.TestStatusHudText);

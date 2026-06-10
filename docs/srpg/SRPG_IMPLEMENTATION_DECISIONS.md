@@ -270,3 +270,32 @@
 - 메이커 화면 UX (`TBD-013`)
   - 효과유형 드롭다운 스크롤 지연은 우선 재현 확인이 필요하다.
   - 입력 가능 값과 필드 의미 툴팁은 유용하지만 전투 플레이 가독성보다 후순위인 P3로 둔다.
+
+## 2026-06-09 타일 overlay 시각 문법 1차 구현 (`TBD-012`)
+
+### 확정한 문법
+
+- PR #61의 current/selected/hover 유닛 발밑 ring은 유닛 상태 레이어로 유지한다. tile overlay는 별도 `SrpTileOverlayGrammarLayer` 아래 얇은 floor marker로 렌더링한다.
+- 이동 가능 범위는 타일 중심 작은 원 marker로 둔다. 이동 후보가 전장을 넓게 채우더라도 경로 가능성만 낮은 밀도로 읽히게 한다.
+- 공격 가능/위험 영역은 타일 외곽 danger 테두리로 둔다. `M1OpeningPrototype` 북쪽 사격 루트는 전체 빨강 채움이 아니라 외곽 압박으로 읽히게 한다.
+- ZOC/교전권 tile 힌트와 패링 가능 telegraph는 얇은 warning ring 계열로 둔다. ZOC/교전 unit badge는 기존 world-space badge를 유지한다.
+- 상호작용 목표는 노랑 objective diamond marker로 둔다. 남쪽 `신호 장치`가 이동/위험 채움에 섞이지 않고 목표로 읽히는 것을 우선한다.
+- 오버워치와 엄폐는 별도 테두리 계열, 스킬과 intent target은 marker 계열로 둔다. 색상만 다른 동일 채움 방식은 사용하지 않는다.
+
+### 레이어 기준
+
+- 현재 타일 표면은 `y=0.075`이며 tile overlay marker는 `TileSurfaceY + 0.008`부터 `TileSurfaceY + 0.031` 사이에 둔다.
+- PR #61 현재 행동 ring은 `TileSurfaceY + 0.035` 이상이므로 tile overlay가 유닛 발밑 ring을 덮지 않는다.
+- PlayMode 계약은 이동 marker, 위험 테두리, ZOC ring, 상호작용 objective marker 존재와 tile overlay 최대 높이가 current ring보다 낮은지를 검증한다.
+
+### 후속 결정
+
+- 실제 Unity 에디터 플레이에서 marker 크기, 선 두께, 채도는 추가 조정할 수 있다.
+- 총기 발포 방향/조준 문법(`TBD-010`)은 이번 overlay 문법과 분리했다. 공격/위험 테두리는 사격 가능성을 보여주지만 발포 방향 arc나 조준선 확정 문법은 아니다.
+
+### 검증
+
+- `scripts/validate-repo.sh` 통과.
+- Unity EditMode 테스트 통과: `77 passed / 0 failed`.
+- Unity PlayMode 테스트 통과: `7 passed / 0 failed`.
+- PlayMode 관찰 테스트는 `M1OpeningPrototype` 첫 화면의 이동 marker, 위험 테두리, ZOC ring, `신호 장치` objective marker, PR #61 ring/floating feedback 표본을 다시 캡처한다.

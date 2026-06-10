@@ -30,6 +30,8 @@ public partial class SrpGameController
     const float CurrentRingY = TileSurfaceY + 0.035f;
     const float SelectedRingY = TileSurfaceY + 0.048f;
     const float HoverRingY = TileSurfaceY + 0.061f;
+    const float TileOverlayBaseY = TileSurfaceY + 0.008f;
+    const float TileOverlayTopY = TileSurfaceY + 0.031f;
     const float WorldFeedbackDuration = 2.15f;
     const float WorldFeedbackHoldDuration = 1.25f;
     const float WorldFeedbackBoardRise = 0.72f;
@@ -63,9 +65,16 @@ public partial class SrpGameController
     Renderer[,] _tileRenderers;
     Color[,] _baseTileColors;
     readonly Dictionary<int, Dictionary<int, Color>> _tileOverlayLayers = new Dictionary<int, Dictionary<int, Color>>();
+    readonly Dictionary<int, GameObject> _tileOverlayVisuals = new Dictionary<int, GameObject>();
     static Mesh s_unitFacingWedgeMesh;
     static Mesh s_unitRingMesh;
+    static Mesh s_tileCenterDiscMesh;
+    static Mesh s_tileRingMesh;
+    static Mesh s_tileBorderMesh;
+    static Mesh s_tileDiamondMesh;
+    static Mesh s_tileCrossMesh;
     GameObject _unitFeedbackRoot;
+    GameObject _tileOverlayRoot;
     GameObject _currentUnitRing;
     GameObject _selectedUnitRing;
     GameObject _hoverUnitRing;
@@ -291,6 +300,7 @@ public partial class SrpGameController
     void ClearAllOverlayLayers()
     {
         _tileOverlayLayers.Clear();
+        ClearAllTileOverlayVisuals();
     }
 
     void ClearOverlayLayer(int layer)
@@ -298,6 +308,7 @@ public partial class SrpGameController
         if (_tileOverlayLayers.TryGetValue(layer, out var map) && map.Count > 0)
         {
             map.Clear();
+            ClearTileOverlayVisualsForLayer(layer);
             RebuildAllTileColors();
         }
     }
@@ -313,6 +324,7 @@ public partial class SrpGameController
         }
         int idx = _state.Index(x, y);
         map[idx] = tint;
+        UpdateTileOverlayVisual(layer, x, y, tint);
         RebuildTileColor(x, y);
     }
 
@@ -326,10 +338,299 @@ public partial class SrpGameController
         for (int i = 0; i < OverlayComposeOrder.Length; i++)
         {
             int layer = OverlayComposeOrder[i];
-            if (_tileOverlayLayers.TryGetValue(layer, out var map) && map.TryGetValue(idx, out var tint))
+            if (ShouldTintTileLayer(layer) && _tileOverlayLayers.TryGetValue(layer, out var map) && map.TryGetValue(idx, out var tint))
                 final = Color.Lerp(final, tint, 0.62f);
         }
         ApplyColor(_tileRenderers[x, y], final);
+    }
+
+    static bool ShouldTintTileLayer(int layer)
+    {
+        // TBD-012 uses mesh markers instead of full-tile color fills.
+        return false;
+    }
+
+    void UpdateTileOverlayVisual(int layer, int x, int y, Color tint)
+    {
+        if (_state == null)
+            return;
+
+        var spec = GetTileOverlayVisualSpec(layer);
+        int visualKey = GetTileOverlayVisualKey(layer, _state.Index(x, y));
+        if (!_tileOverlayVisuals.TryGetValue(visualKey, out var go) || go == null)
+        {
+            EnsureTileOverlayRoot();
+            go = new GameObject($"TileOverlay_{layer}_{x}_{y}", typeof(MeshFilter), typeof(MeshRenderer));
+            go.transform.SetParent(_tileOverlayRoot.transform, false);
+            _tileOverlayVisuals[visualKey] = go;
+        }
+
+        go.GetComponent<MeshFilter>().sharedMesh = GetTileOverlayMesh(spec.style);
+        go.transform.position = new Vector3(x * cellSize, spec.worldY, y * cellSize);
+        go.transform.rotation = spec.rotation;
+        float scale = cellSize * spec.scale;
+        go.transform.localScale = new Vector3(scale, 1f, scale);
+
+        var renderer = go.GetComponent<Renderer>();
+        if (renderer.sharedMaterial == null)
+            renderer.sharedMaterial = CreateFeedbackMaterial(tint);
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        renderer.sortingOrder = spec.sortingOrder;
+        ApplyFeedbackColor(renderer, tint);
+        go.SetActive(true);
+    }
+
+    static TileOverlayVisualSpec GetTileOverlayVisualSpec(int layer)
+    {
+        if (layer == OverlayMove)
+            return new TileOverlayVisualSpec(TileOverlayStyle.CenterDisc, TileOverlayBaseY, 0.28f, Quaternion.identity, 1);
+        if (layer == OverlayAttack || layer == OverlayDangerAttack || layer == OverlayUnitHoverRange)
+            return new TileOverlayVisualSpec(TileOverlayStyle.Border, TileOverlayBaseY + 0.006f, 0.92f, Quaternion.identity, 2);
+        if (layer == OverlayDangerZoc || layer == OverlayUnitHoverZoc)
+            return new TileOverlayVisualSpec(TileOverlayStyle.WarningRing, TileOverlayBaseY + 0.010f, 0.68f, Quaternion.identity, 3);
+        if (layer == OverlayOverwatch)
+            return new TileOverlayVisualSpec(TileOverlayStyle.Border, TileOverlayBaseY + 0.012f, 0.70f, Quaternion.Euler(0f, 45f, 0f), 4);
+        if (layer == OverlayCover)
+            return new TileOverlayVisualSpec(TileOverlayStyle.Border, TileOverlayBaseY + 0.014f, 0.56f, Quaternion.identity, 5);
+        if (layer == OverlayInteraction)
+            return new TileOverlayVisualSpec(TileOverlayStyle.ObjectiveDiamond, TileOverlayTopY, 0.62f, Quaternion.identity, 8);
+        if (layer == OverlaySkill || layer == OverlayIntentTarget)
+            return new TileOverlayVisualSpec(TileOverlayStyle.ObjectiveDiamond, TileOverlayBaseY + 0.020f, 0.50f, Quaternion.identity, 7);
+        if (layer == OverlayParryTelegraph)
+            return new TileOverlayVisualSpec(TileOverlayStyle.WarningRing, TileOverlayBaseY + 0.022f, 0.58f, Quaternion.identity, 7);
+        if (layer == OverlayDangerBlocked)
+            return new TileOverlayVisualSpec(TileOverlayStyle.BlockedCross, TileOverlayBaseY + 0.018f, 0.62f, Quaternion.identity, 6);
+        if (layer == OverlayIntentPath)
+            return new TileOverlayVisualSpec(TileOverlayStyle.CenterDisc, TileOverlayBaseY + 0.016f, 0.20f, Quaternion.identity, 6);
+        if (layer == OverlayHover)
+            return new TileOverlayVisualSpec(TileOverlayStyle.Border, TileOverlayBaseY + 0.024f, 0.78f, Quaternion.identity, 9);
+        return new TileOverlayVisualSpec(TileOverlayStyle.CenterDisc, TileOverlayBaseY, 0.24f, Quaternion.identity, 1);
+    }
+
+    static Mesh GetTileOverlayMesh(TileOverlayStyle style)
+    {
+        switch (style)
+        {
+            case TileOverlayStyle.WarningRing:
+                return GetTileRingMesh();
+            case TileOverlayStyle.Border:
+                return GetTileBorderMesh();
+            case TileOverlayStyle.ObjectiveDiamond:
+                return GetTileDiamondMesh();
+            case TileOverlayStyle.BlockedCross:
+                return GetTileCrossMesh();
+            case TileOverlayStyle.CenterDisc:
+            default:
+                return GetTileCenterDiscMesh();
+        }
+    }
+
+    static Mesh GetTileCenterDiscMesh()
+    {
+        if (s_tileCenterDiscMesh != null)
+            return s_tileCenterDiscMesh;
+
+        const int segments = 32;
+        var vertices = new Vector3[segments + 1];
+        var triangles = new int[segments * 3];
+        vertices[0] = Vector3.zero;
+        for (int i = 0; i < segments; i++)
+        {
+            float angle = (Mathf.PI * 2f * i) / segments;
+            vertices[i + 1] = new Vector3(Mathf.Cos(angle) * 0.5f, 0f, Mathf.Sin(angle) * 0.5f);
+            int tri = i * 3;
+            triangles[tri] = 0;
+            triangles[tri + 1] = (i + 1) % segments + 1;
+            triangles[tri + 2] = i + 1;
+        }
+
+        s_tileCenterDiscMesh = CreateTileOverlayMesh("SrpTileOverlayCenterDisc", vertices, triangles);
+        return s_tileCenterDiscMesh;
+    }
+
+    static Mesh GetTileRingMesh()
+    {
+        if (s_tileRingMesh != null)
+            return s_tileRingMesh;
+
+        const int segments = 48;
+        const float outerRadius = 0.5f;
+        const float innerRadius = 0.42f;
+        var vertices = new Vector3[segments * 2];
+        var triangles = new int[segments * 6];
+        for (int i = 0; i < segments; i++)
+        {
+            float angle = (Mathf.PI * 2f * i) / segments;
+            float sin = Mathf.Sin(angle);
+            float cos = Mathf.Cos(angle);
+            vertices[i * 2] = new Vector3(cos * outerRadius, 0f, sin * outerRadius);
+            vertices[i * 2 + 1] = new Vector3(cos * innerRadius, 0f, sin * innerRadius);
+
+            int next = (i + 1) % segments;
+            int tri = i * 6;
+            triangles[tri] = i * 2;
+            triangles[tri + 1] = i * 2 + 1;
+            triangles[tri + 2] = next * 2;
+            triangles[tri + 3] = next * 2;
+            triangles[tri + 4] = i * 2 + 1;
+            triangles[tri + 5] = next * 2 + 1;
+        }
+
+        s_tileRingMesh = CreateTileOverlayMesh("SrpTileOverlayWarningRing", vertices, triangles);
+        return s_tileRingMesh;
+    }
+
+    static Mesh GetTileBorderMesh()
+    {
+        if (s_tileBorderMesh != null)
+            return s_tileBorderMesh;
+
+        const float outer = 0.5f;
+        const float inner = 0.42f;
+        var vertices = new[]
+        {
+            new Vector3(-outer, 0f, outer), new Vector3(outer, 0f, outer), new Vector3(outer, 0f, inner), new Vector3(-outer, 0f, inner),
+            new Vector3(outer, 0f, outer), new Vector3(outer, 0f, -outer), new Vector3(inner, 0f, -outer), new Vector3(inner, 0f, outer),
+            new Vector3(outer, 0f, -outer), new Vector3(-outer, 0f, -outer), new Vector3(-outer, 0f, -inner), new Vector3(outer, 0f, -inner),
+            new Vector3(-outer, 0f, -outer), new Vector3(-outer, 0f, outer), new Vector3(-inner, 0f, outer), new Vector3(-inner, 0f, -outer),
+        };
+        var triangles = QuadStripTriangles(4);
+        s_tileBorderMesh = CreateTileOverlayMesh("SrpTileOverlayDangerBorder", vertices, triangles);
+        return s_tileBorderMesh;
+    }
+
+    static Mesh GetTileDiamondMesh()
+    {
+        if (s_tileDiamondMesh != null)
+            return s_tileDiamondMesh;
+
+        var vertices = new[]
+        {
+            Vector3.zero,
+            new Vector3(0f, 0f, 0.5f),
+            new Vector3(0.5f, 0f, 0f),
+            new Vector3(0f, 0f, -0.5f),
+            new Vector3(-0.5f, 0f, 0f),
+        };
+        var triangles = new[] { 0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 1 };
+        s_tileDiamondMesh = CreateTileOverlayMesh("SrpTileOverlayObjectiveDiamond", vertices, triangles);
+        return s_tileDiamondMesh;
+    }
+
+    static Mesh GetTileCrossMesh()
+    {
+        if (s_tileCrossMesh != null)
+            return s_tileCrossMesh;
+
+        const float halfLength = 0.5f;
+        const float halfWidth = 0.08f;
+        var vertices = new[]
+        {
+            new Vector3(-halfLength, 0f, halfWidth), new Vector3(halfLength, 0f, halfWidth), new Vector3(halfLength, 0f, -halfWidth), new Vector3(-halfLength, 0f, -halfWidth),
+            new Vector3(-halfWidth, 0f, halfLength), new Vector3(halfWidth, 0f, halfLength), new Vector3(halfWidth, 0f, -halfLength), new Vector3(-halfWidth, 0f, -halfLength),
+        };
+        var triangles = QuadStripTriangles(2);
+        s_tileCrossMesh = CreateTileOverlayMesh("SrpTileOverlayBlockedCross", vertices, triangles);
+        return s_tileCrossMesh;
+    }
+
+    static int[] QuadStripTriangles(int quadCount)
+    {
+        var triangles = new int[quadCount * 6];
+        for (int i = 0; i < quadCount; i++)
+        {
+            int vertex = i * 4;
+            int tri = i * 6;
+            triangles[tri] = vertex;
+            triangles[tri + 1] = vertex + 1;
+            triangles[tri + 2] = vertex + 2;
+            triangles[tri + 3] = vertex;
+            triangles[tri + 4] = vertex + 2;
+            triangles[tri + 5] = vertex + 3;
+        }
+        return triangles;
+    }
+
+    static Mesh CreateTileOverlayMesh(string name, Vector3[] vertices, int[] triangles)
+    {
+        var mesh = new Mesh
+        {
+            name = name,
+            vertices = vertices,
+            triangles = triangles,
+        };
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    static int GetTileOverlayVisualKey(int layer, int tileIndex)
+    {
+        return unchecked((layer * 73856093) ^ tileIndex);
+    }
+
+    void EnsureTileOverlayRoot()
+    {
+        if (_tileOverlayRoot != null)
+            return;
+        _tileOverlayRoot = new GameObject("SrpTileOverlayGrammarLayer");
+        _tileOverlayRoot.transform.SetParent(transform, false);
+    }
+
+    void ClearTileOverlayVisualsForLayer(int layer)
+    {
+        var remove = new List<int>();
+        foreach (var kv in _tileOverlayVisuals)
+        {
+            if (kv.Value == null)
+            {
+                remove.Add(kv.Key);
+                continue;
+            }
+            if (kv.Value.name.StartsWith($"TileOverlay_{layer}_"))
+            {
+                Destroy(kv.Value);
+                remove.Add(kv.Key);
+            }
+        }
+        foreach (int key in remove)
+            _tileOverlayVisuals.Remove(key);
+    }
+
+    void ClearAllTileOverlayVisuals()
+    {
+        foreach (var go in _tileOverlayVisuals.Values)
+            if (go != null)
+                Destroy(go);
+        _tileOverlayVisuals.Clear();
+    }
+
+    enum TileOverlayStyle
+    {
+        CenterDisc,
+        Border,
+        WarningRing,
+        ObjectiveDiamond,
+        BlockedCross,
+    }
+
+    readonly struct TileOverlayVisualSpec
+    {
+        public readonly TileOverlayStyle style;
+        public readonly float worldY;
+        public readonly float scale;
+        public readonly Quaternion rotation;
+        public readonly int sortingOrder;
+
+        public TileOverlayVisualSpec(TileOverlayStyle style, float worldY, float scale, Quaternion rotation, int sortingOrder)
+        {
+            this.style = style;
+            this.worldY = worldY;
+            this.scale = scale;
+            this.rotation = rotation;
+            this.sortingOrder = sortingOrder;
+        }
     }
 
     static void ApplyColor(Renderer r, Color c)
@@ -940,6 +1241,14 @@ public partial class SrpGameController
     public float TestWorldFeedbackHoldDuration => WorldFeedbackHoldDuration;
     public bool TestHasStackedFeedbackStartPositions => _hasPreviousFeedbackStartPosition
         && Vector3.Distance(_previousFeedbackStartPosition, _lastFeedbackStartPosition) > 0.01f;
+    public int TestTileOverlayVisualCount => CountActiveTileOverlayVisuals();
+    public int TestMoveOverlayMarkerCount => CountTileOverlayVisualsForLayer(OverlayMove);
+    public int TestDangerAttackBorderCount => CountTileOverlayVisualsForLayer(OverlayDangerAttack);
+    public int TestDangerZocWarningRingCount => CountTileOverlayVisualsForLayer(OverlayDangerZoc);
+    public int TestInteractionObjectiveMarkerCount => CountTileOverlayVisualsForLayer(OverlayInteraction);
+    public float TestTileOverlayMaxWorldY => GetMaxTileOverlayWorldY();
+    public float TestMoveOverlayMarkerScale => GetFirstTileOverlayScaleForLayer(OverlayMove);
+    public float TestInteractionObjectiveMarkerScale => GetFirstTileOverlayScaleForLayer(OverlayInteraction);
 
     public bool TestSpawnTwoFeedbackOnCurrentUnit()
     {
@@ -951,6 +1260,49 @@ public partial class SrpGameController
         SpawnWorldFeedback(unit, "TEST A", Color.white);
         SpawnWorldFeedback(unit, "TEST B", Color.yellow);
         return TestHasStackedFeedbackStartPositions;
+    }
+
+    int CountActiveTileOverlayVisuals()
+    {
+        int count = 0;
+        foreach (var go in _tileOverlayVisuals.Values)
+            if (go != null && go.activeInHierarchy)
+                count++;
+        return count;
+    }
+
+    int CountTileOverlayVisualsForLayer(int layer)
+    {
+        int count = 0;
+        string prefix = $"TileOverlay_{layer}_";
+        foreach (var go in _tileOverlayVisuals.Values)
+        {
+            if (go != null && go.activeInHierarchy && go.name.StartsWith(prefix))
+                count++;
+        }
+        return count;
+    }
+
+    float GetMaxTileOverlayWorldY()
+    {
+        float maxY = -1f;
+        foreach (var go in _tileOverlayVisuals.Values)
+        {
+            if (go != null && go.activeInHierarchy)
+                maxY = Mathf.Max(maxY, go.transform.position.y);
+        }
+        return maxY;
+    }
+
+    float GetFirstTileOverlayScaleForLayer(int layer)
+    {
+        string prefix = $"TileOverlay_{layer}_";
+        foreach (var go in _tileOverlayVisuals.Values)
+        {
+            if (go != null && go.activeInHierarchy && go.name.StartsWith(prefix))
+                return go.transform.localScale.x;
+        }
+        return 0f;
     }
 #endif
 }
