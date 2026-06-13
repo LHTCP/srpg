@@ -88,7 +88,7 @@ git config --global --add safe.directory <workspace-root>/srpg
 git lfs pull
 ```
 
-CI에서는 `.lfsconfig` 값과 GitHub repository variable `LFS_URL`이 일치하는지 대조한다. mirror 또는 공개용 LFS endpoint로 전환하면 `.lfsconfig`와 `LFS_URL`을 같은 PR에서 함께 갱신한다.
+CI에서는 `.lfsconfig` 값과 GitHub repository secret `LFS_URL`이 일치하는지 대조한다. mirror 또는 공개용 LFS endpoint로 전환하면 `.lfsconfig`와 `LFS_URL`을 같은 PR에서 함께 갱신한다.
 
 ## Unity 확인 항목
 
