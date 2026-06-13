@@ -8,6 +8,22 @@
 
 초기 배포 경로는 Windows PC zip을 itch.io downloadable build로 올리는 방식이 가장 단순하다. 다만 itch.io 페이지 안에서 바로 플레이하는 경험은 WebGL/HTML5 빌드가 담당하므로, 플레이어 접근성을 높이는 우선 후보로 별도 PoC를 잡을 만하다.
 
+## 현재 상태
+
+이 문서는 조사 결과와 추천 순서를 정리한 문서다. 아직 이 저장소에 itch.io 업로드 workflow, butler workflow, WebGL itch.io 업로드 workflow가 구현된 것은 아니다.
+
+현재 확정된 사실:
+
+- itch.io 프로젝트 페이지는 <https://lhtcp.itch.io/lhtcp-srpg>다.
+- Windows PC zip delivery 완성이 최우선이다.
+
+아직 구현 전인 설계 후보:
+
+- WebGL/HTML5 즉시 플레이 PoC
+- butler 기반 수동 업로드 workflow
+- development/production 채널 운영
+- `a.b.c.<github.run_number>` 버전 강제
+
 권장 순서는 다음과 같다.
 
 1. Windows zip 패키징 기준을 확정한다.
@@ -30,7 +46,7 @@ itch.io의 butler는 게임 빌드를 빠르고 안정적으로 업로드하기 
 - 수동 GitHub Actions 업로드: `workflow_dispatch`에서만 실행한다.
 - 자동 main 배포: 초기에는 하지 않는다.
 
-기준 명령 형태:
+기준 명령 후보:
 
 ```text
 butler push <build-path> lhtcp/lhtcp-srpg:development
@@ -102,6 +118,7 @@ PC/Windows 전용인 동안 플랫폼 정보는 itch.io 파일 platform과 페�
 - production 릴리즈컷은 최소 `c` patch 증가를 요구한다.
 - production GitHub Release와 itch.io production 업로드는 같은 `a.b.c.<build>`를 사용한다.
 - 이 원칙은 먼저 문서화하고, zip 파일 기준 delivery가 완성된 뒤 CI 검증으로 강제한다.
+- 현재 PR은 버전 파일이나 CI 검증을 추가하지 않는다.
 
 ## 비용과 secret 가드레일
 
