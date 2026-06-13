@@ -6,6 +6,22 @@
 
 초기 PC 데모는 itch.io 프로젝트 페이지 <https://lhtcp.itch.io/lhtcp-srpg>에 올릴 수 있는 zip 하나를 기준 산출물로 둔다. WebGL과 모바일은 이번 기준의 완료조건이 아니며, PC zip이 정상적으로 내려받아지고 실행되는지를 먼저 닫는다.
 
+## 현재 상태
+
+이 문서는 구현 완료 보고서가 아니라 패키징 목표와 검증 기준이다. 아직 Windows zip 자동 생성, `BUILD_INFO.txt` 자동 생성, itch.io 업로드 자동화는 구현되지 않았다.
+
+현재 확정된 사실:
+
+- itch.io 프로젝트 페이지는 <https://lhtcp.itch.io/lhtcp-srpg>다.
+- 첫 delivery 구현 목표는 Windows PC zip이다.
+
+아직 구현 전인 설계 후보:
+
+- `a.b.c.<build>` 파일명 자동 부여
+- `BUILD_INFO.txt` 자동 생성
+- development/production 채널 업로드 자동화
+- GitHub Release와 production 업로드 연결
+
 권장 산출물 이름은 다음 형식이다.
 
 ```text
@@ -33,7 +49,7 @@ srpg-demo-windows-<version>/
   Srpg_Data/
   UnityPlayer.dll
   README.txt
-BUILD_INFO.txt
+  BUILD_INFO.txt
 ```
 
 파일명은 실제 Unity product name에 맞춰 달라질 수 있다. 단, 실행 파일과 `_Data` 폴더가 같은 폴더에 있어야 한다.
@@ -99,7 +115,7 @@ itch_project=https://lhtcp.itch.io/lhtcp-srpg
 
 기존 후보였던 `windows-demo`는 플랫폼 의미는 명확하지만, 릴리즈 단계 구분이 약하다. PC/Windows 전용 프로젝트인 동안에는 itch.io 파일 platform을 Windows로 지정하고, 채널명은 release channel의 의미가 드러나는 `development`/`production`을 우선한다.
 
-butler 자동화를 붙일 때는 다음 형태를 기준으로 한다.
+butler 자동화를 붙일 때는 다음 형태를 후보로 둔다. 이 명령은 아직 이 저장소의 workflow로 구현되지 않았다.
 
 ```text
 butler push <zip-or-folder> lhtcp/lhtcp-srpg:development
@@ -124,7 +140,7 @@ PC 데모 zip을 게시하기 전에는 다음을 확인한다.
 
 ## GitHub Actions artifact 기준
 
-자동 빌드가 붙으면 artifact 이름은 zip 이름과 최대한 맞춘다.
+자동 빌드가 붙으면 artifact 이름은 zip 이름과 최대한 맞추는 것을 목표로 한다. 현재 이 문서는 artifact 생성 workflow를 추가하지 않는다.
 
 ```text
 srpg-demo-windows-<a.b.c.build>
