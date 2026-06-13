@@ -8,13 +8,13 @@ on:
     outputs:
       email_configured:
         description: "UNITY_EMAIL secret이 설정되어 있는지 여부"
-        value: ${{ jobs.unity_license_healthcheck.outputs.email_configured }}
+        value: ${{ jobs.unity-license-healthcheck.outputs.email_configured }}
       license_bytes:
         description: "UNITY_LICENSE secret을 파일로 저장했을 때의 byte 수"
-        value: ${{ jobs.unity_license_healthcheck.outputs.license_bytes }}
+        value: ${{ jobs.unity-license-healthcheck.outputs.license_bytes }}
       license_shape:
         description: "UNITY_LICENSE secret의 기본 형식 점검 결과"
-        value: ${{ jobs.unity_license_healthcheck.outputs.license_shape }}
+        value: ${{ jobs.unity-license-healthcheck.outputs.license_shape }}
 
 permissions:
   contents: read
@@ -24,16 +24,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  unity_license_healthcheck:
+  unity-license-healthcheck:
     name: Unity 라이선스 secret 점검
     runs-on: ubuntu-latest
     outputs:
-      email_configured: ${{ steps.secret_presence.outputs.email_configured }}
-      license_bytes: ${{ steps.license_shape.outputs.license_bytes }}
-      license_shape: ${{ steps.license_shape.outputs.license_shape }}
+      email_configured: ${{ steps.secret-presence.outputs.email_configured }}
+      license_bytes: ${{ steps.license-shape.outputs.license_bytes }}
+      license_shape: ${{ steps.license-shape.outputs.license_shape }}
     steps:
       - name: Unity secret 존재 확인
-        id: secret_presence
+        id: secret-presence
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
@@ -72,7 +72,7 @@ jobs:
           echo "Unity 계정 secret 3종이 설정되어 있습니다."
 
       - name: UNITY_LICENSE 형식 점검
-        id: license_shape
+        id: license-shape
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         shell: bash
@@ -103,8 +103,8 @@ jobs:
 
       - name: 헬스체크 요약
         env:
-          LICENSE_BYTES: ${{ steps.license_shape.outputs.license_bytes }}
-          LICENSE_SHAPE: ${{ steps.license_shape.outputs.license_shape }}
+          LICENSE_BYTES: ${{ steps.license-shape.outputs.license_bytes }}
+          LICENSE_SHAPE: ${{ steps.license-shape.outputs.license_shape }}
         shell: bash
         run: |
           set -euo pipefail

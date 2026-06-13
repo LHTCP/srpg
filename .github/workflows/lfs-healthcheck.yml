@@ -8,10 +8,10 @@ on:
     outputs:
       lfs_url_configured:
         description: ".lfsconfig에서 LFS URL을 확인했는지 여부"
-        value: ${{ jobs.lfs_healthcheck.outputs.lfs_url_configured }}
+        value: ${{ jobs.lfs-healthcheck.outputs.lfs_url_configured }}
       pointer_count:
         description: "checkout에서 발견한 LFS pointer 개수"
-        value: ${{ jobs.lfs_healthcheck.outputs.pointer_count }}
+        value: ${{ jobs.lfs-healthcheck.outputs.pointer_count }}
 
 permissions:
   contents: read
@@ -21,18 +21,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  lfs_healthcheck:
+  lfs-healthcheck:
     name: 사설 LFS 서버 접근 확인
     runs-on: ubuntu-latest
     outputs:
-      lfs_url_configured: ${{ steps.lfs_config.outputs.lfs_url_configured }}
-      pointer_count: ${{ steps.lfs_pointers.outputs.pointer_count }}
+      lfs_url_configured: ${{ steps.lfs-config.outputs.lfs_url_configured }}
+      pointer_count: ${{ steps.lfs-pointers.outputs.pointer_count }}
     steps:
       - name: 저장소 체크아웃
         uses: actions/checkout@v4
 
       - name: LFS 설정 확인
-        id: lfs_config
+        id: lfs-config
         shell: bash
         run: |
           set -euo pipefail
@@ -73,7 +73,7 @@ jobs:
           git lfs install --local
 
       - name: LFS 포인터 목록 확인
-        id: lfs_pointers
+        id: lfs-pointers
         shell: bash
         run: |
           set -euo pipefail
