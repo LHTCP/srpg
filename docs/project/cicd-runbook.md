@@ -71,6 +71,16 @@ Object does not exist on the server
 
 ## Unity license 실패
 
+### Windows zip delivery 필수 secret
+
+`Windows PC 데모 빌드` workflow를 실제로 실행하려면 GameCI Personal license 기준으로 다음 repository secret이 필요하다.
+
+- `UNITY_LICENSE`: Unity Hub에서 활성화한 `.ulf` 파일 전체 내용
+- `UNITY_EMAIL`: 해당 Unity 계정 이메일
+- `UNITY_PASSWORD`: 해당 Unity 계정 비밀번호
+
+팀 공통 Unity 계정이 준비되기 전에는 지시자의 개인 계정으로 임시 검증할 수 있다. 단, 개인 계정 secret은 PR, 이슈, 로그, 문서에 직접 쓰지 않고, 팀 계정이 생기면 같은 secret 이름으로 교체한다.
+
 ### 대표 증상
 
 ```text
@@ -86,6 +96,7 @@ No valid Unity Editor license found.
 ### 확인할 것
 
 - repository secret `UNITY_LICENSE`가 설정되어 있는지 확인한다.
+- Personal license 방식이면 repository secret `UNITY_EMAIL`, `UNITY_PASSWORD`도 설정되어 있는지 확인한다.
 - `UNITY_LICENSE`를 쓰지 않는 방식이면 repository secret `UNITY_SERIAL`이 설정되어 있는지 확인한다.
 - GameCI 또는 Unity action이 현재 workflow에서 어떤 license 방식을 기대하는지 확인한다.
 - Unity Personal/Pro/Enterprise 라이선스 정책과 활성화 한도를 확인한다.
