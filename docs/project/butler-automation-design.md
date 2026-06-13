@@ -8,6 +8,8 @@ butler 자동화는 처음부터 main merge 자동 배포로 두지 않는다. �
 
 자동화의 1차 목적은 “빌드 자동 생성”이 아니라 “검증된 PC zip을 반복 가능한 방식으로 itch.io에 올리는 것”이다.
 
+itch.io 프로젝트 URL은 <https://lhtcp.itch.io/lhtcp-srpg>다.
+
 ## 권장 단계
 
 1. 수동 웹 업로드로 첫 게시를 검증한다.
@@ -26,19 +28,49 @@ butler 자동화는 처음부터 main merge 자동 배포로 두지 않는다. �
 | `ITCHIO_USERNAME` | 권장 | itch.io 사용자 또는 조직 이름 |
 | `ITCHIO_GAME` | 권장 | itch.io 게임 slug |
 
-`ITCHIO_USERNAME`과 `ITCHIO_GAME`은 secret 대신 repository variable로 둘 수도 있다. 공개되어도 되는 값인지 애매하면 secret으로 시작한다.
+현재 프로젝트 URL 기준 기본 후보는 `ITCHIO_USERNAME=lhtcp`, `ITCHIO_GAME=lhtcp-srpg`다. `ITCHIO_USERNAME`과 `ITCHIO_GAME`은 secret 대신 repository variable로 둘 수도 있다. 공개되어도 되는 값인지 애매하면 secret으로 시작한다.
 
 secret 값은 PR 본문, issue, 로그에 직접 쓰지 않는다.
 
 ## 채널명
 
-초기 채널은 `windows-demo`를 권장한다.
+development와 production을 분리한다.
 
-```text
-<itch-user>/<itch-game>:windows-demo
+| 채널 | 용도 | 트리거 |
+| ---- | ---- | ------ |
+| `development` | 최신 개발 검증 빌드 | 수동 workflow 또는 main 기준 수동 배포 |
+| `production` | 릴리즈컷으로 고정한 빌드 | GitHub Release 생성 workflow |
+
+PC/Windows 플랫폼 표시는 itch.io 파일 metadata에서 처리하고, butler 채널은 운영 단계 구분에 사용한다.
+
+## 버전 운영 원칙
+
+상세 원칙은 [release-versioning.md](release-versioning.md)를 따른다. 저장소에는 Node 패키지를 의미하는 `package.json` 대신 프로젝트 배포 메타데이터를 명시하는 `release.json`을 두는 것을 권장한다.
+
+```json
+{
+  "name": "lhtcp-srpg",
+  "version": "0.1.0",
+  "itch": {
+    "projectUrl": "https://lhtcp.itch.io/lhtcp-srpg",
+    "user": "lhtcp",
+    "game": "lhtcp-srpg",
+    "channels": {
+      "development": "development",
+      "production": "production"
+    }
+  }
+}
 ```
 
-정식 Windows 릴리스가 생기면 `windows` 채널로 승격할지 별도 결정한다.
+운영 원칙:
+
+- `release.json`의 `version`은 `a.b.c` 기준 버전의 진실이다.
+- GitHub Actions 빌드는 `a.b.c.<github.run_number>`를 표시 버전으로 사용한다.
+- development 업로드는 같은 `a.b.c`에서 여러 build number를 허용한다.
+- production 릴리즈컷은 이전 production보다 최소 `c` patch 증가를 요구한다.
+- GitHub Release, itch.io production 업로드, zip 파일명, `BUILD_INFO.txt`는 같은 `a.b.c.<build>`를 사용한다.
+- 이 검증은 zip delivery가 완성된 뒤 CI에 추가한다.
 
 ## workflow trigger
 
@@ -52,8 +84,12 @@ on:
         description: "업로드할 Windows zip 또는 폴더 경로"
         required: true
       version:
-        description: "itch.io build version"
+        description: "a.b.c 기준 버전. build 번호는 GitHub run number를 사용한다."
         required: true
+      channel:
+        description: "development 또는 production"
+        required: true
+        default: "development"
 ```
 
 권장하지 않는 초기 trigger:
@@ -67,7 +103,7 @@ on:
 ## 업로드 명령 후보
 
 ```bash
-butler push "${BUILD_PATH}" "${ITCHIO_USERNAME}/${ITCHIO_GAME}:windows-demo" --userversion "${VERSION}"
+butler push "${BUILD_PATH}" "${ITCHIO_USERNAME}/${ITCHIO_GAME}:${CHANNEL}" --userversion "${FULL_VERSION}"
 ```
 
 `BUILD_PATH`는 zip 파일 또는 빌드 폴더가 될 수 있다. 첫 자동화에서는 PC 패키징 기준과 맞춘 zip 파일을 입력으로 받는 편이 가장 명확하다.
@@ -86,8 +122,12 @@ on:
         description: "다운로드할 GitHub Actions artifact 이름"
         required: true
       version:
-        description: "itch.io build version"
+        description: "a.b.c 기준 버전"
         required: true
+      channel:
+        description: "development 또는 production"
+        required: true
+        default: "development"
 
 jobs:
   upload:
@@ -113,9 +153,10 @@ jobs:
           BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
           ITCHIO_USERNAME: ${{ secrets.ITCHIO_USERNAME }}
           ITCHIO_GAME: ${{ secrets.ITCHIO_GAME }}
-          VERSION: ${{ inputs.version }}
+          CHANNEL: ${{ inputs.channel }}
+          FULL_VERSION: ${{ inputs.version }}.${{ github.run_number }}
         run: |
-          butler push "./dist" "${ITCHIO_USERNAME}/${ITCHIO_GAME}:windows-demo" --userversion "${VERSION}"
+          butler push "./dist" "${ITCHIO_USERNAME}/${ITCHIO_GAME}:${CHANNEL}" --userversion "${FULL_VERSION}"
 ```
 
 실제 구현 PR에서는 artifact 다운로드 step, zip 경로, butler 설치 공식 권장 방식, `BUTLER_API_KEY` 환경변수 동작을 다시 확인한다. 이 예시가 바뀌는 경우에는 PR 본문이나 코드 라인 셀프리뷰에 근거를 남긴다.
@@ -143,6 +184,8 @@ butler workflow 구현 PR에서는 다음을 셀프리뷰 또는 PR 본문에 �
 
 - 업로드가 자동 공개인지, 수동 실행인지
 - 업로드 대상 itch.io channel
+- `release.json` 기준 버전과 실제 `a.b.c.<run_number>`가 일치하는지
+- production 릴리즈컷에서 최소 patch 증가 검증이 필요한지
 - 사용한 secret 이름과 노출 방지 방식
 - runner 종류와 유료 리소스 개입 여부
 - artifact retention 변경 여부
