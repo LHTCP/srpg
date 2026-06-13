@@ -93,9 +93,9 @@ Object does not exist on the server
 
 ### 선행 헬스체크
 
-Unity build/test workflow를 실행하기 전에 `Delivery 선행 헬스체크` 또는 `Unity 라이선스 헬스체크` workflow를 수동 실행한다. Unity 전용 헬스체크는 repository secret `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`의 존재와 `UNITY_LICENSE` 파일 내용의 기본 형태만 확인한다.
+Unity build/test workflow를 실행하기 전에 `Delivery 선행 헬스체크` 또는 `Unity 라이선스 헬스체크` workflow를 수동 실행한다. Unity 전용 헬스체크는 repository secret `UNITY_EMAIL`, `UNITY_PASSWORD`의 존재를 확인하고, `UNITY_LICENSE`가 있을 때만 파일 내용의 기본 형태를 추가 점검한다.
 
-이 단계는 Unity Editor를 실제로 활성화하지 않는다. 즉, secret이 존재하고 license 파일처럼 보인다는 신호는 줄 수 있지만, seat 한도, Unity 계정 정책, GameCI 활성화 성공 여부는 Windows/WebGL 빌드 workflow에서 최종 확인해야 한다.
+이 단계는 Unity Editor를 실제로 활성화하지 않는다. 즉, secret이 존재하고 license 파일처럼 보인다는 신호는 줄 수 있지만, seat 한도, Unity 계정 정책, GameCI 활성화 성공 여부는 Windows/WebGL 빌드 workflow에서 최종 확인해야 한다. 로컬 Unity Hub에 `Unity_lic.ulf`가 없는 Personal 계정 환경에서는 `UNITY_LICENSE`가 비어 있을 수 있으며, 이 경우 헬스체크는 warning만 남기고 실제 빌드에서 계정 기반 활성화 가능성을 확인한다.
 
 개인 계정 라이선스를 CI에 연결하는 경우에는 계정 소유자, 사용 범위, 회수 절차를 PR 또는 이슈에 남긴다. 팀 공용 계정으로 전환하면 같은 secret 이름을 유지하되 값만 교체해 workflow 변경 없이 운영한다.
 

@@ -12,9 +12,15 @@ on:
       license_bytes:
         description: "UNITY_LICENSE secret을 파일로 저장했을 때의 byte 수"
         value: ${{ jobs.unity-license-healthcheck.outputs.license_bytes }}
+      license_configured:
+        description: "UNITY_LICENSE secret이 설정되어 있는지 여부"
+        value: ${{ jobs.unity-license-healthcheck.outputs.license_configured }}
       license_shape:
         description: "UNITY_LICENSE secret의 기본 형식 점검 결과"
         value: ${{ jobs.unity-license-healthcheck.outputs.license_shape }}
+      serial_configured:
+        description: "UNITY_SERIAL secret이 설정되어 있는지 여부"
+        value: ${{ jobs.unity-license-healthcheck.outputs.serial_configured }}
 
 permissions:
   contents: read
@@ -30,7 +36,9 @@ jobs:
     outputs:
       email_configured: ${{ steps.secret-presence.outputs.email_configured }}
       license_bytes: ${{ steps.license-shape.outputs.license_bytes }}
+      license_configured: ${{ steps.secret-presence.outputs.license_configured }}
       license_shape: ${{ steps.license-shape.outputs.license_shape }}
+      serial_configured: ${{ steps.secret-presence.outputs.serial_configured }}
     steps:
       - name: Unity secret 존재 확인
         id: secret-presence
@@ -38,15 +46,21 @@ jobs:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
         shell: bash
         run: |
           set -euo pipefail
 
           missing=0
+          license_configured=false
+          serial_configured=false
 
-          if [ -z "${UNITY_LICENSE:-}" ]; then
-            echo "::error::UNITY_LICENSE repository secret이 필요합니다."
-            missing=1
+          if [ -n "${UNITY_LICENSE:-}" ]; then
+            license_configured=true
+          fi
+
+          if [ -n "${UNITY_SERIAL:-}" ]; then
+            serial_configured=true
           fi
 
           if [ -z "${UNITY_EMAIL:-}" ]; then
@@ -69,7 +83,14 @@ jobs:
           fi
 
           echo "email_configured=true" >> "$GITHUB_OUTPUT"
-          echo "Unity 계정 secret 3종이 설정되어 있습니다."
+          echo "license_configured=${license_configured}" >> "$GITHUB_OUTPUT"
+          echo "serial_configured=${serial_configured}" >> "$GITHUB_OUTPUT"
+
+          if [ "$license_configured" != "true" ] && [ "$serial_configured" != "true" ]; then
+            echo "::warning::UNITY_LICENSE/UNITY_SERIAL secret이 없습니다. Unity Hub Personal 계정 기반 활성화가 가능한지는 실제 build/test workflow에서 확인해야 합니다."
+          fi
+
+          echo "Unity 계정 secret이 설정되어 있습니다."
 
       - name: UNITY_LICENSE 형식 점검
         id: license-shape
@@ -78,6 +99,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          if [ -z "${UNITY_LICENSE:-}" ]; then
+            echo "license_bytes=0" >> "$GITHUB_OUTPUT"
+            echo "license_shape=not_configured" >> "$GITHUB_OUTPUT"
+            echo "UNITY_LICENSE secret이 없어 파일 형식 점검을 건너뜁니다."
+            exit 0
+          fi
 
           # secret 값을 로그에 직접 쓰지 않기 위해 runner 임시 파일로만 저장하고,
           # byte 수와 대표 marker만 확인한다.
@@ -114,9 +142,11 @@ jobs:
 
           - UNITY_EMAIL: configured
           - UNITY_PASSWORD: configured
+          - UNITY_LICENSE: ${{ steps.secret-presence.outputs.license_configured }}
+          - UNITY_SERIAL: ${{ steps.secret-presence.outputs.serial_configured }}
           - UNITY_LICENSE byte size: ${LICENSE_BYTES}
           - UNITY_LICENSE shape: ${LICENSE_SHAPE}
 
-          이 workflow는 secret 존재와 라이선스 파일의 기본 형태만 확인합니다.
+          이 workflow는 계정 secret 존재와, UNITY_LICENSE가 있을 때 라이선스 파일의 기본 형태만 확인합니다.
           실제 Unity Editor 활성화 성공 여부는 Unity build/test workflow에서 최종 확인합니다.
           SUMMARY
