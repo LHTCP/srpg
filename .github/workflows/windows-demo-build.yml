@@ -106,7 +106,9 @@ jobs:
       - name: Windows zip 패키징
         shell: bash
         run: |
-          build_dir="build/WindowsDemo"
+          # GameCI unity-builder는 buildName과 별개로 targetPlatform 이름의 폴더를 만든다.
+          # 현재 StandaloneWindows64 빌드 산출물은 build/StandaloneWindows64 아래에 생성된다.
+          build_dir="build/StandaloneWindows64"
           artifact_name="${{ steps.version.outputs.artifact_name }}"
           package_root="dist/${artifact_name}"
 
