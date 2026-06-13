@@ -1,0 +1,60 @@
+name: Delivery 선행 헬스체크
+
+on:
+  # 배포/빌드 workflow 실행 전에 외부 의존성 접근 가능성을 병렬로 확인하는 진입점이다.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: delivery-healthcheck
+  cancel-in-progress: false
+
+jobs:
+  lfs:
+    name: LFS 헬스체크
+    uses: ./.github/workflows/lfs-healthcheck.yml
+    secrets: inherit
+
+  unity:
+    name: Unity 라이선스 헬스체크
+    uses: ./.github/workflows/unity-license-healthcheck.yml
+    secrets: inherit
+
+  summary:
+    name: 헬스체크 보고서
+    runs-on: ubuntu-latest
+    needs:
+      - lfs
+      - unity
+    if: always()
+    steps:
+      - name: 통합 결과 요약
+        env:
+          LFS_RESULT: ${{ needs.lfs.result }}
+          UNITY_RESULT: ${{ needs.unity.result }}
+          LFS_URL_CONFIGURED: ${{ needs.lfs.outputs.lfs_url_configured }}
+          LFS_POINTER_COUNT: ${{ needs.lfs.outputs.pointer_count }}
+          UNITY_EMAIL_CONFIGURED: ${{ needs.unity.outputs.email_configured }}
+          UNITY_LICENSE_BYTES: ${{ needs.unity.outputs.license_bytes }}
+          UNITY_LICENSE_SHAPE: ${{ needs.unity.outputs.license_shape }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<SUMMARY
+          ## Delivery 선행 헬스체크 보고서
+
+          | 항목 | 결과 | 보조 정보 |
+          | --- | --- | --- |
+          | LFS | ${LFS_RESULT} | URL configured: ${LFS_URL_CONFIGURED:-unknown}, pointer count: ${LFS_POINTER_COUNT:-unknown} |
+          | Unity license | ${UNITY_RESULT} | email configured: ${UNITY_EMAIL_CONFIGURED:-unknown}, license bytes: ${UNITY_LICENSE_BYTES:-unknown}, shape: ${UNITY_LICENSE_SHAPE:-unknown} |
+
+          LFS와 Unity 라이선스 점검은 병렬로 실행되며, 이 보고서 job은 두 결과를 모아 최종 상태만 판단합니다.
+          SUMMARY
+
+          if [ "$LFS_RESULT" != "success" ] || [ "$UNITY_RESULT" != "success" ]; then
+            echo "::error::Delivery 선행 헬스체크 중 실패한 항목이 있습니다."
+            exit 1
+          fi

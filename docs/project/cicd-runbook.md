@@ -31,11 +31,25 @@
 4. 실패가 Unity 내부에서 발생했다면 Editor log 또는 test result artifact가 업로드됐는지 확인한다.
 5. 같은 브랜치에서 재실행할지, main 최신화 후 재실행할지 결정한다.
 
+## Delivery 선행 헬스체크
+
+Windows 빌드, WebGL 빌드, itch.io 업로드처럼 외부 의존성이 걸린 workflow를 실행하기 전에는 `Delivery 선행 헬스체크` workflow를 먼저 수동 실행한다. 이 workflow는 LFS 서버 접근과 Unity 라이선스 secret 점검을 병렬로 실행한 뒤, 마지막 `헬스체크 보고서` job에서 결과를 모은다.
+
+```mermaid
+flowchart LR
+    entry["Delivery 선행 헬스체크"] --> lfs["LFS 헬스체크"]
+    entry --> unity["Unity 라이선스 헬스체크"]
+    lfs --> summary["헬스체크 보고서"]
+    unity --> summary
+```
+
+개별 원인을 좁혀야 할 때는 `LFS 서버 헬스체크` 또는 `Unity 라이선스 헬스체크` workflow를 따로 실행한다. 통합 workflow는 빌드 시간을 쓰기 전에 명백한 secret 누락, LFS 접근 실패, 라이선스 파일 형식 오류를 빠르게 걸러내는 목적이다.
+
 ## LFS 실패
 
 ### 선행 헬스체크
 
-Windows/WebGL 빌드 workflow를 실행하기 전에 `LFS 서버 헬스체크` workflow를 수동 실행해 GitHub-hosted runner가 사설 LFS 서버에 접근할 수 있는지 확인한다. 이 workflow는 Unity 빌드 없이 `.lfsconfig`, repository secret, `git lfs pull`만 검증한다.
+Windows/WebGL 빌드 workflow를 실행하기 전에 `Delivery 선행 헬스체크` 또는 `LFS 서버 헬스체크` workflow를 수동 실행해 GitHub-hosted runner가 사설 LFS 서버에 접근할 수 있는지 확인한다. LFS 전용 workflow는 Unity 빌드 없이 `.lfsconfig`, repository secret, `git lfs pull`만 검증한다.
 
 public repo standard GitHub-hosted runner 실행 자체는 무료 범위지만, `git lfs pull`은 사설 LFS 서버의 트래픽, 계정, 접근성 한도를 사용한다. LFS 서버는 항시 가동을 전제로 하더라도 외부 runner에서 접근 가능한지, secret이 유효한지, 트래픽 한도에 문제가 없는지는 별도로 확인한다.
 
@@ -76,6 +90,14 @@ Object does not exist on the server
 - 대용량 에셋 다운로드 시간이 CI 전체 시간을 지배한다.
 
 ## Unity license 실패
+
+### 선행 헬스체크
+
+Unity build/test workflow를 실행하기 전에 `Delivery 선행 헬스체크` 또는 `Unity 라이선스 헬스체크` workflow를 수동 실행한다. Unity 전용 헬스체크는 repository secret `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`의 존재와 `UNITY_LICENSE` 파일 내용의 기본 형태만 확인한다.
+
+이 단계는 Unity Editor를 실제로 활성화하지 않는다. 즉, secret이 존재하고 license 파일처럼 보인다는 신호는 줄 수 있지만, seat 한도, Unity 계정 정책, GameCI 활성화 성공 여부는 Windows/WebGL 빌드 workflow에서 최종 확인해야 한다.
+
+개인 계정 라이선스를 CI에 연결하는 경우에는 계정 소유자, 사용 범위, 회수 절차를 PR 또는 이슈에 남긴다. 팀 공용 계정으로 전환하면 같은 secret 이름을 유지하되 값만 교체해 workflow 변경 없이 운영한다.
 
 ### 대표 증상
 
