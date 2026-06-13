@@ -33,6 +33,12 @@
 
 ## LFS 실패
 
+### 선행 헬스체크
+
+Windows/WebGL 빌드 workflow를 실행하기 전에 `LFS 서버 헬스체크` workflow를 수동 실행해 GitHub-hosted runner가 사설 LFS 서버에 접근할 수 있는지 확인한다. 이 workflow는 Unity 빌드 없이 `.lfsconfig`, repository secret, `git lfs pull`만 검증한다.
+
+public repo standard GitHub-hosted runner 실행 자체는 무료 범위지만, `git lfs pull`은 사설 LFS 서버의 트래픽, 계정, 접근성 한도를 사용한다. LFS 서버는 항시 가동을 전제로 하더라도 외부 runner에서 접근 가능한지, secret이 유효한지, 트래픽 한도에 문제가 없는지는 별도로 확인한다.
+
 ### 대표 증상
 
 ```text
