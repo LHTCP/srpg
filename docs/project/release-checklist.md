@@ -4,7 +4,7 @@
 
 현재 최신 플레이 링크와 배포 산출물 경로는 아직 확정되지 않았다. 이번 무료 우선 스프린트에서는 PC/Windows artifact 또는 GitHub Release asset처럼 추가 유료 계정이 필요 없는 경로를 먼저 검증한다. WebGL/GitHub Pages는 무료 공유 링크 후보로 유지하지만 초기 플랫폼 결정의 중심축은 아니다.
 
-- PC/Windows 빌드 아티팩트: TODO
+- PC/Windows 빌드 아티팩트: `Windows PC 데모 빌드` workflow의 `srpg-demo-windows-<version>-<short-sha>` artifact
 - GitHub Release asset: TODO
 - WebGL 플레이 링크: 보조 후보
 - 모바일 테스트 배포 링크: 보류
@@ -44,7 +44,7 @@
 
 ### PC/Windows
 
-- [ ] TODO: 확정된 Windows artifact 또는 Release asset을 다운로드할 수 있다.
+- [ ] `Windows PC 데모 빌드` workflow에서 생성된 `srpg-demo-windows-<version>-<short-sha>` artifact를 다운로드할 수 있다.
 - [ ] 압축 해제 후 실행 파일이 시작된다.
 - [ ] Windows 보안 경고나 차단이 있으면 릴리스 기록에 남긴다.
 - [ ] 최소 1개 전투 또는 핵심 플레이 루프를 실행한다.

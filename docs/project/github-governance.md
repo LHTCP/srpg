@@ -70,9 +70,9 @@ public 저장소의 standard GitHub-hosted runner는 무료로 사용할 수 있
 
 이 항목을 바꾸는 PR은 셀프리뷰 코멘트나 PR 본문에 비용 검토 내용을 남긴다.
 
-현재 저장소는 `.lfsconfig`로 커스텀 LFS 서버를 사용한다. 이 경우 GitHub Actions standard runner 실행 시간 자체와 별개로, LFS 다운로드는 커스텀 서버의 네트워크 접근성, 인증, 트래픽 한도를 함께 확인한다.
+현재 저장소는 `.lfsconfig`로 커스텀 LFS 서버를 사용한다. URL 자체는 secret이 아니지만 public repo에서 인프라 식별자가 노출될 수 있으므로, GitHub Actions에서는 repository variable `LFS_URL`과 `.lfsconfig` 값이 일치하는지 대조한다. mirror 또는 공개용 LFS endpoint로 전환하면 `.lfsconfig`와 `LFS_URL`을 같은 PR에서 함께 갱신한다.
 
-GitHub-hosted runner에서 커스텀 LFS 서버를 사용하려면 repository secret `LFS_ACCOUNT_ID`, `LFS_ACCOUNT_PASSWORD`를 설정한다. `LFS_ACCOUNT_PASSWORD`에는 계정 비밀번호 대신 LFS 서버에서 발급한 토큰 또는 최소 권한 자격 증명을 우선 사용한다.
+GitHub-hosted runner에서 커스텀 LFS 서버를 사용하려면 repository variable `LFS_URL`과 repository secret `LFS_ACCOUNT_ID`, `LFS_ACCOUNT_PASSWORD`를 설정한다. `LFS_ACCOUNT_PASSWORD`에는 계정 비밀번호 대신 LFS 서버에서 발급한 토큰 또는 최소 권한 자격 증명을 우선 사용한다.
 
 ## Unity 에디터 확인 경계
 
