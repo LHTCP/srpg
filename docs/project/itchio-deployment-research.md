@@ -4,16 +4,19 @@
 
 ## 결론
 
-초기 배포 경로는 Windows PC zip을 itch.io downloadable build로 올리는 방식이 가장 단순하다. WebGL/HTML5 플레이는 매력적인 보조 경로지만, 현재 프로젝트의 초기 플랫폼 결정은 PC이므로 필수 완료조건으로 두지 않는다.
+초기 itch.io 프로젝트 URL은 <https://lhtcp.itch.io/lhtcp-srpg>다.
+
+초기 배포 경로는 Windows PC zip을 itch.io downloadable build로 올리는 방식이 가장 단순하다. 다만 itch.io 페이지 안에서 바로 플레이하는 경험은 WebGL/HTML5 빌드가 담당하므로, 플레이어 접근성을 높이는 우선 후보로 별도 PoC를 잡을 만하다.
 
 권장 순서는 다음과 같다.
 
 1. Windows zip 패키징 기준을 확정한다.
-2. itch.io 프로젝트 페이지를 비공개 또는 제한 공개 상태로 만든다.
-3. `windows-demo` 채널에 PC zip을 수동 업로드한다.
+2. itch.io 프로젝트 페이지를 비공개 또는 제한 공개 상태로 유지한다.
+3. `development` 채널에 PC zip을 수동 업로드한다.
 4. 페이지 최소 메타데이터와 실행 안내를 채운다.
-5. 첫 게시가 안정화되면 butler 수동 workflow를 검토한다.
-6. WebGL/iframe 임베드는 필요성이 확인될 때 별도 후보로 승격한다.
+5. 로컬 Unity WebGL 빌드가 가능한지 PoC로 확인한다.
+6. WebGL 빌드가 작고 안정적이면 HTML Game/iframe 플레이를 development 채널에 붙인다.
+7. 첫 게시가 안정화되면 butler 수동 workflow를 검토한다.
 
 ## 공식 문서 기준 요약
 
@@ -30,19 +33,20 @@ itch.io의 butler는 게임 빌드를 빠르고 안정적으로 업로드하기 
 기준 명령 형태:
 
 ```text
-butler push <build-path> <itch-user>/<itch-game>:windows-demo
+butler push <build-path> lhtcp/lhtcp-srpg:development
+butler push <build-path> lhtcp/lhtcp-srpg:production
 ```
 
 ### HTML5/WebGL
 
 itch.io는 HTML, JavaScript, CSS 기반 프로젝트를 브라우저에서 직접 플레이할 수 있는 HTML game으로 업로드할 수 있다. 공식 문서 기준으로는 게임 페이지의 Kind를 `HTML Game`으로 설정하고 ZIP을 업로드하는 흐름이다.
 
-Unity WebGL은 이 경로에 올릴 수 있는 후보지만, 현재는 PC 플랫폼 우선이므로 다음 조건을 만족할 때만 후속 이슈로 승격한다.
+Unity WebGL은 이 경로에 올릴 수 있는 후보이며, “다운로드 없이 바로 플레이”라는 itch.io의 장점을 살리려면 빠르게 PoC를 해볼 가치가 있다. 단, production 완료조건으로 바로 묶지는 않고 다음 조건을 만족할 때 승격한다.
 
-- Windows PC zip 배포가 먼저 안정화되어 있다.
-- WebGL 빌드가 로컬 또는 CI에서 재현 가능하다.
+- WebGL 빌드가 로컬 Unity Editor에서 재현 가능하다.
 - itch.io HTML5 업로드 제한, 압축, 로딩 시간이 실제 산출물과 충돌하지 않는다.
-- 브라우저 플레이가 프로젝트 목표에 실질적으로 기여한다.
+- 브라우저 입력, 해상도, 폰트 표시가 현재 프로토타입 플레이를 막지 않는다.
+- Windows PC zip을 대체하기보다 development 플레이 링크로 먼저 검증한다.
 
 ### Widget/iframe 임베드
 
@@ -72,6 +76,7 @@ GitHub README는 임베드 iframe 렌더링이 제한될 수 있으므로, READM
 
 - 제목: `SRPG Prototype` 또는 프로젝트 공식 이름
 - 짧은 설명: 전술 RPG 프로토타입, PC 데모
+- 프로젝트 URL: <https://lhtcp.itch.io/lhtcp-srpg>
 - 플랫폼: Windows
 - 다운로드 파일: `srpg-demo-windows-<version>.zip`
 - 조작법: 마우스/키보드 기준 최소 입력
@@ -80,15 +85,23 @@ GitHub README는 임베드 iframe 렌더링이 제한될 수 있으므로, READM
 - 버전: 커밋 SHA 또는 릴리스 태그
 - 문의/피드백: GitHub issue 또는 지정 채널
 
-## 채널명 후보
+## 채널명
 
 | 채널 | 판단 |
 | ---- | ---- |
-| `windows-demo` | 초기 추천. Windows 데모임이 명확하다. |
-| `windows` | 나중에 정식 채널처럼 해석될 수 있어 초기 프로토타입에는 약간 무겁다. |
-| `pc-demo` | PC 우선 전략은 드러나지만 실제 OS 정보가 흐려진다. |
+| `development` | 최신 개발 검증 빌드. PC zip과 WebGL PoC 모두 이 채널에서 먼저 확인한다. |
+| `production` | 릴리즈컷으로 고정한 빌드. GitHub Release와 대응한다. |
+| `windows-demo` | Windows 플랫폼 의미는 명확하지만 development/production 구분이 약해 보류한다. |
 
-초기에는 `windows-demo`로 시작하고, 정식 릴리스 단계에서 `windows`로 승격할지 결정한다.
+PC/Windows 전용인 동안 플랫폼 정보는 itch.io 파일 platform과 페이지 본문에서 표현하고, 채널명은 운영 단계 구분을 우선한다.
+
+## 버전 운영 원칙
+
+- 저장소의 릴리스 메타데이터 파일이 `a.b.c` 기준 버전의 진실이다.
+- development 빌드는 `a.b.c.<github.run_number>`를 사용한다.
+- production 릴리즈컷은 최소 `c` patch 증가를 요구한다.
+- production GitHub Release와 itch.io production 업로드는 같은 `a.b.c.<build>`를 사용한다.
+- 이 원칙은 먼저 문서화하고, zip 파일 기준 delivery가 완성된 뒤 CI 검증으로 강제한다.
 
 ## 비용과 secret 가드레일
 
