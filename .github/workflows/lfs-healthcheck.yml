@@ -49,6 +49,17 @@ jobs:
             exit 1
           fi
 
+          tracked_lfs_url="$(git config --file .lfsconfig --get remote.origin.lfsurl || true)"
+          if [ -z "${tracked_lfs_url:-}" ]; then
+            echo "::error::.lfsconfig에서 remote.origin.lfsurl을 찾지 못했습니다."
+            exit 1
+          fi
+
+          if [ "$tracked_lfs_url" != "$LFS_URL" ]; then
+            echo "::error::.lfsconfig의 LFS URL이 repository variable LFS_URL과 다릅니다."
+            exit 1
+          fi
+
           git config --local remote.origin.lfsurl "$LFS_URL"
           echo "lfs_url_configured=true" >> "$GITHUB_OUTPUT"
           git lfs version
@@ -66,6 +77,12 @@ jobs:
 
           if [ -z "${LFS_URL:-}" ]; then
             echo "::error::사설 LFS 서버 URL 주입을 위해 LFS_URL repository variable이 필요합니다."
+            exit 1
+          fi
+
+          tracked_lfs_url="$(git config --file .lfsconfig --get remote.origin.lfsurl || true)"
+          if [ "$tracked_lfs_url" != "$LFS_URL" ]; then
+            echo "::error::.lfsconfig의 LFS URL이 repository variable LFS_URL과 다릅니다."
             exit 1
           fi
 

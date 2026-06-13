@@ -49,11 +49,11 @@ flowchart LR
 
 ### 선행 헬스체크
 
-Windows/WebGL 빌드 workflow를 실행하기 전에 `Delivery 선행 헬스체크` 또는 `LFS 서버 헬스체크` workflow를 수동 실행해 GitHub-hosted runner가 사설 LFS 서버에 접근할 수 있는지 확인한다. LFS 전용 workflow는 Unity 빌드 없이 repository variable `LFS_URL`, repository secret, `git lfs pull`만 검증한다.
+Windows/WebGL 빌드 workflow를 실행하기 전에 `Delivery 선행 헬스체크` 또는 `LFS 서버 헬스체크` workflow를 수동 실행해 GitHub-hosted runner가 사설 LFS 서버에 접근할 수 있는지 확인한다. LFS 전용 workflow는 Unity 빌드 없이 `.lfsconfig`, repository variable `LFS_URL`, repository secret, `git lfs pull`만 검증한다.
 
 public repo standard GitHub-hosted runner 실행 자체는 무료 범위지만, `git lfs pull`은 사설 LFS 서버의 트래픽, 계정, 접근성 한도를 사용한다. LFS 서버는 항시 가동을 전제로 하더라도 외부 runner에서 접근 가능한지, secret이 유효한지, 트래픽 한도에 문제가 없는지는 별도로 확인한다.
 
-사설 LFS 서버 URL은 비밀번호는 아니지만 public repo에 노출되면 인프라 식별자가 드러난다. 따라서 저장소에는 `.lfsconfig`를 커밋하지 않고, GitHub Actions에서는 `LFS_URL` repository variable로 주입한다.
+사설 LFS 서버 URL은 비밀번호는 아니지만 public repo에 노출되면 인프라 식별자가 드러난다. 현재는 로컬 개발 호환성을 위해 `.lfsconfig`를 유지하고, GitHub Actions에서는 repository variable `LFS_URL`과 `.lfsconfig` 값이 일치하는지 대조해 의도치 않은 endpoint 변경을 방어한다.
 
 ### 대표 증상
 
@@ -75,6 +75,7 @@ Object does not exist on the server
 - repository secret `LFS_ACCOUNT_ID`가 설정되어 있는지 확인한다.
 - repository secret `LFS_ACCOUNT_PASSWORD`가 설정되어 있는지 확인한다.
 - repository variable `LFS_URL`이 설정되어 있는지 확인한다.
+- `.lfsconfig`의 LFS URL과 repository variable `LFS_URL`이 일치하는지 확인한다.
 - GitHub-hosted runner에서 커스텀 LFS 서버에 접근 가능한지 확인한다.
 - 실패 로그가 GitHub LFS URL을 보고 있는지, 커스텀 LFS URL을 보고 있는지 구분한다.
 
