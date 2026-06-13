@@ -11,11 +11,26 @@
 - WebGL/HTML5 플레이는 즉시 플레이 경험을 위한 후속 PoC 후보이며, PC zip 게시를 막지 않는다.
 - 자동 업로드는 아직 필수가 아니며, 첫 게시와 smoke test는 수동으로 수행한다.
 
+## 현재 상태
+
+이 문서는 수동 게시를 위한 체크리스트다. 아직 Windows zip 산출물, itch.io 업로드, butler 자동화, production 릴리즈컷 자동화가 완료되었다는 뜻이 아니다.
+
+현재 확정된 사실:
+
+- itch.io 프로젝트 페이지는 <https://lhtcp.itch.io/lhtcp-srpg>다.
+- 첫 게시 절차는 수동 검증을 전제로 한다.
+
+아직 구현 전인 설계 후보:
+
+- `srpg-demo-windows-<a.b.c.build>.zip` 자동 생성
+- development/production 채널 자동 업로드
+- production patch 증가 자동 검증
+
 ## 게시 전 준비
 
 - [ ] 게시 대상 커밋 SHA를 확인한다.
 - [ ] 게시 대상 브랜치 또는 태그를 확인한다.
-- [ ] Windows zip 파일명이 `srpg-demo-windows-<a.b.c.build>.zip` 형식인지 확인한다.
+- [ ] 자동화가 붙은 빌드라면 Windows zip 파일명이 `srpg-demo-windows-<a.b.c.build>.zip` 형식인지 확인한다.
 - [ ] 자동화 전 임시 검증이라면 커밋 SHA 파일명을 사용했는지, production용이 아님을 기록한다.
 - [ ] zip을 풀면 최상위 폴더 하나가 나오는지 확인한다.
 - [ ] 최상위 폴더에 `.exe`, `_Data` 폴더, `UnityPlayer.dll`이 있는지 확인한다.
@@ -41,8 +56,8 @@ itch.io 대시보드에서 <https://lhtcp.itch.io/lhtcp-srpg> 프로젝트를 �
 - [ ] 업로드 파일의 플랫폼을 Windows로 표시한다.
 - [ ] 다운로드 이름 또는 설명에 버전, 커밋 SHA, 날짜를 적는다.
 - [ ] 기존 파일을 교체하는 경우, 이전 빌드가 필요한지 먼저 확인한다.
-- [ ] 개발 검증 빌드는 `development` 채널에 둔다.
-- [ ] production 릴리즈컷 빌드는 GitHub Release와 대응되는 `production` 채널에 둔다.
+- [ ] 채널 기능을 쓰는 경우 개발 검증 빌드는 `development` 채널에 둔다.
+- [ ] production 릴리즈컷 빌드는 GitHub Release와 대응되는 `production` 채널에 둔다. 아직 자동 릴리즈컷 workflow는 구현되지 않았다.
 
 ## 페이지 최소 본문
 
