@@ -6,15 +6,17 @@
 
 - 초기 플랫폼은 PC/Windows다.
 - 첫 게시 대상은 Windows zip이다.
+- itch.io 프로젝트 URL은 <https://lhtcp.itch.io/lhtcp-srpg>다.
 - 모바일 배포는 이번 체크리스트의 범위가 아니다.
-- WebGL/HTML5 플레이는 후속 후보이며, PC zip 게시를 막지 않는다.
+- WebGL/HTML5 플레이는 즉시 플레이 경험을 위한 후속 PoC 후보이며, PC zip 게시를 막지 않는다.
 - 자동 업로드는 아직 필수가 아니며, 첫 게시와 smoke test는 수동으로 수행한다.
 
 ## 게시 전 준비
 
 - [ ] 게시 대상 커밋 SHA를 확인한다.
 - [ ] 게시 대상 브랜치 또는 태그를 확인한다.
-- [ ] Windows zip 파일명이 `srpg-demo-windows-<version>.zip` 형식인지 확인한다.
+- [ ] Windows zip 파일명이 `srpg-demo-windows-<a.b.c.build>.zip` 형식인지 확인한다.
+- [ ] 자동화 전 임시 검증이라면 커밋 SHA 파일명을 사용했는지, production용이 아님을 기록한다.
 - [ ] zip을 풀면 최상위 폴더 하나가 나오는지 확인한다.
 - [ ] 최상위 폴더에 `.exe`, `_Data` 폴더, `UnityPlayer.dll`이 있는지 확인한다.
 - [ ] `README.txt` 또는 itch.io 페이지에 실행 안내가 있는지 확인한다.
@@ -23,23 +25,24 @@
 
 ## itch.io 페이지 생성
 
-itch.io 대시보드에서 새 게임 페이지를 만들거나 기존 페이지를 연다.
+itch.io 대시보드에서 <https://lhtcp.itch.io/lhtcp-srpg> 프로젝트를 연다.
 
-- [ ] 제목을 입력한다.
+- [ ] 제목이 `LHTCP SRPG` 또는 현재 프로젝트명과 맞는지 확인한다.
 - [ ] 짧은 설명에 “PC/Windows demo” 성격을 명시한다.
 - [ ] Kind 또는 플랫폼 설정에서 Windows 다운로드 빌드임을 드러낸다.
 - [ ] 가격은 초기 데모 기준 무료 또는 다운로드 제한 정책에 맞게 설정한다.
 - [ ] 공개 범위는 첫 검증 전에는 비공개 또는 제한 공개로 둔다.
-- [ ] 페이지 URL slug를 정한다.
+- [ ] 페이지 URL slug가 `lhtcp-srpg`인지 확인한다.
 - [ ] 프로젝트가 아직 프로토타입이면 페이지 본문에도 프로토타입임을 명시한다.
 
 ## 파일 업로드
 
-- [ ] `srpg-demo-windows-<version>.zip`을 업로드한다.
+- [ ] `srpg-demo-windows-<a.b.c.build>.zip`을 업로드한다.
 - [ ] 업로드 파일의 플랫폼을 Windows로 표시한다.
 - [ ] 다운로드 이름 또는 설명에 버전, 커밋 SHA, 날짜를 적는다.
 - [ ] 기존 파일을 교체하는 경우, 이전 빌드가 필요한지 먼저 확인한다.
-- [ ] 여러 채널을 쓴다면 초기 채널은 `windows-demo`로 둔다.
+- [ ] 개발 검증 빌드는 `development` 채널에 둔다.
+- [ ] production 릴리즈컷 빌드는 GitHub Release와 대응되는 `production` 채널에 둔다.
 
 ## 페이지 최소 본문
 
@@ -50,6 +53,8 @@ itch.io 페이지 본문에는 최소한 다음 내용을 포함한다.
 
 Windows PC 데모입니다.
 
+프로젝트 페이지: https://lhtcp.itch.io/lhtcp-srpg
+
 ### 실행 방법
 
 1. zip 파일을 다운로드합니다.
@@ -59,6 +64,7 @@ Windows PC 데모입니다.
 ### 현재 버전
 
 - Version:
+- Channel:
 - Commit:
 
 ### Known issue
@@ -88,6 +94,7 @@ GitHub issue, PR 댓글, 릴리스 노트 중 하나에 다음 기록을 남긴�
 
 - 게시 일시:
 - itch.io 페이지:
+- itch.io 채널: development / production
 - 공개 범위:
 - 파일:
 - 버전:
@@ -105,6 +112,7 @@ GitHub issue, PR 댓글, 릴리스 노트 중 하나에 다음 기록을 남긴�
 
 - [ ] 페이지 제목과 설명이 실제 빌드 상태를 과장하지 않는다.
 - [ ] 다운로드 파일이 최신 의도 버전이다.
+- [ ] production 게시라면 `a.b.c` patch가 이전 production보다 증가했다.
 - [ ] 알려진 치명적 문제는 페이지에 안내되어 있다.
 - [ ] 피드백을 받을 GitHub issue 또는 연락 경로가 있다.
 - [ ] 모바일 지원처럼 아직 보류한 내용을 지원한다고 쓰지 않았다.
