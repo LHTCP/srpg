@@ -13,6 +13,23 @@
 
 development 빌드는 같은 `a.b.c`에서 여러 build number를 허용한다. production 릴리즈컷은 이전 production보다 최소 `c` patch를 증가시킨다.
 
+## 현재 상태
+
+이 문서는 운영 원칙 문서다. 아직 `release.json`, 버전 주입 스크립트, GitHub Release 생성 workflow, production patch 증가 검증은 구현되지 않았다.
+
+현재 확정된 사실:
+
+- itch.io 프로젝트 페이지는 <https://lhtcp.itch.io/lhtcp-srpg>다.
+- zip 파일 기준 delivery 완성이 현재 최우선이다.
+
+아직 구현 전인 설계 후보:
+
+- `release.json` 파일 추가
+- `a.b.c.<github.run_number>` 자동 생성
+- Unity build version 주입
+- GitHub Release tag 검증
+- itch.io production 업로드 검증
+
 ## 기준 메타데이터
 
 저장소 루트에 `release.json`을 두는 것을 권장한다. Node 패키지를 의미하는 `package.json`도 익숙한 선택지지만, Unity 프로젝트에서는 배포 메타데이터라는 의미가 더 직접적인 `release.json`이 낫다.

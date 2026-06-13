@@ -10,6 +10,25 @@ butler 자동화는 처음부터 main merge 자동 배포로 두지 않는다. �
 
 itch.io 프로젝트 URL은 <https://lhtcp.itch.io/lhtcp-srpg>다.
 
+## 현재 상태
+
+이 문서는 butler 자동화 설계안이다. 아직 이 저장소에 butler workflow, `release.json`, production 릴리즈컷 검증, itch.io 자동 업로드가 구현된 것은 아니다.
+
+현재 확정된 사실:
+
+- itch.io 프로젝트 페이지는 <https://lhtcp.itch.io/lhtcp-srpg>다.
+- butler는 itch.io 공식 CLI 업로드 도구다.
+- 첫 자동화는 main 자동 배포가 아니라 수동 실행 후보로 둔다.
+
+아직 구현 전인 설계 후보:
+
+- `ITCHIO_API_KEY` secret 등록
+- `ITCHIO_USERNAME`, `ITCHIO_GAME` variable 또는 secret 등록
+- butler 설치/업로드 workflow
+- `release.json` 추가
+- `a.b.c.<github.run_number>` 버전 주입
+- production patch 증가 검증
+
 ## 권장 단계
 
 1. 수동 웹 업로드로 첫 게시를 검증한다.
@@ -74,7 +93,7 @@ PC/Windows 플랫폼 표시는 itch.io 파일 metadata에서 처리하고, butle
 
 ## workflow trigger
 
-초기 trigger는 수동 실행만 허용한다.
+초기 trigger는 수동 실행만 허용하는 것을 목표로 한다. 아래 YAML은 설계 스케치이며 현재 저장소에 추가된 workflow가 아니다.
 
 ```yaml
 on:
@@ -106,7 +125,7 @@ on:
 butler push "${BUILD_PATH}" "${ITCHIO_USERNAME}/${ITCHIO_GAME}:${CHANNEL}" --userversion "${FULL_VERSION}"
 ```
 
-`BUILD_PATH`는 zip 파일 또는 빌드 폴더가 될 수 있다. 첫 자동화에서는 PC 패키징 기준과 맞춘 zip 파일을 입력으로 받는 편이 가장 명확하다.
+`BUILD_PATH`는 zip 파일 또는 빌드 폴더가 될 수 있다. 첫 자동화에서는 PC 패키징 기준과 맞춘 zip 파일을 입력으로 받는 편이 가장 명확하다. 실제 명령은 butler 설치 방식과 인증 환경변수를 dry-run으로 확인한 뒤 확정한다.
 
 ## workflow 골격
 
