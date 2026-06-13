@@ -18,6 +18,7 @@
 - [ ] 배포 대상 커밋 SHA를 릴리스 기록에 남길 준비가 되어 있다.
 - [ ] `main` 기준 컴파일 오류가 없거나, 남아 있는 오류를 known issue로 기록했다.
 - [ ] GitHub Actions 필수 체크가 모두 통과했다.
+- [ ] `Delivery 선행 헬스체크` workflow가 통과했다.
 - [ ] Unity EditMode/PlayMode 테스트 실행 결과를 확인했다.
 - [ ] LFS, Unity license, 플랫폼별 signing secret이 필요한 workflow에서 정상적으로 접근 가능한지 확인했다.
 - [ ] PC/Windows 배포 대상과 산출물 위치를 명시했다.
