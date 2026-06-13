@@ -1,0 +1,125 @@
+name: LFS 서버 헬스체크
+
+on:
+  # 사설 LFS 서버 접근성만 확인하는 선행 진단 workflow다.
+  # Unity 빌드나 테스트를 실행하지 않아 runner 시간과 LFS 트래픽을 최소화한다.
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      lfs_url_configured:
+        description: "LFS_URL repository variable을 확인했는지 여부"
+        value: ${{ jobs.lfs-healthcheck.outputs.lfs_url_configured }}
+      pointer_count:
+        description: "checkout에서 발견한 LFS pointer 개수"
+        value: ${{ jobs.lfs-healthcheck.outputs.pointer_count }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lfs-healthcheck
+  cancel-in-progress: false
+
+jobs:
+  lfs-healthcheck:
+    name: 사설 LFS 서버 접근 확인
+    runs-on: ubuntu-latest
+    outputs:
+      lfs_url_configured: ${{ steps.lfs-config.outputs.lfs_url_configured }}
+      pointer_count: ${{ steps.lfs-pointers.outputs.pointer_count }}
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: LFS 설정 확인
+        id: lfs-config
+        env:
+          LFS_URL: ${{ vars.LFS_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${LFS_URL:-}" ]; then
+            echo "::error::사설 LFS 서버 URL 주입을 위해 LFS_URL repository variable이 필요합니다."
+            exit 1
+          fi
+
+          if [[ "$LFS_URL" != https://* ]]; then
+            echo "::error::LFS_URL은 https:// 로 시작해야 합니다."
+            exit 1
+          fi
+
+          git config --local remote.origin.lfsurl "$LFS_URL"
+          echo "lfs_url_configured=true" >> "$GITHUB_OUTPUT"
+          git lfs version
+
+      - name: LFS 인증 정보 등록
+        # public repo standard GitHub-hosted runner 사용은 무료 범위지만,
+        # git lfs pull은 사설 LFS 서버의 트래픽/접근성/계정 한도를 사용한다.
+        env:
+          LFS_ACCOUNT_ID: ${{ secrets.LFS_ACCOUNT_ID }}
+          LFS_ACCOUNT_PASSWORD: ${{ secrets.LFS_ACCOUNT_PASSWORD }}
+          LFS_URL: ${{ vars.LFS_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${LFS_URL:-}" ]; then
+            echo "::error::사설 LFS 서버 URL 주입을 위해 LFS_URL repository variable이 필요합니다."
+            exit 1
+          fi
+
+          if [ -z "${LFS_ACCOUNT_ID:-}" ] || [ -z "${LFS_ACCOUNT_PASSWORD:-}" ]; then
+            echo "::error::사설 LFS 서버 인증을 위해 LFS_ACCOUNT_ID, LFS_ACCOUNT_PASSWORD repository secret이 필요합니다."
+            exit 1
+          fi
+
+          lfs_host="${LFS_URL#https://}"
+          lfs_host="${lfs_host%%/*}"
+          if [ -z "$lfs_host" ] || [ "$lfs_host" = "$LFS_URL" ]; then
+            echo "::error::LFS_URL에서 host를 추출하지 못했습니다."
+            exit 1
+          fi
+
+          git config --global credential.helper store
+          printf "protocol=https\nhost=%s\nusername=%s\npassword=%s\n\n" "$lfs_host" "$LFS_ACCOUNT_ID" "$LFS_ACCOUNT_PASSWORD" | git credential approve
+          git lfs install --local
+
+      - name: LFS 포인터 목록 확인
+        id: lfs-pointers
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pointer_count="$(git lfs ls-files --long | wc -l | tr -d ' ')"
+          echo "LFS pointer count: ${pointer_count}"
+          echo "pointer_count=${pointer_count}" >> "$GITHUB_OUTPUT"
+
+          if [ "${pointer_count}" = "0" ]; then
+            echo "::warning::현재 checkout에서 LFS 포인터를 찾지 못했습니다."
+          fi
+
+      - name: LFS 오브젝트 pull
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git lfs pull
+
+      - name: LFS pull 결과 요약
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "LFS tracked files after pull:"
+          git lfs ls-files --long
+
+          echo "Downloaded LFS working tree size:"
+          git lfs ls-files -n | while IFS= read -r path; do
+            if [ -f "$path" ]; then
+              bytes="$(wc -c < "$path" | tr -d ' ')"
+              echo "${bytes} ${path}"
+            else
+              echo "missing ${path}"
+            fi
+          done
