@@ -33,6 +33,10 @@ public class SrpM1PlayModeTests
         Assert.IsTrue(controller.TestHasLeftConsolePanel, "좌측 조작 콘솔이 생성되지 않았습니다.");
         Assert.IsTrue(controller.TestHasActiveUnitCardPanel, "좌측 하단 현재 유닛 카드가 생성되지 않았습니다.");
         Assert.IsTrue(controller.TestHasActionPreviewPanel, "우측 하단 행동 preview 카드가 생성되지 않았습니다.");
+        Assert.LessOrEqual(controller.TestLeftConsoleWidth, 190f, "좌측 콘솔이 설명/스킬 영역까지 품는 이전 폭으로 유지되고 있습니다.");
+        Assert.IsFalse(controller.TestLogDrawerVisible, "로그 패널은 기본 접힘 상태로 시작해야 합니다.");
+        Assert.IsTrue(controller.TestLogDrawerBodyCollapsed, "접힌 로그는 본문 영역을 숨겨야 합니다.");
+        Assert.LessOrEqual(controller.TestLogDrawerWidth, 93f, "접힌 로그는 작은 재열기 레일만 차지해야 합니다.");
 
         var turnHud = controller.TestTurnHudText;
         var statusHud = controller.TestStatusHudText;
@@ -79,6 +83,8 @@ public class SrpM1PlayModeTests
         StringAssert.Contains("남", controller.TestFacingSouthButtonText);
         StringAssert.Contains("서", controller.TestFacingWestButtonText);
         StringAssert.Contains("SRPG 프로토타입", controller.TestLogText);
+        Assert.IsTrue(controller.TestShowLogDrawer(), "로그는 필요할 때 다시 열 수 있어야 합니다.");
+        Assert.IsTrue(controller.TestHideLogDrawer(), "로그를 다시 접으면 화면 공간을 반환해야 합니다.");
 
         Object.Destroy(go);
         yield return null;
@@ -192,11 +198,16 @@ public class SrpM1PlayModeTests
         {
             string skillList = controller.TestSkillListText;
             Assert.IsNotEmpty(skillList, "프리셋 v2 스킬 목록이 비어 있습니다.");
+            Assert.IsTrue(controller.TestSkillSelectionDrawerDetachedFromLeftConsole, "스킬 선택 UI는 좌측 콘솔 내부에 끼워 넣지 않고 별도 drawer여야 합니다.");
+            Assert.IsTrue(controller.TestSkillSelectionDrawerHasCloseButton, "스킬 선택 drawer에는 명시적인 닫기 버튼이 필요합니다.");
             Assert.IsFalse(skillList.Contains("CD:"), "스킬 목록에 이전 쿨다운 약어가 남아 있습니다.");
             Assert.IsFalse(skillList.Contains("CH:"), "스킬 목록에 이전 충전 약어가 남아 있습니다.");
             Assert.IsTrue(
                 skillList.Contains("충전") || skillList.Contains("쿨다운") || skillList.Contains("오버클럭") || skillList.Contains("패링 가능"),
                 "스킬 목록이 최신 자원/태그 정보를 노출하지 않습니다.");
+            Assert.IsTrue(controller.TestCloseSkillListWithCloseButton(), "스킬 선택 drawer 닫기 버튼이 패널을 닫아야 합니다.");
+            Assert.IsTrue(controller.TestShowSkillList(), "스킬 선택 drawer는 닫은 뒤에도 다시 열 수 있어야 합니다.");
+            Assert.IsTrue(controller.TestToggleSkillListClosedFromCommandButton(), "열린 스킬 선택 drawer는 스킬 버튼 재클릭으로 닫혀야 합니다.");
         }
 
         controller.OnUnitHoverExit(controller.TestCurrentUnitId);

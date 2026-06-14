@@ -119,6 +119,8 @@
 - [x] Phase2 개발용 전술 HUD 개선
   - 좌측 하단 현재 유닛 카드와 우측 하단 행동 preview 카드 추가
   - HP/PG/AP/탄약 숫자+게이지 표시와 이동/공격/스킬/상호작용 hover preview 연결
+  - 좌측 전술 콘솔은 명령 전용 레일로 유지하고, 스킬 선택은 별도 drawer로 분리
+  - 로그 패널은 기본 접힘 상태로 시작하며 펼침/접힘 시 화면 공간 반환을 PlayMode 계약으로 고정
   - 텍스처 없이 uGUI/TMP 단색 패널로 구현해 정식 UI 전환 전 테스트 편의성 확보
   - EditMode 테스트 `59 passed / 0 failed`, PlayMode 테스트 `5 passed / 0 failed`
 - [x] Phase2 총기 1발 고화력 + 방향성 엄폐 설계
