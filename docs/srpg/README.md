@@ -21,6 +21,7 @@
 | 실행 | `SRPG_BACKLOG.md`, `SRPG_PHASE2_CODE_BACKLOG.md` | 다음 구현 순서와 파일별 작업 단위를 관리한다. |
 | 검증 | `SRPG_GDD_TEST_TRACEABILITY.md`, `SRPG_M1_QA_TEST_RUNNER_CHECKLIST.md`, `SRPG_AI_SIMULATION_GUIDE.md` | 테스트 커버, QA, 시뮬레이션 확인에 사용한다. |
 | 의사결정 | `SRPG_IMPLEMENTATION_DECISIONS.md` | 구현 브릿지와 다음 목표 의사결정 후보를 관리한다. |
+| 구현 지시 | `SRPG_BALANCE_FEEDBACK_EXECUTION_PROMPT_2026-06-15.md` | PG 붕괴/그로기/처단/피해 페이싱 밸런스 후속 구현 프롬프트. |
 | 기록 | `SRPG_CHANGELOG.md`, `SRPG_V0_ARCHIVE.md`, `SRPG_레거시_코드_분류.md` | 완료 이력과 과거 기준을 확인한다. |
 | 원문 | `new/*.txt`, `new/*.md`, PDF/DOCX 변환본 | 기준서가 놓친 맥락 확인에만 사용한다. |
 
