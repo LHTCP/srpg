@@ -41,19 +41,19 @@ LHTCP/
 먼저 메인 체크아웃에서 부트스트랩 스크립트를 실행해 `worktrees/` 폴더와 Git 안전 설정을 맞춘다.
 
 ```powershell
-cd D:/WorkDir/LHTCP/srpg
+cd <workspace-root>/srpg
 ./scripts/bootstrap.ps1
 ```
 
 ```powershell
-cd D:/WorkDir/LHTCP/srpg
+cd <workspace-root>/srpg
 git worktree add ../worktrees/feature-ci-fast-checks -b feature/ci-fast-checks
 ```
 
 기존 원격 브랜치를 붙일 때:
 
 ```powershell
-cd D:/WorkDir/LHTCP/srpg
+cd <workspace-root>/srpg
 git worktree add ../worktrees/fix-doc-version origin/fix/doc-version
 ```
 
@@ -67,7 +67,7 @@ git worktree add ../worktrees/fix-doc-version origin/fix/doc-version
 ## 정리 예시
 
 ```powershell
-cd D:/WorkDir/LHTCP/srpg
+cd <workspace-root>/srpg
 git worktree remove ../worktrees/feature-ci-fast-checks
 ```
 
@@ -81,8 +81,8 @@ git branch -d feature/ci-fast-checks
 
 Windows 로컬 환경에서는 저장소 소유권 차이로 `safe.directory` 설정이 추가로 필요할 수 있다.
 
-- 메인 체크아웃: `D:/WorkDir/LHTCP/srpg`
-- 워크트리 예시: `D:/WorkDir/LHTCP/worktrees/feature-ci-fast-checks`
+- 메인 체크아웃: `<workspace-root>/srpg`
+- 워크트리 예시: `<workspace-root>/worktrees/feature-ci-fast-checks`
 
 필요 시 각 경로를 개별 등록한다.
 

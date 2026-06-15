@@ -1,0 +1,129 @@
+name: Windows PC 데모 빌드
+
+on:
+  # 첫 Windows Delivery 경로는 비용과 실패 원인 파악을 위해 수동 실행으로 시작한다.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-demo-build
+  cancel-in-progress: false
+
+jobs:
+  windows-build:
+    name: Windows zip artifact 생성
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: LFS 오브젝트 가져오기
+        # public repo에 사설 LFS 서버 URL을 노출하지 않기 위해 LFS_URL repository variable을 사용한다.
+        # actions/checkout의 lfs:true 대신 체크아웃 이후 명시적으로 LFS URL과 인증을 주입한 뒤 pull한다.
+        env:
+          LFS_ACCOUNT_ID: ${{ secrets.LFS_ACCOUNT_ID }}
+          LFS_ACCOUNT_PASSWORD: ${{ secrets.LFS_ACCOUNT_PASSWORD }}
+          LFS_URL: ${{ vars.LFS_URL }}
+        run: |
+          if [ -z "${LFS_URL:-}" ]; then
+            echo "::error::사설 LFS 서버 URL 주입을 위해 LFS_URL repository variable이 필요합니다."
+            exit 1
+          fi
+
+          tracked_lfs_url="$(git config --file .lfsconfig --get remote.origin.lfsurl || true)"
+          if [ "$tracked_lfs_url" != "$LFS_URL" ]; then
+            echo "::error::.lfsconfig의 LFS URL이 repository variable LFS_URL과 다릅니다."
+            exit 1
+          fi
+
+          if [ -z "${LFS_ACCOUNT_ID:-}" ] || [ -z "${LFS_ACCOUNT_PASSWORD:-}" ]; then
+            echo "::error::커스텀 LFS 서버 인증을 위해 LFS_ACCOUNT_ID, LFS_ACCOUNT_PASSWORD repository secret이 필요합니다."
+            exit 1
+          fi
+
+          lfs_host="${LFS_URL#https://}"
+          lfs_host="${lfs_host%%/*}"
+          if [ -z "$lfs_host" ] || [ "$lfs_host" = "$LFS_URL" ]; then
+            echo "::error::LFS_URL에서 host를 추출하지 못했습니다."
+            exit 1
+          fi
+
+          git config --local remote.origin.lfsurl "$LFS_URL"
+          git config --global credential.helper store
+          printf "protocol=https\nhost=%s\nusername=%s\npassword=%s\n\n" "$lfs_host" "$LFS_ACCOUNT_ID" "$LFS_ACCOUNT_PASSWORD" | git credential approve
+          git lfs install --local
+          git lfs pull
+
+      - name: 빌드 버전 계산
+        id: version
+        shell: bash
+        run: |
+          base_version="$(grep -m1 '^[[:space:]]*bundleVersion:' ProjectSettings/ProjectSettings.asset | awk '{print $2}')"
+          if [ -z "${base_version:-}" ]; then
+            echo "::error::ProjectSettings.asset에서 bundleVersion을 찾지 못했습니다."
+            exit 1
+          fi
+
+          build_number="${GITHUB_RUN_NUMBER}"
+          full_version="${base_version}.${build_number}"
+          short_sha="${GITHUB_SHA::7}"
+          artifact_name="srpg-demo-windows-${full_version}-${short_sha}"
+
+          {
+            echo "base_version=${base_version}"
+            echo "build_number=${build_number}"
+            echo "full_version=${full_version}"
+            echo "short_sha=${short_sha}"
+            echo "artifact_name=${artifact_name}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Unity Library 캐시 복원
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-Unity-6000.3.13f1-StandaloneWindows64-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: |
+            Library-${{ runner.os }}-Unity-6000.3.13f1-StandaloneWindows64-
+
+      - name: Windows 빌드 실행
+        # GameCI unity-builder는 StandaloneWindows64 targetPlatform과 Custom versioning을 지원한다.
+        # 이 단계는 itch.io 업로드를 하지 않고, Windows zip artifact 생성까지만 담당한다.
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.3.13f1
+          targetPlatform: StandaloneWindows64
+          buildsPath: build
+          buildName: WindowsDemo
+          versioning: Custom
+          version: ${{ steps.version.outputs.full_version }}
+
+      - name: Windows zip 패키징
+        env:
+          BUILD_DIR: build/StandaloneWindows64
+          ARTIFACT_NAME: ${{ steps.version.outputs.artifact_name }}
+          BASE_VERSION: ${{ steps.version.outputs.base_version }}
+          FULL_VERSION: ${{ steps.version.outputs.full_version }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          CHANNEL: development
+          COMMIT_SHA: ${{ github.sha }}
+          SHORT_SHA: ${{ steps.version.outputs.short_sha }}
+          BRANCH_NAME: ${{ github.ref_name }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: bash scripts/package-windows-demo.sh
+
+      - name: Windows zip artifact 업로드
+        # 배포용 artifact와 진단용 artifact를 섞지 않기 위해 zip 하나만 올린다.
+        # retention을 늘리면 GitHub Actions artifact storage 정책과 비용 영향을 다시 리뷰한다.
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.artifact_name }}
+          path: dist/${{ steps.version.outputs.artifact_name }}.zip
+          if-no-files-found: error
+          retention-days: 7

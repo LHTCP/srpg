@@ -160,3 +160,104 @@
 
 - 정식 UI 단계에서는 명령 레일, 스킬 drawer, 하단 preview 카드의 위치/크기/애니메이션을 실제 해상도별 mockup으로 다시 검토한다.
 - 로그는 기본 접힘을 유지하되, 전투 이벤트 중요도에 따라 자동 펼침/토스트 요약이 필요한지는 플레이 QA 뒤에 결정한다.
+## 2026-06-07 전투 UX 피드백 레이어 P1
+
+### 임시 시각 규칙
+
+- 현재 행동 유닛 ring은 노랑, 선택 유닛 ring은 청록, hover 유닛 ring은 흰색으로 둔다.
+- 같은 유닛에 여러 상태가 겹치면 현재 행동 ring은 바깥쪽, 선택 ring은 중간, hover ring은 안쪽/상단으로 보이게 반지름과 높이를 다르게 둔다.
+- ZOC/교전 표시는 타일 오버레이가 아니라 유닛 위 world-space badge로 둔다.
+  - 교전 상태는 `교전` 자홍 badge
+  - ZOC 인접 상태는 `ZOC` 노랑 badge
+- 기존 타일 오버레이 색상 의미는 유지한다.
+  - 초록: 이동
+  - 빨강/비강: 공격/위험
+  - 주황: ZOC/주의 타일
+  - 보라: 스킬 대상
+  - 청록: 패링 텔레그래프
+- 이번 P1의 badge/ring 색은 유닛 위 표식이므로 위험영역 타일 의미와 직접 충돌하지 않게 배치한다.
+
+### Floating text / flash 분류
+
+- 턴 시작/턴 종료는 해당 유닛 위에 짧은 floating text를 띄운다.
+- 공격, 기회공격, 오버워치 발동, 스킬 준비/사용, 재장전, 엄폐, 상호작용, 오버클럭은 즉시 world-space text를 띄운다.
+- 피해/부정 변화는 붉은 flash, 회복/긍정 변화는 녹색/청록 flash, 턴/선택/중립 피드백은 노랑/흰색 flash로 둔다.
+- 스킬 결과 flash는 HP/PG 변화량을 기준으로 판단한다. 버프/디버프 전용 정교화는 후속 VFX 단계에서 조정한다.
+
+### 비범위와 후속
+
+- 새 전투 규칙, 파티클/VFX 고도화, 행동 순서 패널, 메이커 드롭다운/툴팁 개선은 이번 P1 비범위다.
+- 맵 메이커 엄폐 segment 편집 UI와 모바일/WebGL 전용 조정도 비범위다.
+- TMP 기본 폰트는 한국어 UI 렌더링을 위해 `Pretendard-Regular SDF.asset`를 유지한다. 로컬 PlayMode 검증 전에는 LFS 원본 asset을 받아야 하며, `LiberationSans SDF.asset`로 대체하면 한국어 glyph가 누락될 수 있다.
+- 실제 Unity 에디터 플레이에서는 ring 두께, badge 높이, floating text 지속시간을 화면 가독성 기준으로 추가 튜닝할 수 있다.
+
+### 검증
+
+- EditMode: `76 passed / 0 failed`
+- PlayMode: `6 passed / 0 failed`
+- PlayMode에 현재 행동/선택/hover ring, ZOC/교전 badge, 턴 시작/종료, 스킬 준비/사용 feedback 계약을 추가 검증했다.
+
+## 2026-06-07 PR #61 실플레이 피드백 보정
+
+### Ring 기준 보정
+
+- ring은 유닛 발아래 타일 위에 얹히는 decal/annulus 표식을 기준으로 한다. 타일 전체를 다시 칠하는 overlay가 아니다.
+- 현재 타일 cube는 중심 `y=0`, 높이 `0.15`이므로 표면은 `y=0.075`다. ring은 이보다 위에 있어야 하며, 현재 행동/선택/hover 순으로 `0.110 / 0.123 / 0.136` 높이를 사용한다.
+- 기존 ring mesh는 위에서 볼 때 뒷면이 될 수 있어, triangle winding을 위쪽 normal 기준으로 뒤집었다.
+- 현재 행동 ring은 가장 바깥 노랑, 선택 ring은 중간 청록, hover ring은 안쪽 흰색으로 둔다. 같은 유닛에 겹쳐도 반지름과 y offset이 모두 달라야 한다.
+- 실플레이 2차 피드백 기준으로 ring은 큰 경고 원이 아니라 발아래 얇은 표식으로 보이게 current/selected/hover 반지름을 낮추고 선 두께를 줄였다.
+- 색상도 고채도 원색 대신 차분한 amber/teal/ivory 계열로 낮춘다.
+
+### Floating feedback 가독성 기준
+
+- feedback text는 전체 `2.15s`, 초기 `1.25s` 완전 불투명 유지 후 후반 fade out을 기준으로 한다.
+- TMP 기본 폰트는 한국어 glyph 보존을 위해 `Pretendard-Regular SDF.asset`를 유지한다. `LiberationSans SDF.asset` 대체는 금지한다.
+- 텍스트 크기를 키우고 TMP outline과 검은 shadow를 적용해 전장 배경 위에서 대비를 확보한다.
+- 실플레이 2차 피드백 기준으로 text 크기는 과하게 크지 않게 낮추되, outline/shadow와 hold time으로 읽힘을 보완한다.
+- 같은 유닛에 짧은 시간 안에 feedback이 여러 개 뜨면 per-unit active lane 수로 시작 위치를 보드 평면의 screen-up/side 방향에 분산한다. 턴 종료+턴 시작, 스킬 준비+사용이 같은 위치에 완전히 겹치면 안 된다.
+- 탑다운 카메라에서는 `Vector3.up` 이동이 화면상 거의 보이지 않으므로, 카메라 up/right를 보드 평면에 투영한 방향으로 이동/stack한다. world Y 이동은 연결감을 잃지 않는 작은 보조값만 둔다.
+
+### 검증
+
+- PlayMode에 ring 높이, ring 반지름/높이 구분, feedback duration/hold, 같은 유닛 feedback 2개 이상의 시작 위치 분산 계약을 추가했다.
+- 로컬 Unity batchmode EditMode: `76 passed / 0 failed`.
+- 로컬 Unity batchmode PlayMode: `6 passed / 0 failed`.
+
+## 2026-06-08 첫 전투 밸런스 관찰 P2
+
+### AI matrix 결과
+
+- `M1OpeningPrototype` 전용 EditMode 관찰 테스트 `Run_M1OpeningPrototype_Ai_Policy_Matrix_For_BalanceObservation`을 추가했다.
+- 300 trials, max 16 rounds 기준 핵심 정책 케이스 평균 종료 라운드는 Heuristic vs Random `8.31`, Random vs Heuristic `7.65`, Heuristic vs Heuristic `8.00`이다.
+- 세 핵심 케이스가 6~10라운드 목표 범위에 들어오므로 이번 차수에서는 적 수, 초기 배치 간격, HP/PG, 속도, 사거리, 탄약, 엄폐/상호작용 배치를 조정하지 않는다.
+- Random vs Random은 평균 `15.64`라운드, 무승부 `0.827`로 장기전 편향이 크지만 완전 랜덤 정책 관찰용이므로 밸런스 게이트에서 제외한다.
+
+### 남은 판단
+
+1. Heuristic vs Heuristic에서 owner0 승률이 `1.000`이므로, 첫 전투가 플레이어 우세 학습 전투인지 더 팽팽한 AI 미러 검증 맵이어야 하는지는 후속 플레이 세션에서 확인한다.
+2. 북쪽 사격 루트와 남쪽 돌입/상호작용 루트가 실제 사람 플레이에서도 서로 다른 판단으로 읽히는지는 화면 관찰 표본이 더 필요하다.
+3. `blocksLineOfSight` 엄폐는 자동 시뮬레이션에서 총기 HP 비중과 근접 PG 비중을 무너뜨리지 않았지만, 시각적으로 답답한 차단인지 읽을 수 있는 위협인지는 `TBD-012` 화면 문법과 함께 재확인한다.
+
+## 2026-06-08 P2 후보: 총기 발포 방향/조준 문법 (`TBD-010`)
+
+- 현상: 총기 발포 방향이 기본 공격/오버워치/발포 연출에서 모두 8방향 직선 사선처럼 고정되어 보이는 문제가 있다.
+- 기존 확정 범위: 명시형 `ReactionShot`/오버워치의 1차 규칙은 8방향 직선 사선, 장애물/유닛/`blocksLineOfSight` segment 차단이다.
+- 분리 필요성: 총기 기본 공격까지 항상 같은 8방향 문법을 따라야 하는지는 아직 확정하지 않았다. 플레이어가 보는 조준 가능 방향, 발포 연출, 타일 overlay가 오버워치 규칙을 그대로 복사하면 유닛 facing 4방향/정면·측면·후방 판정과 충돌해 보일 수 있다.
+- P2 확인 항목:
+  1. 총기 기본 공격의 조준 가능 범위를 8방향 직선 사선으로 유지할지, 목표 타일 기반 사선/무기별 arc로 분리할지 결정
+  2. 오버워치 사격은 기존 8방향 규칙을 유지하더라도 기본 공격 UI/연출은 별도 문법을 쓸 수 있는지 검토
+  3. 유닛 facing 4방향, 방향성 엄폐 edge, `blocksLineOfSight` 차단이 발포 방향 표시와 같은 언어로 읽히는지 실제 플레이 화면에서 검증
+  4. 확정 후 `SrpOverwatch`, `SrpGameController`, `SrpGameController.Rendering`, 관련 PlayMode 시각/계약 테스트 갱신
+
+## 2026-06-08 P2/P3 UX 후속 범위 명시 (`TBD-011`~`TBD-013`)
+
+- 행동 순서 패널 (`TBD-011`)
+  - 현재 턴/라운드 정보는 상단 HUD에 남기되, 행동 순서와 다음 행동 후보는 별도 initiative/turn order tracker로 분리하는 방향을 P2 후보로 둔다.
+  - 최소 기준은 현재 유닛 강조, 다음 3~5명 미리보기, 초상/아이콘 열 구성이다.
+- 타일 overlay 시각 문법 (`TBD-012`)
+  - PR #61의 유닛 발밑 ring은 유닛 상태 레이어이고, 이동/공격/ZOC/오버워치/패링/상호작용 타일 overlay는 별도 레이어다.
+  - 이동 가능 범위는 중심 원/작은 그림자, 공격 가능 범위는 외곽 danger/테두리, ZOC는 얇은 경고 ring 후보로 분리한다.
+  - 오버워치/패링/상호작용은 같은 시각 문법에 색상만 달리하는 방식이 충분한지 실제 플레이 화면에서 검증한다.
+- 메이커 화면 UX (`TBD-013`)
+  - 효과유형 드롭다운 스크롤 지연은 우선 재현 확인이 필요하다.
+  - 입력 가능 값과 필드 의미 툴팁은 유용하지만 전투 플레이 가독성보다 후순위인 P3로 둔다.

@@ -4,6 +4,7 @@
 
 ## 기본 원칙
 
+- 현재 프로젝트는 로컬 Unity 에디터와 로컬 에이전트 개발을 주력으로 두고, PR/CI/CD는 얇은 통합 안전망으로 사용한다.
 - 로컬 개발 방식은 자유롭게 둔다.
 - 기본 브랜치 통합은 PR 기준으로 관리한다.
 - PR은 작게 유지하고, 한 PR은 한 주제를 다룬다.
@@ -52,7 +53,7 @@ Unity 테스트 워크플로가 안정화된 뒤 추가 후보:
 - EditMode 테스트
 - PlayMode 테스트
 
-플랫폼 빌드 워크플로는 무겁기 때문에 초기에는 required check로 두지 않는다. 릴리스 또는 수동 실행 기준을 먼저 정한다.
+플랫폼 빌드 워크플로는 무겁기 때문에 초기에는 required check로 두지 않는다. 초기 플랫폼은 PC로 고정하고, Windows artifact 또는 GitHub Release asset을 수동 실행 기준으로 먼저 안정화한다.
 
 `Unity EditMode 테스트` 워크플로는 초기에는 수동 실행(`workflow_dispatch`)으로 둔다. GitHub Actions의 `workflow_dispatch`는 워크플로 파일이 기본 브랜치에 있어야 수동 실행 이벤트를 받으므로, 신규 워크플로 PR에서는 병합 후 첫 수동 실행을 확인한다. `UNITY_LICENSE` 시크릿 설정, 최초 실행 성공 여부, 실행 시간, artifact/cache 사용량을 확인한 뒤 required check 승격 여부를 결정한다.
 
@@ -69,9 +70,9 @@ public 저장소의 standard GitHub-hosted runner는 무료로 사용할 수 있
 
 이 항목을 바꾸는 PR은 셀프리뷰 코멘트나 PR 본문에 비용 검토 내용을 남긴다.
 
-현재 저장소는 `.lfsconfig`로 커스텀 LFS 서버를 사용한다. 이 경우 GitHub Actions standard runner 실행 시간 자체와 별개로, LFS 다운로드는 커스텀 서버의 네트워크 접근성, 인증, 트래픽 한도를 함께 확인한다.
+현재 저장소는 `.lfsconfig`로 커스텀 LFS 서버를 사용한다. URL 자체는 secret이 아니지만 public repo에서 인프라 식별자가 노출될 수 있으므로, GitHub Actions에서는 repository variable `LFS_URL`과 `.lfsconfig` 값이 일치하는지 대조한다. mirror 또는 공개용 LFS endpoint로 전환하면 `.lfsconfig`와 `LFS_URL`을 같은 PR에서 함께 갱신한다.
 
-GitHub-hosted runner에서 커스텀 LFS 서버를 사용하려면 repository secret `LFS_ACCOUNT_ID`, `LFS_ACCOUNT_PASSWORD`를 설정한다. `LFS_ACCOUNT_PASSWORD`에는 계정 비밀번호 대신 LFS 서버에서 발급한 토큰 또는 최소 권한 자격 증명을 우선 사용한다.
+GitHub-hosted runner에서 커스텀 LFS 서버를 사용하려면 repository variable `LFS_URL`과 repository secret `LFS_ACCOUNT_ID`, `LFS_ACCOUNT_PASSWORD`를 설정한다. `LFS_ACCOUNT_PASSWORD`에는 계정 비밀번호 대신 LFS 서버에서 발급한 토큰 또는 최소 권한 자격 증명을 우선 사용한다.
 
 ## Unity 에디터 확인 경계
 

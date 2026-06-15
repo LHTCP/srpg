@@ -1,13 +1,30 @@
-name: Unity EditMode 테스트
+name: WebGL 무료 Delivery
 
 on:
-  # 참고: workflow_dispatch는 워크플로 파일이 기본 브랜치에 있어야 수동 실행 이벤트를 받는다.
-  # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatch
+  # 첫 무료 Delivery 경로는 비용 예측을 위해 수동 실행으로 시작한다.
   workflow_dispatch:
+    inputs:
+      deploy_pages:
+        description: "main 브랜치 실행 결과를 GitHub Pages에 배포"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: webgl-pages
+  cancel-in-progress: false
 
 jobs:
-  editmode-tests:
-    name: EditMode 테스트 실행
+  webgl-build:
+    name: WebGL 빌드와 Pages 배포 준비
     runs-on: ubuntu-latest
     steps:
       - name: 저장소 체크아웃
@@ -16,7 +33,6 @@ jobs:
       - name: LFS 오브젝트 가져오기
         # public repo에 사설 LFS 서버 URL을 노출하지 않기 위해 LFS_URL repository variable을 사용한다.
         # actions/checkout의 lfs:true 대신 체크아웃 이후 명시적으로 LFS URL과 인증을 주입한 뒤 pull한다.
-        # https://docs.github.com/billing/managing-billing-for-git-large-file-storage/about-billing-for-git-large-file-storage
         env:
           LFS_ACCOUNT_ID: ${{ secrets.LFS_ACCOUNT_ID }}
           LFS_ACCOUNT_PASSWORD: ${{ secrets.LFS_ACCOUNT_PASSWORD }}
@@ -55,29 +71,41 @@ jobs:
         uses: actions/cache@v4
         with:
           path: Library
-          key: Library-${{ runner.os }}-Unity-6000.3.13f1-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json', 'ProjectSettings/ProjectVersion.txt') }}
+          key: Library-${{ runner.os }}-Unity-6000.3.13f1-WebGL-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json', 'ProjectSettings/ProjectVersion.txt') }}
           restore-keys: |
-            Library-${{ runner.os }}-Unity-6000.3.13f1-
+            Library-${{ runner.os }}-Unity-6000.3.13f1-WebGL-
 
-      - name: EditMode 테스트 실행
-        id: unity-tests
-        # 참고: GameCI Test Runner는 Unity 라이선스 시크릿과 testMode/artifactsPath 입력을 지원한다.
-        # https://game.ci/docs/github/test-runner/
-        uses: game-ci/unity-test-runner@v4
+      - name: WebGL 빌드 실행
+        # GameCI unity-builder는 targetPlatform=WebGL을 지원한다.
+        # WebGL 산출물은 build/WebGL 아래에 만들고, Actions artifact와 Pages artifact가 같은 경로를 보게 한다.
+        uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         with:
           unityVersion: 6000.3.13f1
-          testMode: EditMode
-          artifactsPath: artifacts
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          targetPlatform: WebGL
+          buildsPath: build
+          buildName: WebGL
 
-      # 테스트 결과는 실패 시 원인 확인에 필요하지만, 보관 기간이 길어지면 저장소 비용/한도에 영향을 줄 수 있다.
-      - name: 테스트 결과 업로드
-        if: always()
+      - name: WebGL artifact 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: unity-editmode-test-results
-          path: artifacts
-          if-no-files-found: warn
+          name: srpg-webgl-${{ github.sha }}
+          path: build/WebGL
+          if-no-files-found: error
           retention-days: 7
+
+      - name: GitHub Pages 설정
+        if: ${{ github.ref == 'refs/heads/main' && inputs.deploy_pages == 'true' }}
+        uses: actions/configure-pages@v5
+
+      - name: Pages artifact 업로드
+        if: ${{ github.ref == 'refs/heads/main' && inputs.deploy_pages == 'true' }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/WebGL
+
+      - name: GitHub Pages 배포
+        if: ${{ github.ref == 'refs/heads/main' && inputs.deploy_pages == 'true' }}
+        id: deployment
+        uses: actions/deploy-pages@v4

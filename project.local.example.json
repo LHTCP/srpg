@@ -11,8 +11,8 @@
     "preferVerboseCommentsForShellAndCiScripts": true
   },
   "workspace": {
-    "mainRepoPath": "D:/WorkDir/LHTCP/srpg",
-    "worktreeRoot": "D:/WorkDir/LHTCP/worktrees"
+    "mainRepoPath": "<workspace-root>/srpg",
+    "worktreeRoot": "<workspace-root>/worktrees"
   },
   "git": {
     "autoSafeDirectory": true,

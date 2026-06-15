@@ -12,6 +12,15 @@
   - 기획자 피드백을 `SRPG_BALANCE_FEEDBACK_EXECUTION_PROMPT_2026-06-15.md`로 정리하고 문서 맵에 연결
   - 확정 구현 요구와 기획 확인 필요 항목을 분리해 다음 구현 세션에서 바로 착수 가능하게 정리
 
+## 2026-06-08
+
+- 첫 전투 밸런스 관찰 P2
+  - `M1OpeningPrototype` 전용 AI policy matrix 관찰 테스트 추가: `SrpM1AiSimAllEntry.Run_M1OpeningPrototype_Ai_Policy_Matrix_For_BalanceObservation`
+  - 핵심 정책 케이스 평균 종료 라운드 확인: Heuristic vs Random `8.31`, Random vs Heuristic `7.65`, Heuristic vs Heuristic `8.00`
+  - 6~10라운드 목표 범위에 들어와 이번 차수에서는 적 수, 배치 간격, HP/PG, 속도, 사거리, 탄약, 엄폐/상호작용 배치를 조정하지 않음
+  - Random vs Random은 평균 `15.64`라운드/무승부 `0.827`로 관찰용 경향으로만 유지
+  - 검증 통과: EditMode `77 passed / 0 failed`, PlayMode `6 passed / 0 failed`
+
 ## 2026-06-03
 
 - 첫 전투 프로토타입 프리셋 추가
@@ -308,6 +317,26 @@
   - 유닛 hover 시 해당 유닛의 공격범위/ZOC 미리보기 표시
   - 적 예상 intent(경량 휴리스틱) 경로/타깃 타일 표시 추가
   - PlayMode 테스트에 위험영역 토글/hover 상태 문구 검증 추가
+- 전투 UX 피드백 레이어 P1
+  - 현재 행동/선택/hover 유닛 ring과 ZOC/교전 unit badge 추가
+  - 턴 시작/종료, 공격, 스킬 준비/사용, 재장전, 엄폐, 상호작용, 오버워치 world-space feedback 추가
+  - 피해/회복/턴/선택 계열 unit flash 추가
+  - PlayMode 테스트에 ring/badge/floating feedback 계약 assert 추가
+  - TMP 기본 폰트는 한국어 UI 렌더링을 위해 Pretendard SDF를 유지하고, PlayMode 검증 전 LFS 원본 asset 확보 필요성을 확인
+  - 검증: EditMode `76 passed / 0 failed`, PlayMode `6 passed / 0 failed`
+- PR #61 전투 UX 피드백 레이어 P1 실플레이 보정
+  - 유닛 ring을 타일 표면 위 발아래 decal 기준으로 올리고 mesh winding/반지름/높이 우선순위를 수정
+  - world-space feedback text 표시 시간을 늘리고 hold 후 fade, TMP outline/shadow, per-unit stacking을 추가
+  - 실플레이 2차 피드백에 맞춰 ring 크기/두께, 색상 채도, world-space feedback text 크기를 낮춤
+  - Pretendard SDF 유지 원칙을 재확인하고 LiberationSans 대체를 금지
+  - 검증: EditMode `76 passed / 0 failed`, PlayMode `6 passed / 0 failed`
+- P2 총기 발포 방향/조준 문법 이슈 문서화
+  - 총기 발포 방향이 기본 공격/오버워치/발포 연출에서 모두 8방향 직선 사선처럼 보이는 문제를 `TBD-010`으로 분리
+  - 오버워치의 8방향 규칙과 총기 기본 공격 UI/연출 문법을 같은 계약으로 둘지 P2에서 재검토
+- P2/P3 UX 후속 항목 문서화
+  - 행동 순서 패널 분리를 `TBD-011`로 명시
+  - 이동/공격/ZOC/오버워치/패링/상호작용 타일 overlay 시각 문법 개편을 `TBD-012`로 분리
+  - 메이커 효과유형 드롭다운 성능/툴팁 개선을 P3 `TBD-013`으로 분리
 
 ## 기록 원칙
 
