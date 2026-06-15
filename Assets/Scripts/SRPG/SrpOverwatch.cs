@@ -47,11 +47,11 @@ public static class SrpOverwatch
             return SrpOverwatchArmStatus.NoAction;
         if (unit.reactionPoints <= 0)
             return SrpOverwatchArmStatus.NoReaction;
-        if (unit.weaponClass != SrpWeaponClass.Firearm)
+        if (unit.maxAmmo <= 0)
             return SrpOverwatchArmStatus.NotFirearm;
         if (unit.attackRange <= 1)
             return SrpOverwatchArmStatus.RangeTooShort;
-        if (!unit.HasAmmoForAttack())
+        if (unit.ammo <= 0)
             return SrpOverwatchArmStatus.NoAmmo;
         return SrpOverwatchArmStatus.Ready;
     }
@@ -78,9 +78,13 @@ public static class SrpOverwatch
             return false;
         if (watcher.owner == target.owner || watcher.reactionPoints <= 0)
             return false;
-        if (!watcher.HasAmmoForAttack())
+        if (watcher.maxAmmo <= 0 || watcher.ammo <= 0)
+            return false;
+        if (state.ChebyshevAnchor(watcher, target) <= 1)
             return false;
         int range = watcher.overwatchRange > 0 ? watcher.overwatchRange : watcher.attackRange;
+        if (range <= 1)
+            return false;
         return IsTileInLineOfSight(state, watcher, target.anchorX, target.anchorY, range, target.id);
     }
 
@@ -178,7 +182,9 @@ public static class SrpFirearmAim
         out SrpFirearmAimLine line)
     {
         line = default;
-        if (target == null)
+        if (state == null || attacker == null || target == null)
+            return false;
+        if (state.ChebyshevAnchor(attacker, target) <= 1)
             return false;
         return TryBuildAimLine(
             state,

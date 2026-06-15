@@ -16,6 +16,7 @@ public partial class SrpGameController
     const int OverlayOverwatch = 25;
     const int OverlayCover = 27;
     const int OverlayInteraction = 28;
+    const int OverlayMovePreviewCover = 29;
     const int OverlaySkill = 30;
     const int OverlayParryTelegraph = 35;
     const int OverlayDangerAttack = 40;
@@ -24,6 +25,9 @@ public partial class SrpGameController
     const int OverlayUnitHoverRange = 70;
     const int OverlayUnitHoverZoc = 80;
     const int OverlayAimLine = 85;
+    const int OverlayThreatLine = 86;
+    const int OverlayOverwatchThreatLine = 87;
+    const int OverlayOverwatchThreatEndpoint = 88;
     const int OverlayIntentPath = 90;
     const int OverlayIntentTarget = 100;
     const int OverlayHover = 110;
@@ -44,6 +48,7 @@ public partial class SrpGameController
         OverlayOverwatch,
         OverlayCover,
         OverlayInteraction,
+        OverlayMovePreviewCover,
         OverlaySkill,
         OverlayParryTelegraph,
         OverlayDangerAttack,
@@ -52,6 +57,9 @@ public partial class SrpGameController
         OverlayUnitHoverRange,
         OverlayUnitHoverZoc,
         OverlayAimLine,
+        OverlayThreatLine,
+        OverlayOverwatchThreatLine,
+        OverlayOverwatchThreatEndpoint,
         OverlayIntentPath,
         OverlayIntentTarget,
         OverlayHover,
@@ -75,11 +83,18 @@ public partial class SrpGameController
     static Mesh s_tileBorderMesh;
     static Mesh s_tileDiamondMesh;
     static Mesh s_tileCrossMesh;
+    static Mesh s_unitFacingArrowMesh;
     GameObject _unitFeedbackRoot;
     GameObject _tileOverlayRoot;
+    GameObject _coverObjectRoot;
+    GameObject _movePreviewThreatRoot;
     GameObject _currentUnitRing;
     GameObject _selectedUnitRing;
     GameObject _hoverUnitRing;
+    GameObject _moveGhostUnit;
+    readonly Dictionary<int, GameObject> _unitFacingArrows = new Dictionary<int, GameObject>();
+    readonly List<GameObject> _coverObjects = new List<GameObject>();
+    readonly List<GameObject> _movePreviewThreatObjects = new List<GameObject>();
     int _feedbackTextSpawnCount;
     string _lastFeedbackText = string.Empty;
     readonly Dictionary<int, int> _activeFeedbackByUnit = new Dictionary<int, int>();
@@ -119,6 +134,7 @@ public partial class SrpGameController
             tv.x = x; tv.y = y; tv.game = this;
         }
         ClearAllOverlayLayers();
+        RenderCoverObjects();
         RebuildAllTileColors();
     }
 
@@ -136,16 +152,21 @@ public partial class SrpGameController
         ClearOverlayLayer(OverlayOverwatch);
         ClearOverlayLayer(OverlayCover);
         ClearOverlayLayer(OverlayInteraction);
+        ClearOverlayLayer(OverlayMovePreviewCover);
         ClearOverlayLayer(OverlaySkill);
         ClearOverlayLayer(OverlayParryTelegraph);
         ClearOverlayLayer(OverlayHover);
         ClearOverlayLayer(OverlayUnitHoverRange);
         ClearOverlayLayer(OverlayUnitHoverZoc);
         ClearOverlayLayer(OverlayAimLine);
+        ClearOverlayLayer(OverlayThreatLine);
+        ClearOverlayLayer(OverlayOverwatchThreatLine);
+        ClearOverlayLayer(OverlayOverwatchThreatEndpoint);
         ClearOverlayLayer(OverlayDangerBlocked);
         ClearOverlayLayer(OverlayIntentPath);
         ClearOverlayLayer(OverlayIntentTarget);
         RebuildDangerAndIntentOverlays();
+        ClearMovePreviewVisuals();
     }
 
     void RebuildAllTileColors()
@@ -303,7 +324,9 @@ public partial class SrpGameController
     void HighlightFirearmAimLine(SrpUnitRuntime attacker, SrpUnitRuntime target)
     {
         ClearOverlayLayer(OverlayAimLine);
-        if (attacker == null || target == null || attacker.weaponClass != SrpWeaponClass.Firearm)
+        if (attacker == null || target == null)
+            return;
+        if (SrpCombatResolver.ResolveBasicAttackKind(_state, attacker, target) != SrpBasicAttackKind.Firearm)
             return;
         if (!SrpFirearmAim.CanBasicAttack(_state, attacker, target, out var line))
             return;
@@ -431,6 +454,8 @@ public partial class SrpGameController
             return new TileOverlayVisualSpec(TileOverlayStyle.Border, TileOverlayBaseY + 0.014f, 0.56f, Quaternion.identity, 5);
         if (layer == OverlayInteraction)
             return new TileOverlayVisualSpec(TileOverlayStyle.ObjectiveDiamond, TileOverlayTopY, 0.62f, Quaternion.identity, 8);
+        if (layer == OverlayMovePreviewCover)
+            return new TileOverlayVisualSpec(TileOverlayStyle.Border, TileOverlayBaseY + 0.026f, 0.46f, Quaternion.identity, 9);
         if (layer == OverlaySkill || layer == OverlayIntentTarget)
             return new TileOverlayVisualSpec(TileOverlayStyle.ObjectiveDiamond, TileOverlayBaseY + 0.020f, 0.50f, Quaternion.identity, 7);
         if (layer == OverlayParryTelegraph)
@@ -441,6 +466,12 @@ public partial class SrpGameController
             return new TileOverlayVisualSpec(TileOverlayStyle.CenterDisc, TileOverlayBaseY + 0.016f, 0.20f, Quaternion.identity, 6);
         if (layer == OverlayHover)
             return new TileOverlayVisualSpec(TileOverlayStyle.Border, TileOverlayBaseY + 0.024f, 0.78f, Quaternion.identity, 9);
+        if (layer == OverlayThreatLine)
+            return new TileOverlayVisualSpec(TileOverlayStyle.CenterDisc, TileOverlayTopY + 0.020f, 0.18f, Quaternion.identity, 10);
+        if (layer == OverlayOverwatchThreatLine)
+            return new TileOverlayVisualSpec(TileOverlayStyle.CenterDisc, TileOverlayTopY + 0.030f, 0.24f, Quaternion.identity, 11);
+        if (layer == OverlayOverwatchThreatEndpoint)
+            return new TileOverlayVisualSpec(TileOverlayStyle.WarningRing, TileOverlayTopY + 0.040f, 0.76f, Quaternion.identity, 12);
         return new TileOverlayVisualSpec(TileOverlayStyle.CenterDisc, TileOverlayBaseY, 0.24f, Quaternion.identity, 1);
     }
 
@@ -845,7 +876,53 @@ public partial class SrpGameController
             new Color(0.22f, 0.82f, 0.84f), SelectedRingY, 0.94f);
         UpdatePriorityRing(ref _hoverUnitRing, "HoverUnitRing", _hoverUnitId > 0 ? GetUnit(_hoverUnitId) : null,
             new Color(0.92f, 0.94f, 0.88f), HoverRingY, 0.78f);
+        UpdateUnitFacingArrows();
         UpdateUnitStatusBadges();
+    }
+
+    void UpdateUnitFacingArrows()
+    {
+        var keep = new HashSet<int>();
+        foreach (var unit in _state.Units)
+        {
+            if (unit == null || unit.eliminated)
+                continue;
+            keep.Add(unit.id);
+            if (!_unitFacingArrows.TryGetValue(unit.id, out var arrow) || arrow == null)
+            {
+                arrow = new GameObject($"UnitFacingArrow_{unit.id}", typeof(MeshFilter), typeof(MeshRenderer));
+                arrow.transform.SetParent(_unitFeedbackRoot.transform, false);
+                arrow.GetComponent<MeshFilter>().sharedMesh = GetUnitFacingArrowMesh();
+                var renderer = arrow.GetComponent<Renderer>();
+                renderer.sharedMaterial = CreateFeedbackMaterial(new Color(1f, 1f, 1f, 0.72f));
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                renderer.sortingOrder = 24;
+                _unitFacingArrows[unit.id] = arrow;
+            }
+
+            var center = GetUnitWorldCenter(unit);
+            arrow.SetActive(true);
+            arrow.transform.position = new Vector3(center.x, TileOverlayTopY + 0.15f, center.z);
+            arrow.transform.rotation = GetFacingRotation(unit.facing);
+            float scale = unit.HasTag(SrpUnitTags.Large) ? 0.86f : 0.68f;
+            arrow.transform.localScale = new Vector3(scale, 1f, scale);
+            var color = unit.owner == 0
+                ? new Color(0.75f, 0.96f, 1f, 0.78f)
+                : new Color(1f, 0.72f, 0.60f, 0.78f);
+            ApplyFeedbackColor(arrow.GetComponent<Renderer>(), color);
+        }
+
+        var remove = new List<int>();
+        foreach (var kv in _unitFacingArrows)
+            if (!keep.Contains(kv.Key))
+                remove.Add(kv.Key);
+        foreach (int id in remove)
+        {
+            if (_unitFacingArrows[id] != null)
+                Destroy(_unitFacingArrows[id]);
+            _unitFacingArrows.Remove(id);
+        }
     }
 
     void UpdatePriorityRing(ref GameObject ring, string name, SrpUnitRuntime unit, Color color, float worldY, float radiusScale)
@@ -918,6 +995,40 @@ public partial class SrpGameController
         s_unitRingMesh.RecalculateNormals();
         s_unitRingMesh.RecalculateBounds();
         return s_unitRingMesh;
+    }
+
+    static Mesh GetUnitFacingArrowMesh()
+    {
+        if (s_unitFacingArrowMesh != null)
+            return s_unitFacingArrowMesh;
+
+        var vertices = new[]
+        {
+            new Vector3(0f, 0f, 0.52f),
+            new Vector3(-0.28f, 0f, 0.12f),
+            new Vector3(-0.10f, 0f, 0.12f),
+            new Vector3(-0.10f, 0f, -0.46f),
+            new Vector3(0.10f, 0f, -0.46f),
+            new Vector3(0.10f, 0f, 0.12f),
+            new Vector3(0.28f, 0f, 0.12f),
+        };
+        var triangles = new[]
+        {
+            0, 1, 2,
+            0, 2, 5,
+            0, 5, 6,
+            2, 3, 4,
+            2, 4, 5,
+        };
+        s_unitFacingArrowMesh = new Mesh
+        {
+            name = "SrpUnitFacingArrow",
+            vertices = vertices,
+            triangles = triangles,
+        };
+        s_unitFacingArrowMesh.RecalculateNormals();
+        s_unitFacingArrowMesh.RecalculateBounds();
+        return s_unitFacingArrowMesh;
     }
 
     float GetUnitFeedbackRadius(SrpUnitRuntime unit)
@@ -1219,6 +1330,14 @@ public partial class SrpGameController
         _currentUnitRing = null;
         _selectedUnitRing = null;
         _hoverUnitRing = null;
+        if (_moveGhostUnit != null)
+            Destroy(_moveGhostUnit);
+        _moveGhostUnit = null;
+        foreach (var arrow in _unitFacingArrows.Values)
+            if (arrow != null)
+                Destroy(arrow);
+        _unitFacingArrows.Clear();
+        ClearMovePreviewThreatObjects();
         _unitStatusBadges.Clear();
         _unitFlashCoroutines.Clear();
         _flashingUnitIds.Clear();
@@ -1246,6 +1365,243 @@ public partial class SrpGameController
             default:
                 return Quaternion.identity;
         }
+    }
+
+    void RenderMovePreview(SrpUnitRuntime unit, SrpMovePreviewEvaluation preview)
+    {
+        ClearOverlayLayer(OverlayMovePreviewCover);
+        ClearOverlayLayer(OverlayThreatLine);
+        ClearOverlayLayer(OverlayOverwatchThreatLine);
+        ClearOverlayLayer(OverlayOverwatchThreatEndpoint);
+        ClearMovePreviewThreatObjects();
+        RenderMoveGhostUnit(unit, preview);
+
+        if (preview == null || !preview.valid)
+            return;
+
+        if (preview.hasCover)
+            SetOverlayTile(OverlayMovePreviewCover, preview.coverX, preview.coverY, new Color(0.45f, 1f, 0.62f, 0.72f));
+
+        foreach (var threat in preview.threats)
+            RenderMovePreviewThreatLine(preview, threat);
+    }
+
+    void RenderMovePreviewThreatLine(SrpMovePreviewEvaluation preview, SrpMovePreviewThreat threat)
+    {
+        if (preview == null || threat == null)
+            return;
+        var attacker = GetUnit(threat.attackerId);
+        if (attacker == null)
+            return;
+
+        EnsureMovePreviewThreatRoot();
+        bool overwatch = threat.isOverwatch;
+        Color color = overwatch
+            ? new Color(1f, 0.08f, 0.06f, 0.96f)
+            : new Color(0.95f, 0.58f, 0.26f, 0.62f);
+        var go = new GameObject(overwatch ? "MovePreviewThreatLine_Overwatch" : "MovePreviewThreatLine_Basic");
+        go.transform.SetParent(_movePreviewThreatRoot.transform, false);
+        var line = go.AddComponent<LineRenderer>();
+        line.useWorldSpace = true;
+        line.sharedMaterial = CreateFeedbackMaterial(color);
+        line.startColor = color;
+        line.endColor = color;
+        line.widthMultiplier = overwatch ? 0.075f : 0.036f;
+        line.numCapVertices = overwatch ? 6 : 3;
+        line.numCornerVertices = 3;
+        line.shadowCastingMode = ShadowCastingMode.Off;
+        line.receiveShadows = false;
+
+        var start = GetUnitWorldCenter(attacker) + Vector3.up * (overwatch ? 0.92f : 0.78f);
+        var end = new Vector3(preview.destinationX * cellSize, overwatch ? 0.46f : 0.38f, preview.destinationY * cellSize);
+        var points = BuildArcPoints(start, end, overwatch ? 0.82f : 0.50f, threat.lineTiles);
+        line.positionCount = points.Length;
+        line.SetPositions(points);
+        _movePreviewThreatObjects.Add(go);
+
+        if (overwatch)
+            RenderMovePreviewOverwatchEndpoint(end, color);
+    }
+
+    Vector3[] BuildArcPoints(Vector3 start, Vector3 end, float arcHeight, List<Vector2Int> lineTiles)
+    {
+        int count = Mathf.Clamp((lineTiles != null ? lineTiles.Count : 0) + 3, 6, 18);
+        var points = new Vector3[count];
+        Vector3 delta = end - start;
+        for (int i = 0; i < count; i++)
+        {
+            float t = count <= 1 ? 1f : i / (float)(count - 1);
+            var point = start + delta * t;
+            point.y += Mathf.Sin(t * Mathf.PI) * arcHeight;
+            points[i] = point;
+        }
+        return points;
+    }
+
+    void RenderMovePreviewOverwatchEndpoint(Vector3 end, Color color)
+    {
+        var marker = new GameObject("MovePreviewThreatEndpoint_OverwatchPulse", typeof(MeshFilter), typeof(MeshRenderer));
+        marker.transform.SetParent(_movePreviewThreatRoot.transform, false);
+        marker.GetComponent<MeshFilter>().sharedMesh = GetTileRingMesh();
+        marker.transform.position = new Vector3(end.x, TileOverlayTopY + 0.11f, end.z);
+        marker.transform.localScale = new Vector3(cellSize * 0.62f, 1f, cellSize * 0.62f);
+        var renderer = marker.GetComponent<Renderer>();
+        renderer.sharedMaterial = CreateFeedbackMaterial(color);
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        renderer.sortingOrder = 28;
+        ApplyFeedbackColor(renderer, color);
+        _movePreviewThreatObjects.Add(marker);
+    }
+
+    void RenderMoveGhostUnit(SrpUnitRuntime unit, SrpMovePreviewEvaluation preview)
+    {
+        if (_moveGhostUnit == null)
+        {
+            _moveGhostUnit = new GameObject("MovePreviewGhostUnit", typeof(MeshFilter), typeof(MeshRenderer));
+            _moveGhostUnit.transform.SetParent(transform, false);
+            _moveGhostUnit.GetComponent<MeshFilter>().sharedMesh = GetUnitFacingWedgeMesh();
+            var renderer = _moveGhostUnit.GetComponent<Renderer>();
+            renderer.sharedMaterial = CreateFeedbackMaterial(new Color(0.72f, 0.95f, 1f, 0.38f));
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+        }
+
+        if (unit == null || preview == null || !preview.valid)
+        {
+            _moveGhostUnit.SetActive(false);
+            return;
+        }
+
+        _moveGhostUnit.SetActive(true);
+        _moveGhostUnit.transform.position = new Vector3(preview.destinationX * cellSize, 0.18f, preview.destinationY * cellSize);
+        _moveGhostUnit.transform.rotation = GetFacingRotation(unit.facing);
+        float scale = unit.HasTag(SrpUnitTags.Large) ? 0.88f : 0.72f;
+        _moveGhostUnit.transform.localScale = new Vector3(scale, 0.24f, scale);
+        ApplyFeedbackColor(_moveGhostUnit.GetComponent<Renderer>(), new Color(0.72f, 0.95f, 1f, 0.38f));
+    }
+
+    void ClearMovePreviewVisuals()
+    {
+        ClearOverlayLayer(OverlayMovePreviewCover);
+        ClearOverlayLayer(OverlayThreatLine);
+        ClearOverlayLayer(OverlayOverwatchThreatLine);
+        ClearOverlayLayer(OverlayOverwatchThreatEndpoint);
+        ClearMovePreviewThreatObjects();
+        if (_moveGhostUnit != null)
+            _moveGhostUnit.SetActive(false);
+        _currentMovePreview = null;
+    }
+
+    void EnsureMovePreviewThreatRoot()
+    {
+        if (_movePreviewThreatRoot != null)
+            return;
+        _movePreviewThreatRoot = new GameObject("SrpMovePreviewThreatLines");
+        _movePreviewThreatRoot.transform.SetParent(transform, false);
+    }
+
+    void ClearMovePreviewThreatObjects()
+    {
+        foreach (var go in _movePreviewThreatObjects)
+            if (go != null)
+                Destroy(go);
+        _movePreviewThreatObjects.Clear();
+    }
+
+    void RenderCoverObjects()
+    {
+        ClearCoverObjects();
+        if (_state == null)
+            return;
+
+        _coverObjectRoot = new GameObject("SrpCoverObjects");
+        _coverObjectRoot.transform.SetParent(transform, false);
+
+        if (_state.CoverObjects != null)
+        {
+            foreach (var coverObject in _state.CoverObjects)
+                RenderOccupyingCoverObject(coverObject);
+        }
+
+        if (_state.CoverSegments != null)
+        {
+            foreach (var segment in _state.CoverSegments)
+                RenderEdgeCoverSegment(segment);
+        }
+    }
+
+    void RenderOccupyingCoverObject(SrpCoverObjectData coverObject)
+    {
+        if (coverObject == null || !_state.InBounds(coverObject.x, coverObject.y))
+            return;
+
+        var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        cube.name = coverObject.blocksLineOfSight
+            ? $"CoverObject_LOS_{coverObject.x}_{coverObject.y}"
+            : $"CoverObject_{coverObject.x}_{coverObject.y}";
+        cube.transform.SetParent(_coverObjectRoot.transform, false);
+        float height = coverObject.blocksLineOfSight ? 0.82f : 0.46f;
+        cube.transform.position = new Vector3(coverObject.x * cellSize, height * 0.5f, coverObject.y * cellSize);
+        cube.transform.localScale = new Vector3(cellSize * 0.70f, height, cellSize * 0.70f);
+        var renderer = cube.GetComponent<Renderer>();
+        var color = coverObject.blocksLineOfSight
+            ? new Color(0.34f, 0.43f, 0.50f, 1f)
+            : new Color(0.48f, 0.62f, 0.48f, 1f);
+        ApplyColor(renderer, color);
+        _coverObjects.Add(cube);
+    }
+
+    void RenderEdgeCoverSegment(SrpCoverSegmentData segment)
+    {
+        if (segment == null || !_state.InBounds(segment.x, segment.y))
+            return;
+
+        var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        wall.name = segment.blocksLineOfSight
+            ? $"CoverEdgeSegment_LOS_{segment.x}_{segment.y}_{segment.edge}"
+            : $"CoverEdgeSegment_{segment.x}_{segment.y}_{segment.edge}";
+        wall.transform.SetParent(_coverObjectRoot.transform, false);
+
+        const float edgeOffset = 0.46f;
+        const float thickness = 0.12f;
+        float height = segment.blocksLineOfSight ? 0.52f : 0.34f;
+        var pos = new Vector3(segment.x * cellSize, height * 0.5f, segment.y * cellSize);
+        var scale = new Vector3(cellSize * 0.74f, height, cellSize * thickness);
+        if (segment.edge == SrpCoverEdge.North)
+            pos.z += cellSize * edgeOffset;
+        else if (segment.edge == SrpCoverEdge.South)
+            pos.z -= cellSize * edgeOffset;
+        else if (segment.edge == SrpCoverEdge.East)
+        {
+            pos.x += cellSize * edgeOffset;
+            scale = new Vector3(cellSize * thickness, height, cellSize * 0.74f);
+        }
+        else
+        {
+            pos.x -= cellSize * edgeOffset;
+            scale = new Vector3(cellSize * thickness, height, cellSize * 0.74f);
+        }
+
+        wall.transform.position = pos;
+        wall.transform.localScale = scale;
+        var renderer = wall.GetComponent<Renderer>();
+        var color = segment.blocksLineOfSight
+            ? new Color(0.42f, 0.45f, 0.48f, 1f)
+            : new Color(0.42f, 0.58f, 0.42f, 1f);
+        ApplyColor(renderer, color);
+        _coverObjects.Add(wall);
+    }
+
+    void ClearCoverObjects()
+    {
+        foreach (var go in _coverObjects)
+            if (go != null)
+                Destroy(go);
+        _coverObjects.Clear();
+        if (_coverObjectRoot != null)
+            Destroy(_coverObjectRoot);
+        _coverObjectRoot = null;
     }
 
 #if UNITY_INCLUDE_TESTS
@@ -1283,10 +1639,47 @@ public partial class SrpGameController
     public int TestOverwatchTintTileCount => CountTintOverlayTilesForLayer(OverlayOverwatch);
     public int TestDangerAttackMeshVisualCount => CountTileOverlayVisualsForLayer(OverlayDangerAttack);
     public int TestOverwatchMeshVisualCount => CountTileOverlayVisualsForLayer(OverlayOverwatch);
+    public int TestAttackPreviewMarkerCount => CountTileOverlayVisualsForLayer(OverlayAttack);
+    public int TestCoverPreviewMarkerCount => CountTileOverlayVisualsForLayer(OverlayCover);
+    public int TestSkillPreviewMarkerCount => CountTileOverlayVisualsForLayer(OverlaySkill);
     public bool TestDangerAttackUsesMarker => TestDangerAttackTintTileCount == 0 && TestDangerAttackMeshVisualCount > 0;
     public bool TestOverwatchUsesMarker => TestOverwatchTintTileCount == 0 && TestOverwatchMeshVisualCount > 0;
     public int TestDangerZocWarningRingCount => CountTileOverlayVisualsForLayer(OverlayDangerZoc);
     public int TestInteractionObjectiveMarkerCount => CountTileOverlayVisualsForLayer(OverlayInteraction);
+    public int TestMovePreviewCoverMarkerCount => CountTileOverlayVisualsForLayer(OverlayMovePreviewCover);
+    public int TestMovePreviewThreatLineCount => CountActiveMovePreviewThreatObjects("MovePreviewThreatLine_Basic");
+    public int TestMovePreviewOverwatchThreatLineCount => CountActiveMovePreviewThreatObjects("MovePreviewThreatLine_Overwatch");
+    public int TestMovePreviewOverwatchEndpointCount => CountActiveMovePreviewThreatObjects("MovePreviewThreatEndpoint_OverwatchPulse");
+    public int TestMovePreviewThreatTileMarkerCount => CountTileOverlayVisualsForLayer(OverlayThreatLine) + CountTileOverlayVisualsForLayer(OverlayOverwatchThreatLine);
+    public bool TestMovePreviewThreatLinesAreWorldSpace => ActiveThreatLinesUseWorldSpace();
+    public float TestMovePreviewBasicThreatLineWidth => GetFirstThreatLineWidth("MovePreviewThreatLine_Basic");
+    public float TestMovePreviewOverwatchThreatLineWidth => GetFirstThreatLineWidth("MovePreviewThreatLine_Overwatch");
+    public bool TestHasMovePreviewGhost => _moveGhostUnit != null && _moveGhostUnit.activeInHierarchy;
+    public bool TestMovePreviewGhostAvoidsCoverObjects => MovePreviewGhostAvoidsCoverObjects();
+    public int TestUnitFacingArrowCount => CountActiveUnitFacingArrows();
+    public int TestCoverObjectCount => CountActiveCoverObjects(false);
+    public int TestLineOfSightCoverObjectCount => CountActiveCoverObjects(true);
+    public int TestOccupyingCoverObjectCount => CountActiveCoverVisuals("CoverObject");
+    public int TestEdgeCoverSegmentVisualCount => CountActiveCoverVisuals("CoverEdgeSegment");
+    public bool TestEdgeCoverSegmentsRenderOnEdges => EdgeCoverSegmentsRenderOnEdges();
+    public bool TestOccupyingCoverObjectsAvoidUnits => OccupyingCoverObjectsAvoidUnits();
+    public bool TestHasTacticalCameraController => _tacticalCamera != null;
+    public bool TestTacticalCameraToggleKeyIsC => _tacticalCamera != null
+        && _tacticalCamera.TestToggleViewKey == KeyCode.C;
+    public bool TestTacticalCameraPanZoomFocusStable => _tacticalCamera != null
+        && _tacticalCamera.TestPanZoomFocusReturnsToBoardCenter();
+    public bool TestPerspectiveZoomChangesFocusDistance => _tacticalCamera != null
+        && _tacticalCamera.TestPerspectiveZoomChangesFocusDistance();
+    public bool TestPanThenZoomKeepsFocusPoint => _tacticalCamera != null
+        && _tacticalCamera.TestPanThenZoomKeepsFocusPoint();
+    public bool TestTacticalCameraToggleMode()
+    {
+        if (_tacticalCamera == null)
+            return false;
+        bool before = _tacticalCamera.IsTopOrthographic;
+        _tacticalCamera.ToggleViewMode();
+        return _tacticalCamera.IsTopOrthographic != before;
+    }
     public bool TestHasAimLineOverlay => CountTileOverlayVisualsForLayer(OverlayAimLine) > 0;
     public int TestAimLineOverlayCount => CountTileOverlayVisualsForLayer(OverlayAimLine);
     public float TestTileOverlayMaxWorldY => GetMaxTileOverlayWorldY();
@@ -1302,7 +1695,7 @@ public partial class SrpGameController
             return false;
         unit.actionPoints = Mathf.Max(unit.actionPoints, 1);
         unit.reactionPoints = Mathf.Max(unit.reactionPoints, 1);
-        if (unit.weaponClass == SrpWeaponClass.Firearm && unit.UsesAmmo)
+        if (unit.UsesAmmo)
             unit.ammo = Mathf.Max(unit.ammo, 1);
         HighlightOverwatchTiles(unit);
         return TestOverwatchMeshVisualCount > 0;
@@ -1387,6 +1780,127 @@ public partial class SrpGameController
                 return false;
         }
         return count > 0;
+    }
+
+    int CountActiveMovePreviewThreatObjects(string prefix)
+    {
+        int count = 0;
+        foreach (var go in _movePreviewThreatObjects)
+            if (go != null && go.activeInHierarchy && go.name.StartsWith(prefix))
+                count++;
+        return count;
+    }
+
+    bool ActiveThreatLinesUseWorldSpace()
+    {
+        bool found = false;
+        foreach (var go in _movePreviewThreatObjects)
+        {
+            if (go == null || !go.activeInHierarchy)
+                continue;
+            var line = go.GetComponent<LineRenderer>();
+            if (line == null)
+                continue;
+            found = true;
+            if (!line.useWorldSpace)
+                return false;
+            if (line.positionCount < 2)
+                return false;
+            if (line.GetPosition(0).y <= TileOverlayTopY)
+                return false;
+        }
+        return found;
+    }
+
+    float GetFirstThreatLineWidth(string prefix)
+    {
+        foreach (var go in _movePreviewThreatObjects)
+        {
+            if (go == null || !go.activeInHierarchy || !go.name.StartsWith(prefix))
+                continue;
+            var line = go.GetComponent<LineRenderer>();
+            if (line != null)
+                return line.widthMultiplier;
+        }
+        return 0f;
+    }
+
+    int CountActiveUnitFacingArrows()
+    {
+        int count = 0;
+        foreach (var go in _unitFacingArrows.Values)
+            if (go != null && go.activeInHierarchy)
+                count++;
+        return count;
+    }
+
+    int CountActiveCoverObjects(bool lineOfSightOnly)
+    {
+        int count = 0;
+        foreach (var go in _coverObjects)
+        {
+            if (go == null || !go.activeInHierarchy)
+                continue;
+            bool los = go.name.StartsWith("CoverObject_LOS_") || go.name.StartsWith("CoverEdgeSegment_LOS_");
+            if (!lineOfSightOnly || los)
+                count++;
+        }
+        return count;
+    }
+
+    int CountActiveCoverVisuals(string prefix)
+    {
+        int count = 0;
+        foreach (var go in _coverObjects)
+            if (go != null && go.activeInHierarchy && go.name.StartsWith(prefix))
+                count++;
+        return count;
+    }
+
+    bool EdgeCoverSegmentsRenderOnEdges()
+    {
+        bool found = false;
+        foreach (var go in _coverObjects)
+        {
+            if (go == null || !go.activeInHierarchy || !go.name.StartsWith("CoverEdgeSegment"))
+                continue;
+            found = true;
+            var pos = go.transform.position;
+            float nearestTileX = Mathf.Round(pos.x / cellSize) * cellSize;
+            float nearestTileZ = Mathf.Round(pos.z / cellSize) * cellSize;
+            float dx = Mathf.Abs(pos.x - nearestTileX);
+            float dz = Mathf.Abs(pos.z - nearestTileZ);
+            if (Mathf.Max(dx, dz) < cellSize * 0.35f)
+                return false;
+            if (go.transform.localScale.x > cellSize * 0.35f && go.transform.localScale.z > cellSize * 0.35f)
+                return false;
+        }
+        return found;
+    }
+
+    bool OccupyingCoverObjectsAvoidUnits()
+    {
+        if (_state == null)
+            return true;
+        foreach (var go in _coverObjects)
+        {
+            if (go == null || !go.activeInHierarchy || !go.name.StartsWith("CoverObject"))
+                continue;
+            int x = Mathf.RoundToInt(go.transform.position.x / cellSize);
+            int y = Mathf.RoundToInt(go.transform.position.z / cellSize);
+            if (_state.GetOccupant(x, y) != null)
+                return false;
+        }
+        return true;
+    }
+
+    bool MovePreviewGhostAvoidsCoverObjects()
+    {
+        if (_state == null || _moveGhostUnit == null || !_moveGhostUnit.activeInHierarchy)
+            return true;
+        int x = Mathf.RoundToInt(_moveGhostUnit.transform.position.x / cellSize);
+        int y = Mathf.RoundToInt(_moveGhostUnit.transform.position.z / cellSize);
+        return !_state.TryGetCoverObjectAt(x, y, out _);
     }
 #endif
 }

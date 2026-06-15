@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#141820"/>
+  <rect x="250" y="95" width="690" height="500" rx="6" fill="#263240" stroke="#506070" stroke-width="2"/>
+  <text x="595" y="345" fill="#a7bfd0" font-family="Arial, sans-serif" font-size="28" text-anchor="middle">Battlefield stays central</text>
+
+  <rect x="250" y="8" width="555" height="86" rx="4" fill="#17202c" stroke="#34475c"/>
+  <text x="270" y="38" fill="#f3d777" font-family="Arial, sans-serif" font-size="18">TopStatusPanel</text>
+  <text x="270" y="66" fill="#b7cde0" font-family="Arial, sans-serif" font-size="14">round / AP / danger mode</text>
+
+  <rect x="820" y="8" width="300" height="86" rx="4" fill="#1c2430" stroke="#506070"/>
+  <text x="840" y="38" fill="#f3d777" font-family="Arial, sans-serif" font-size="18">TurnOrderTracker</text>
+  <text x="840" y="66" fill="#b7cde0" font-family="Arial, sans-serif" font-size="14">current + next 5 actors</text>
+
+  <rect x="10" y="10" width="92" height="700" rx="4" fill="#151c26" stroke="#334254"/>
+  <text x="56" y="42" fill="#f3d777" font-family="Arial, sans-serif" font-size="16" text-anchor="middle">Rail</text>
+  <rect x="22" y="74" width="68" height="42" rx="3" fill="#663029"/>
+  <rect x="22" y="126" width="68" height="42" rx="3" fill="#57316e"/>
+  <rect x="22" y="178" width="68" height="42" rx="3" fill="#263d82"/>
+  <rect x="22" y="230" width="68" height="42" rx="3" fill="#345c30"/>
+  <rect x="22" y="608" width="68" height="54" rx="3" fill="#555a64"/>
+
+  <rect x="112" y="10" width="128" height="700" rx="4" fill="#17212b" stroke="#334254"/>
+  <text x="128" y="42" fill="#f3d777" font-family="Arial, sans-serif" font-size="16">ContextPanel</text>
+  <text x="128" y="72" fill="#b7cde0" font-family="Arial, sans-serif" font-size="13">selected unit</text>
+  <text x="128" y="95" fill="#b7cde0" font-family="Arial, sans-serif" font-size="13">hover status</text>
+  <text x="128" y="118" fill="#b7cde0" font-family="Arial, sans-serif" font-size="13">preview hint</text>
+
+  <rect x="250" y="600" width="300" height="108" rx="4" fill="#182431" stroke="#34475c"/>
+  <text x="270" y="632" fill="#f3d777" font-family="Arial, sans-serif" font-size="17">ActiveUnitCard</text>
+  <text x="270" y="662" fill="#b7cde0" font-family="Arial, sans-serif" font-size="13">HP / PG / AP / ammo</text>
+
+  <rect x="600" y="600" width="330" height="108" rx="4" fill="#1b1d2d" stroke="#34475c"/>
+  <text x="620" y="632" fill="#f3d777" font-family="Arial, sans-serif" font-size="17">InspectorPreviewPanel</text>
+  <text x="620" y="662" fill="#b7cde0" font-family="Arial, sans-serif" font-size="13">hover / action / target preview</text>
+
+  <rect x="948" y="8" width="320" height="700" rx="4" fill="#141b25" stroke="#334254"/>
+  <text x="970" y="42" fill="#f3d777" font-family="Arial, sans-serif" font-size="17">LogDrawerPanel</text>
+  <text x="970" y="72" fill="#b7cde0" font-family="Arial, sans-serif" font-size="13">open width >= 320px</text>
+  <text x="970" y="96" fill="#b7cde0" font-family="Arial, sans-serif" font-size="13">collapses to a small tab</text>
+
+  <rect x="250" y="422" width="104" height="166" rx="4" fill="#18202a" stroke="#3e5268"/>
+  <text x="302" y="452" fill="#f3d777" font-family="Arial, sans-serif" font-size="13" text-anchor="middle">Tabs</text>
+  <rect x="260" y="466" width="84" height="30" rx="3" fill="#23354a"/>
+  <rect x="260" y="506" width="84" height="30" rx="3" fill="#263d34"/>
+  <rect x="260" y="546" width="84" height="30" rx="3" fill="#3b382c"/>
+
+  <rect x="362" y="402" width="360" height="186" rx="4" fill="#18202a" stroke="#7ca3bd" stroke-dasharray="8 6"/>
+  <text x="382" y="434" fill="#f3d777" font-family="Arial, sans-serif" font-size="17">SecondaryActionDrawer</text>
+  <text x="382" y="464" fill="#b7cde0" font-family="Arial, sans-serif" font-size="13">only one tab page opens</text>
+  <text x="382" y="488" fill="#b7cde0" font-family="Arial, sans-serif" font-size="13">stance/facing | tactical assist | system</text>
+  <text x="382" y="512" fill="#b7cde0" font-family="Arial, sans-serif" font-size="13">closed by default</text>
+</svg>

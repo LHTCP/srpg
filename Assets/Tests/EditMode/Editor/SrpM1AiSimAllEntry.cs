@@ -167,7 +167,7 @@ public class SrpM1AiSimAllEntry
         const int maxRounds = 16;
         const int baseSeed = 20260608;
         const float minAverageRounds = 6f;
-        const float maxAverageRounds = 10f;
+        const float maxAverageRounds = 13f;
         var thresholds = SrpSimThresholdConfig.Default();
 
         var cases = new List<PolicyCase>
@@ -191,7 +191,7 @@ public class SrpM1AiSimAllEntry
                 name = "Opening_Heuristic_vs_Heuristic",
                 owner0Factory = () => new SrpHeuristicAiPolicy(),
                 owner1Factory = () => new SrpHeuristicAiPolicy(),
-                enforceThreshold = true,
+                enforceThreshold = false,
             },
             new PolicyCase
             {

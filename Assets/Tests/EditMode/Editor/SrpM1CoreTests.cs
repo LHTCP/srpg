@@ -129,6 +129,78 @@ public class SrpM1CoreTests
     }
 
     [Test]
+    public void MovePreviewEvaluator_UsesCloneWithoutMutatingBattleState()
+    {
+        var walkable = new bool[25];
+        for (int i = 0; i < walkable.Length; i++)
+            walkable[i] = true;
+
+        var map = new SrpMapFileV1
+        {
+            name = "preview_evaluator_clone_contract",
+            width = 5,
+            height = 5,
+            walkable = walkable,
+            templates = new[]
+            {
+                new SrpUnitTemplateData
+                {
+                    id = "player",
+                    displayName = "Player",
+                    moveRange = 4,
+                    attackRange = 4,
+                    maxAmmo = 1,
+                    weaponClass = SrpWeaponClass.Firearm,
+                },
+                new SrpUnitTemplateData
+                {
+                    id = "watcher",
+                    displayName = "Watcher",
+                    moveRange = 4,
+                    attackRange = 4,
+                    maxAmmo = 1,
+                    weaponClass = SrpWeaponClass.Firearm,
+                },
+            },
+            placements = new[]
+            {
+                new SrpPlacementData { templateId = "player", owner = 0, x = 1, y = 1 },
+                new SrpPlacementData { templateId = "watcher", owner = 1, x = 4, y = 1 },
+            },
+            coverSegments = new[]
+            {
+                new SrpCoverSegmentData
+                {
+                    x = 2,
+                    y = 1,
+                    edge = SrpCoverEdge.North,
+                    coverDef = 2,
+                    coverGrd = 1,
+                },
+            },
+        };
+        var state = SrpBattleState.FromMap(map);
+        var player = state.Units[0];
+        var watcher = state.Units[1];
+        watcher.overwatchArmed = true;
+        watcher.overwatchRange = watcher.attackRange;
+        watcher.overwatchRound = state.RoundNumber;
+        watcher.reactionPoints = 1;
+        watcher.ammo = 1;
+
+        var preview = SrpPreviewEvaluator.EvaluateMove(state, player, 2, 1);
+
+        Assert.IsTrue(preview.valid, "이동 preview가 유효한 목적지를 평가하지 못했습니다.");
+        Assert.IsTrue(preview.hasCover, "목적지 기준 엄폐 가능성이 preview에 반영되지 않았습니다.");
+        Assert.AreEqual(1, player.anchorX, "preview evaluator가 원본 유닛 X 좌표를 변경했습니다.");
+        Assert.AreEqual(1, player.anchorY, "preview evaluator가 원본 유닛 Y 좌표를 변경했습니다.");
+        Assert.IsTrue(watcher.overwatchArmed, "preview evaluator가 원본 경계태세 예약을 변경했습니다.");
+        Assert.AreEqual(1, watcher.ammo, "preview evaluator가 원본 탄약을 변경했습니다.");
+        Assert.Greater(preview.threats.Count, 0, "목적지 위협 preview가 비어 있습니다.");
+        Assert.IsTrue(preview.threats.Exists(t => t.isOverwatch), "경계사격 위협이 강화 threat로 분류되지 않았습니다.");
+    }
+
+    [Test]
     public void FirearmAmmo_SpendsBlocksAndReloads()
     {
         var unit = new SrpUnitRuntime
@@ -223,7 +295,7 @@ public class SrpM1CoreTests
     }
 
     [Test]
-    public void Overwatch_RequiresAndConsumesFirearmAmmo()
+    public void Overwatch_RequiresAndConsumesSidearmAmmo()
     {
         var state = SrpBattleState.FromMap(SrpDefaultMaps.GetPreset(SrpMapPreset.M1QaIntegrated));
         var watcher = new SrpUnitRuntime
@@ -236,7 +308,7 @@ public class SrpM1CoreTests
             maxHp = 30,
             pg = 18,
             maxPg = 18,
-            weaponClass = SrpWeaponClass.Firearm,
+            weaponClass = SrpWeaponClass.Melee,
             attackRange = 4,
             attackPower = 8,
             actionPoints = 2,
@@ -312,6 +384,59 @@ public class SrpM1CoreTests
     }
 
     [Test]
+    public void CoverObject_LoadsAsBlockingOccupyingCover_AndClonesIndependently()
+    {
+        var state = CreateCoverTestState();
+        var mover = CreateCoverDefender();
+
+        Assert.AreEqual(1, state.CoverObjects.Count, "occupying cover object should load separately from edge segments");
+        Assert.IsTrue(state.TryGetCoverObjectAt(1, 2, out var coverObject), "explicit occupying cover object was not found");
+        Assert.IsTrue(state.IsCoverTile(1, 2), "cover object tile should be usable as a cover source");
+        Assert.IsFalse(state.CanStandAt(mover, 1, 2, mover.id), "occupying cover object tile must remain non-standable");
+        Assert.AreEqual("test_blocked_cover", coverObject.visualKey);
+
+        var clone = state.Clone();
+        clone.CoverObjects[0].coverDef = 77;
+
+        Assert.AreEqual(2, state.CoverObjects[0].coverDef, "cover object clone mutation leaked to source");
+        Assert.AreEqual(77, clone.CoverObjects[0].coverDef, "cover object clone mutation was not applied");
+    }
+
+    [Test]
+    public void M1OpeningPrototype_CoverObjects_DoNotOverlapStarts_AndBlockStanding()
+    {
+        var state = SrpBattleState.FromMap(SrpDefaultMaps.GetPreset(SrpMapPreset.M1OpeningPrototype));
+        Assert.Greater(state.CoverObjects.Count, 0, "M1 opening central ruin should declare occupying cover objects");
+
+        foreach (var coverObject in state.CoverObjects)
+        {
+            Assert.IsFalse(state.IsWalkableTile(coverObject.x, coverObject.y), $"cover object tile must be non-walkable: {coverObject.x},{coverObject.y}");
+            Assert.IsNull(state.GetOccupant(coverObject.x, coverObject.y), $"cover object overlaps a starting unit: {coverObject.x},{coverObject.y}");
+            foreach (var unit in state.Units)
+                Assert.IsFalse(state.CanStandAt(unit, coverObject.x, coverObject.y, unit.id), $"unit can stand on occupying cover object: {coverObject.x},{coverObject.y}");
+        }
+    }
+
+    [Test]
+    public void M1OpeningPrototype_EdgeCoverSegments_DoNotBlockStandingOnTheirTile()
+    {
+        var state = SrpBattleState.FromMap(SrpDefaultMaps.GetPreset(SrpMapPreset.M1OpeningPrototype));
+        Assert.Greater(state.CoverSegments.Count, 0, "M1 opening should keep directional edge cover segments");
+
+        foreach (var segment in state.CoverSegments)
+        {
+            Assert.IsTrue(state.IsWalkableTile(segment.x, segment.y), $"edge cover segment tile should remain walkable: {segment.x},{segment.y}");
+            foreach (var unit in state.Units)
+            {
+                if (state.GetOccupant(segment.x, segment.y) != null)
+                    continue;
+                Assert.IsTrue(state.CanStandAt(unit, segment.x, segment.y, unit.id), $"edge cover segment blocked standing like a central cube: {segment.x},{segment.y}");
+                break;
+            }
+        }
+    }
+
+    [Test]
     public void CoverBuffer_ReducesOnlyRangedFirearmDamage()
     {
         var state = CreateCoverTestState();
@@ -337,13 +462,16 @@ public class SrpM1CoreTests
         magicDefender.SetCover(state.RoundNumber, 1, 2);
         var magic = CreateCoverAttacker(SrpWeaponClass.Magic, 2, 0, 8, 3);
         var magicOutcome = SrpCombatResolver.ApplyAttack(state, magic, magicDefender);
-        Assert.IsFalse(magicOutcome.coverBufferApplied, "마법 공격에 엄폐 완충이 적용되었습니다.");
+        Assert.AreEqual(SrpBasicAttackKind.Firearm, magicOutcome.basicAttackKind, "비인접 기본 공격은 역할과 무관하게 총기 kind여야 합니다.");
+        Assert.IsTrue(magicOutcome.coverBufferApplied, "비인접 기본 공격에는 총기 엄폐 완충이 적용되어야 합니다.");
 
         var executionDefender = CreateCoverDefender();
         executionDefender.pg = 0;
         executionDefender.groggy = true;
         executionDefender.SetCover(state.RoundNumber, 1, 2);
-        var executionOutcome = SrpCombatResolver.ApplyAttack(state, firearm, executionDefender);
+        var executionMelee = CreateCoverAttacker(SrpWeaponClass.Melee, 2, 3, 8, 1);
+        var executionOutcome = SrpCombatResolver.ApplyAttack(state, executionMelee, executionDefender);
+        Assert.IsTrue(executionOutcome.wasExecution, "인접 근접 처단 입력이 처단으로 판정되지 않았습니다.");
         Assert.IsFalse(executionOutcome.coverBufferApplied, "처단 공격에 엄폐 완충이 적용되었습니다.");
     }
 
@@ -407,7 +535,7 @@ public class SrpM1CoreTests
 
         var meleeDefender = CreateCoverDefender();
         meleeDefender.SetCover(state.RoundNumber, 2, 2);
-        var melee = CreateCoverAttacker(SrpWeaponClass.Melee, 2, 4, 8, 1);
+        var melee = CreateCoverAttacker(SrpWeaponClass.Melee, 2, 3, 8, 1);
         var meleeOutcome = SrpCombatResolver.ApplyAttack(state, melee, meleeDefender);
         Assert.IsFalse(meleeOutcome.coverBufferApplied, "근접 공격에 방향성 엄폐가 적용되었습니다.");
 
@@ -415,13 +543,16 @@ public class SrpM1CoreTests
         magicDefender.SetCover(state.RoundNumber, 2, 2);
         var magic = CreateCoverAttacker(SrpWeaponClass.Magic, 2, 4, 8, 3);
         var magicOutcome = SrpCombatResolver.ApplyAttack(state, magic, magicDefender);
-        Assert.IsFalse(magicOutcome.coverBufferApplied, "마법 공격에 방향성 엄폐가 적용되었습니다.");
+        Assert.AreEqual(SrpBasicAttackKind.Firearm, magicOutcome.basicAttackKind, "비인접 기본 공격은 역할과 무관하게 총기 kind여야 합니다.");
+        Assert.IsTrue(magicOutcome.coverBufferApplied, "비인접 기본 공격에는 방향성 엄폐가 적용되어야 합니다.");
 
         var executionDefender = CreateCoverDefender();
         executionDefender.pg = 0;
         executionDefender.groggy = true;
         executionDefender.SetCover(state.RoundNumber, 2, 2);
-        var executionOutcome = SrpCombatResolver.ApplyAttack(state, northFirearm, executionDefender);
+        var executionMelee = CreateCoverAttacker(SrpWeaponClass.Melee, 2, 3, 8, 1);
+        var executionOutcome = SrpCombatResolver.ApplyAttack(state, executionMelee, executionDefender);
+        Assert.IsTrue(executionOutcome.wasExecution, "인접 근접 처단 입력이 처단으로 판정되지 않았습니다.");
         Assert.IsFalse(executionOutcome.coverBufferApplied, "처단 공격에 방향성 엄폐가 적용되었습니다.");
     }
 
@@ -690,6 +821,18 @@ public class SrpM1CoreTests
             height = height,
             walkable = walkable,
             playerOrder = new[] { 0, 1 },
+            coverObjects = new[]
+            {
+                new SrpCoverObjectData
+                {
+                    x = 1,
+                    y = 2,
+                    coverDef = 2,
+                    coverGrd = 1,
+                    blocksLineOfSight = true,
+                    visualKey = "test_blocked_cover",
+                },
+            },
         });
     }
 
@@ -757,6 +900,8 @@ public class SrpM1CoreTests
             stance = SrpStance.Defensive,
             attackPower = attackPower,
             attackRange = attackRange,
+            maxAmmo = 1,
+            ammo = 1,
         };
     }
 

@@ -514,9 +514,9 @@ MonoBehaviour:
   startPreset: 0
   frameCameraOnStart: 1
   orthoViewPadding: 3.5
-  leftPanelWidth: 200
+  leftPanelWidth: 170
   rightPanelWidth: 220
-  startWithLogVisible: 1
+  startWithLogVisible: 0
 --- !u!4 &843159607
 Transform:
   m_ObjectHideFlags: 0

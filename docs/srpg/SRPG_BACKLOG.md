@@ -1,5 +1,62 @@
 # SRPG v2 백로그
 
+## 2026-06-15 update - tactical HUD drawer and cover semantics review
+
+- [x] Basic attack / execution model correction.
+  - All humanoid units now have both adjacent melee basic attack capability and non-adjacent firearm basic attack capability.
+  - Resolved basic attack kind is distance-based: Chebyshev `<= 1` means melee, `> 1` means firearm. `weaponClass` remains role/primary/display metadata.
+  - Adjacent basic attacks ignore ammo, firearm LOS/aim line, firearm HP-PG spillover, and firearm cover buffering.
+  - Non-adjacent firearm attacks still require range, ammo, and LOS, spend ammo, and keep firearm HP pressure plus HP-based PG spillover.
+  - Execution now requires adjacent melee state plus target `pg <= 0` or `groggy`; once triggered it is a guaranteed kill, and Firearm-role units can execute adjacent broken/groggy targets.
+  - UI hover/preview and PlayMode smoke distinguish adjacent melee/execute from non-adjacent firearm aim line.
+  - AI simulation damage metrics now record actual resolved attack kind instead of actor `weaponClass`.
+  - Follow-up decision: replace the runtime bridge (`maxAmmo` + minimum `attackRange`) with explicit sidearm/firearm-range fields if the data model needs separate melee reach, firearm reach, and primary-role display.
+- [x] Combat balance review correction.
+  - HP 50%/25% 이하 대상이 받는 최종 incoming PG 피해 보정은 기본 공격과 스킬 피해 모두에 적용한다.
+  - 처단 위협은 전투 상태가 있을 때 거리 기반 근접 기본공격(Chebyshev 거리 1 이하)을 요구한다.
+  - 거리 기반 실제 attack kind 집계에 맞춰 AI 시뮬레이션 관찰 임계치를 근접 PG 비중 0.44, 첫 전투 player-policy 평균 라운드 상한 13으로 보정하고 heuristic mirror는 관찰 전용으로 돌렸다.
+  - 폰트 fallback/Pretendard asset 변경은 이번 밸런스 보정 범위에서 제외했다.
+- [x] `TBD-017S` skill selection drawer correction.
+  - Skill selection is no longer embedded in the narrow `ContextPanel`.
+  - `SkillSelectionDrawer` opens immediately to the right of `CommandRailPanel` as a canvas-level action detail drawer with preferred width 520px and minimum readable width 420px.
+  - The command-adjacent `ContextPanel` is removed from the left console. State/hover/preview explanations route to `ActiveUnitCardPanel` and `InspectorPreviewPanel` instead.
+  - Skill rows have minimum height 56px and use `NoWrap + Ellipsis` to prevent one-character wrapping.
+  - The skill drawer has an explicit `닫기` control and the `스킬` command toggles the drawer closed when it is already open.
+  - The log drawer starts collapsed by default and can still be expanded on demand.
+  - GameView/ScreenCapture observation samples now assert the actual visible HUD states for skill selection, secondary drawer body, log expanded, and log collapsed before capturing.
+- [x] `TBD-017R` tactical HUD structure correction.
+  - Added research note `SRPG_TACTICAL_UI_REDESIGN_RESEARCH_2026-06-15.md` and wireframe `docs/srpg/ux/tactical_hud_redesign_wireframe_2026-06-15.svg`.
+  - `SecondaryActionPanel` is no longer a fixed panel beside the command rail. It is now opened from `SecondaryActionTabStripPanel` as a drawer and is closed by default.
+  - Secondary controls are split into `태세/방향`, `전술 보조`, and `시스템`; only one drawer page opens at a time, with compact page heights (`태세/방향` 210px, `전술 보조` 124px, `시스템` 104px).
+  - PlayMode coverage checks default-closed drawer state, readable drawer width >= 320px, close-space return, and command/context/inspector/log/turn-order non-overlap.
+- [x] `TBD-016R` cover meaning and visualization correction.
+  - Added `SrpCoverObjectData` for occupying cover/obstacles and kept `SrpCoverSegmentData` as directional edge cover.
+  - `M1OpeningPrototype` central non-walkable tiles are currently interpreted as ruin cover objects, not empty holes.
+  - Occupying cover objects render as central ruin blocks and remain `CanStandAt=false`.
+  - Edge cover segments render as low edge walls/boards instead of central cubes, so a unit can stand on the same tile without visual contradiction.
+  - EditMode/PlayMode coverage checks cover object standing, start-position overlap, edge-segment walkability, edge visual placement, and move-preview ghost avoidance.
+
+## 2026-06-11 update - playtest UX follow-up 3
+
+- [x] `TBD-015` correction: move-hover threat lines now render as world-space parabolic `LineRenderer` objects from attacker head height to the ghost destination instead of tile marker chains.
+  - Basic attack threat uses a thinner/lower-saturation line.
+  - Overwatch threat uses a stronger line plus endpoint pulse marker.
+  - PlayMode verifies world-space line objects, visual tier split, no tile threat markers, and hover-exit cleanup.
+- [x] `TBD-016` first pass: tactical camera, facing arrows, and cover object visualization.
+  - `SrpTacticalCameraController` owns perspective/top orthographic toggle, wheel zoom, middle-drag/WASD/arrow pan, and focus.
+  - View toggle key is `C`; `Tab` remains free for future target cycling.
+  - PlayMode covers mode toggle plus a pan/zoom/focus drift guard.
+  - Unit facing is reinforced with world-space arrow mesh/decal.
+  - Cover segments render as one-tile cube objects; `blocksLineOfSight` cover uses a distinct taller/darker visual tier.
+- [x] `TBD-017` tactical console/log/action-end cleanup.
+  - Left HUD keeps only the fixed `CommandRailPanel`: core actions stay in the rail, while stance/facing/tools move to a separate state-based `SecondaryActionPanel`.
+  - Battle HUD does not use player-facing floating tooltip bubbles as the default explanation channel. Action, skill, cover, overwatch, interaction, target, and turn-order hover details are consolidated into bottom tactical cards and `InspectorPreviewPanel`.
+  - Bottom preview is treated as `InspectorPreviewPanel` and is reused by action hover, unit hover, target hover, and turn-order token hover.
+  - Log drawer opens at a wider readable width and collapses to a small reopen rail; hidden log body uses inactive/ignore-layout state so it does not reserve layout space.
+  - Player-facing controls expose only `행동 종료`; the separate `턴 종료` button is removed from HUD, while round transitions remain automatic logs.
+  - Tactical camera zoom contract: top orthographic zoom changes orthographic size; perspective zoom keeps a board focus point and changes camera-focus distance. Pan moves the focus point and must not snap focus to the camera position on the next zoom.
+  - PlayMode covers command rail/context/secondary/inspector presence, no player-facing floating Tooltip object, log drawer collapse, hover preview continuity, action-end naming, turn-order hover battlefield highlight, and perspective focus-distance zoom.
+
 기준:
 
 - `SRPG_전투규칙_기준서_v2.md`
@@ -102,7 +159,7 @@
   - HUD/스킬 목록/로그에 오버클럭 강화 대기 상태 표시
   - EditMode 테스트 `48 passed / 0 failed`, PlayMode 테스트 `5 passed / 0 failed`
 - [x] Phase2 재장전 AP 행동 1차 구현
-  - 총기 유닛 전용 탄약/재장전 계약 추가
+  - 총기 능력 기반 탄약/재장전 계약 추가
   - 기본 공격과 오버워치에 탄약 검사/소비 연결
   - 좌측 전술 콘솔 재장전 버튼과 HUD 탄약 상태 표시 추가
   - EditMode 테스트 `51 passed / 0 failed`, PlayMode 테스트 `5 passed / 0 failed`
@@ -254,6 +311,12 @@
   - 화면 문구는 예약 `경계태세 준비`, 발동 `경계사격!`, 불가/상태 `경계태세 불가`/`경계태세 준비 중`으로 고정했다.
   - `BUG-001`: 경계태세/ReactionShot으로 사망한 유닛은 발동 처리 직후 유닛 mesh, hover/aim overlay, HUD, 행동 순서 패널을 즉시 갱신한다. PlayMode에 사망 직후 갱신 시나리오를 추가했다.
   - 파란 선 다이아몬드가 경계태세 범위였음을 확인하고, 공격/위험 범위와 경계태세 범위를 모두 낮은 밀도 중심 marker로 조정했다. ZOC warning ring, 이동 중심점, 상호작용 marker와 다른 계약을 PlayMode/관찰 테스트로 고정했다.
+- [x] 전투 preview 문법 재정렬 (`TBD-015`)
+  - 기본 전투 화면은 현재 행동 유닛의 이동 가능 marker만 표시하고, 일반 공격/경계태세/엄폐/스킬/상호작용 범위는 버튼 hover preview로 분리했다.
+  - 좌측 전술 콘솔에 `일반 공격` 버튼을 추가하고 hover 시 현재 위치 기준 공격 가능 범위와 preview 카드를 표시한다.
+  - 이동 가능 칸 hover는 state clone 기반 `SrpPreviewEvaluator`로 ghost 유닛, 목적지 기준 엄폐 가능 marker, 일반 threat line, 경계사격 강화 threat line/endpoint marker를 렌더링한다.
+  - 행동 순서 token hover는 전장 hover ring과 하단 preview/inspector 정보를 해당 유닛 기준으로 갱신한다.
+  - EditMode에 preview evaluator가 원본 battle state를 변경하지 않는 계약을 추가하고, PlayMode에 기본 overlay 축소/버튼 hover/이동 hover preview 계약을 확장했다.
 - [ ] 경계태세/공격·위험 overlay 후속 아트 튜닝
   - 정식 VFX/파티클, marker 크기/채도/애니메이션, 경계태세 사격 연출은 실제 에디터 플레이 피드백과 아트 에셋 기준으로 별도 결정한다.
 - [ ] 맵 메이커 방향성 엄폐 segment 편집 UI (`TBD-001`, `TBD-004`)

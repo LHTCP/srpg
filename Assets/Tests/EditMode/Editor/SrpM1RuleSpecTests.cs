@@ -87,25 +87,35 @@ public class SrpM1RuleSpecTests
     [Test]
     public void Execution_Triggers_WhenDefenderPgZeroOrGroggy()
     {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
         var attacker = new SrpUnitRuntime
         {
+            anchorX = 2,
+            anchorY = 3,
             attackPower = 10,
             weaponClass = SrpWeaponClass.Melee,
             stance = SrpStance.Aggressive,
         };
 
         var pgZeroTarget = CreateDefender(SrpStance.Defensive);
+        pgZeroTarget.anchorX = 2;
+        pgZeroTarget.anchorY = 2;
         pgZeroTarget.pg = 0;
-        var pgZero = SrpCombatResolver.ApplyAttack(attacker, pgZeroTarget);
+        var pgZero = SrpCombatResolver.ApplyAttack(state, attacker, pgZeroTarget);
         Assert.IsTrue(pgZero.wasExecution, "PG 0에서 처단 판정 미발생");
-        Assert.AreEqual(16, pgZero.damageToHp, "PG 0 처단 HP 피해값 불일치");
+        Assert.IsTrue(pgZero.defenderDied, "PG 0 처단이 확정 사망으로 처리되지 않았습니다.");
+        Assert.LessOrEqual(pgZeroTarget.hp, 0, "PG 0 처단 후 대상 HP가 남아 있습니다.");
         Assert.AreEqual(0, pgZero.damageToPg, "처단 시 PG 피해는 0이어야 함");
 
         var groggyTarget = CreateDefender(SrpStance.Defensive);
+        groggyTarget.anchorX = 2;
+        groggyTarget.anchorY = 2;
         groggyTarget.pg = 5;
         groggyTarget.groggy = true;
-        var groggy = SrpCombatResolver.ApplyAttack(attacker, groggyTarget);
+        var groggy = SrpCombatResolver.ApplyAttack(state, attacker, groggyTarget);
         Assert.IsTrue(groggy.wasExecution, "그로기 상태에서 처단 판정 미발생");
+        Assert.IsTrue(groggy.defenderDied, "그로기 처단이 확정 사망으로 처리되지 않았습니다.");
+        Assert.LessOrEqual(groggyTarget.hp, 0, "그로기 처단 후 대상 HP가 남아 있습니다.");
         Assert.AreEqual(0, groggyTarget.pg, "처단 후 PG는 0으로 정규화되어야 함");
         Assert.IsFalse(groggyTarget.groggy, "처단 처리 후 groggy 상태는 해제되어야 함");
     }
@@ -434,6 +444,45 @@ public class SrpM1RuleSpecTests
     }
 
     [Test]
+    public void Overwatch_MeleeRoleSidearm_BlocksAdjacentAndTriggersFirearmAtRange()
+    {
+        var state = SrpBattleState.FromMap(CreateZocTestMap());
+        var watcher = FindUnit(state, owner: 0, templateId: "mover");
+        var target = FindUnit(state, owner: 1, templateId: "enemy");
+        watcher.weaponClass = SrpWeaponClass.Melee;
+        watcher.attackRange = 4;
+        watcher.attackPower = 8;
+        watcher.actionPoints = 2;
+        watcher.reactionPoints = 1;
+        watcher.maxAmmo = 2;
+        watcher.ammo = 2;
+        target.anchorX = watcher.anchorX + 1;
+        target.anchorY = watcher.anchorY;
+        target.reactionPoints = 0;
+        int hpBefore = target.hp;
+        int pgBefore = target.pg;
+
+        Assert.AreEqual(SrpOverwatchArmStatus.Ready, SrpOverwatch.GetArmStatus(watcher));
+        Assert.IsTrue(SrpOverwatch.Arm(state, watcher), "Melee role with sidearm ammo/range should be able to reserve overwatch.");
+        Assert.IsFalse(SrpOverwatch.CanTrigger(state, watcher, target), "overwatch firearm reaction must not trigger against adjacent targets.");
+        Assert.IsFalse(SrpOverwatch.TryTrigger(state, watcher, target, out _), "adjacent targets must not consume a reserved overwatch shot.");
+        Assert.IsTrue(watcher.overwatchArmed, "failed adjacent trigger should keep the reservation intact.");
+        Assert.AreEqual(2, watcher.ammo, "failed adjacent trigger should not consume ammo.");
+
+        target.anchorX = watcher.anchorX + 2;
+        target.anchorY = watcher.anchorY;
+        Assert.IsTrue(SrpOverwatch.CanTrigger(state, watcher, target), "non-adjacent target with LOS/range/ammo should trigger overwatch.");
+        Assert.IsTrue(SrpOverwatch.TryTrigger(state, watcher, target, out var outcome), "non-adjacent sidearm overwatch should fire.");
+
+        Assert.AreEqual(SrpBasicAttackKind.Firearm, outcome.basicAttackKind, "overwatch result should use the firearm damage model at range.");
+        Assert.Greater(hpBefore, target.hp, "firearm overwatch should damage HP.");
+        Assert.Greater(pgBefore, target.pg, "firearm overwatch should apply PG spillover.");
+        Assert.Greater(outcome.firearmPgSpillover, 0, "firearm overwatch should record firearm PG spillover.");
+        Assert.AreEqual(1, watcher.ammo, "successful overwatch should consume exactly one ammo.");
+        Assert.AreEqual(SrpReactionKind.ReactionShot, watcher.lastReactionKind);
+    }
+
+    [Test]
     public void Overwatch_CanTrigger_AllowsVectorAimOutsideAxisOrDiagonalLine()
     {
         var state = SrpBattleState.FromMap(CreateZocTestMap());
@@ -600,6 +649,8 @@ public class SrpM1RuleSpecTests
             weaponClass = SrpWeaponClass.Firearm,
             attackRange = 4,
             attackPower = 8,
+            maxAmmo = 1,
+            ammo = 1,
         };
         state.Units.Add(fast);
 
@@ -632,8 +683,11 @@ public class SrpM1RuleSpecTests
         unit.reactionPoints = 1;
 
         unit.weaponClass = SrpWeaponClass.Melee;
-        Assert.AreEqual(SrpOverwatchArmStatus.NotFirearm, SrpOverwatch.GetArmStatus(unit));
-        unit.weaponClass = SrpWeaponClass.Firearm;
+        Assert.AreEqual(SrpOverwatchArmStatus.Ready, SrpOverwatch.GetArmStatus(unit), "Melee role units with sidearm ammo/range should still arm overwatch.");
+
+        unit.ammo = 0;
+        Assert.AreEqual(SrpOverwatchArmStatus.NoAmmo, SrpOverwatch.GetArmStatus(unit));
+        unit.ammo = 1;
 
         unit.attackRange = 1;
         Assert.AreEqual(SrpOverwatchArmStatus.RangeTooShort, SrpOverwatch.GetArmStatus(unit));
@@ -750,6 +804,7 @@ public class SrpM1RuleSpecTests
         tank.defensiveHitsTakenThisRound = 0;
         attacker.weaponClass = SrpWeaponClass.Firearm;
         attacker.attackRange = 4;
+        attacker.anchorY = 4;
         var major = SrpCombatResolver.ApplyAttack(state, attacker, tank);
         Assert.IsFalse(major.perfectDefenseApplied, "총격 중대 HP 피해가 완벽한 수비로 무효화되었습니다.");
         Assert.Greater(major.damageToHp, 0, "총격 HP 피해가 사라졌습니다.");
@@ -978,6 +1033,8 @@ public class SrpM1RuleSpecTests
             maxReactionPoints = 1,
             weaponClass = SrpWeaponClass.Firearm,
             attackRange = 3,
+            maxAmmo = 1,
+            ammo = 1,
         };
     }
 }
