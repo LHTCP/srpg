@@ -80,6 +80,16 @@ git config --global --add safe.directory <workspace-root>/srpg
 
 워크트리를 추가로 만들면 해당 경로도 같은 방식으로 등록할 수 있다.
 
+## 로컬 LFS 설정
+
+이 저장소는 `.lfsconfig`로 사설 LFS 서버 위치를 공유한다. URL 자체는 secret이 아니지만 public repo에서 인프라 식별자가 노출될 수 있으므로, 실제 인증 정보는 절대 문서나 PR에 쓰지 않는다.
+
+```powershell
+git lfs pull
+```
+
+CI에서는 `.lfsconfig` 값과 GitHub repository variable `LFS_URL`이 일치하는지 대조한다. mirror 또는 공개용 LFS endpoint로 전환하면 `.lfsconfig`와 `LFS_URL`을 같은 PR에서 함께 갱신한다.
+
 ## Unity 확인 항목
 
 - `ProjectSettings/ProjectVersion.txt`의 Unity 버전과 로컬 에디터 버전이 일치하는지

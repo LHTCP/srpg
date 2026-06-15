@@ -170,6 +170,8 @@ SrpGameController
 - 통합 테스트:
   - HUD의 상단 헤더/정보 바/좌측 콘솔 분리와 전투 상태 반영
   - 좌측 전술 콘솔의 태세/방향/오버클럭/재장전/엄폐/상호작용 직접 조작
+  - 좌측 전술 콘솔은 명령 전용 레일로 유지하고 스킬 선택은 별도 drawer에서 닫기/재클릭 닫힘을 지원
+  - 로그 패널은 기본 접힘 상태로 시작하고 필요 시 펼침/접힘으로 화면 공간을 반환
   - 하단 현재 유닛 카드와 행동 preview 카드의 숫자+게이지 및 hover 예상 정보 반영
   - 위험영역/의도/상태 문구 일관성
   - QA 프리셋이 최신 스킬·태그·오버워치 사선·상호작용·방향성 엄폐 확인 지점을 포함하는지 검증
@@ -219,6 +221,7 @@ SrpGameController
 38. 전투 UX 추가 피드백 후속: 오버워치 사용자 노출 명칭을 `경계태세`로 교체하고, 예약 `경계태세 준비`/발동 `경계사격!` 문구를 고정했으며, 경계태세 사망 직후 렌더링/HUD/행동 순서 갱신과 공격/위험·경계태세 marker 계약을 PlayMode/관찰 QA로 검증
 39. 전투 preview 문법 재정렬: 기본 상태는 현재 행동 유닛 이동 marker만 유지하고 일반 공격/경계태세/엄폐/스킬/상호작용 범위는 버튼 hover preview로 분리한다. 이동 칸 hover는 clone 기반 evaluator로 ghost, 목적지 엄폐, 일반 threat line, 경계사격 강화 threat line을 표시하며 행동 순서 token hover는 전장 highlight와 preview/inspector 정보를 갱신한다.
 40. 전술 콘솔/로그/행동 종료 UX 정리: 핵심 행동은 command rail에 고정하고, 선택/hover 세부 정보는 context/inspector panel로 분리한다. 로그 drawer는 접힘 시 레이아웃 공간을 반환하며, player-facing 버튼은 `행동 종료` 하나로 통일한다. PlayMode에 패널 존재, 로그 collapse, hover preview 유지, 행동 순서 hover highlight, 카메라 `C` 토글/드리프트 가드를 추가한다.
+41. PG 붕괴/그로기/처단 밸런스 후속 프롬프트: 확정 구현 요구와 기획 확인 필요 항목을 별도 프롬프트 문서로 분리한다.
 
 다음 구현 순서:
 

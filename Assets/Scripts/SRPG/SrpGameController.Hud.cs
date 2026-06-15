@@ -2301,6 +2301,8 @@ public partial class SrpGameController
         && _skillSelectionDrawerPanel.transform.parent != _contextPanel?.transform
         && _skillListPanel != null
         && _skillListPanel.transform.parent == _skillSelectionDrawerPanel.transform;
+    public bool TestSkillSelectionDrawerDetachedFromLeftConsole => TestSkillSelectionDrawerDetachedFromCommandContext
+        && _skillSelectionDrawerPanel.transform.parent != _leftConsolePanel?.transform;
     public float TestSkillSelectionDrawerWidth => _skillSelectionDrawerPanel != null
         ? Mathf.Max(_skillSelectionDrawerPanel.GetComponent<RectTransform>().rect.width,
             _skillSelectionDrawerPanel.GetComponent<RectTransform>().sizeDelta.x)
@@ -2674,6 +2676,11 @@ public partial class SrpGameController
         return !TestSkillSelectionDrawerOpen;
     }
 
+    public bool TestCloseSkillListWithCloseButton()
+    {
+        return TestCloseSkillSelectionDrawer();
+    }
+
     public bool TestToggleSkillSelectionDrawerClosedFromCommandButton()
     {
         if (!TestSkillSelectionDrawerOpen)
@@ -2682,6 +2689,11 @@ public partial class SrpGameController
             return false;
         OnShowSkillList();
         return !TestSkillSelectionDrawerOpen;
+    }
+
+    public bool TestToggleSkillListClosedFromCommandButton()
+    {
+        return TestToggleSkillSelectionDrawerClosedFromCommandButton();
     }
 
     public bool TestToggleLogDrawerHiddenReturnsLayoutSpace()
@@ -2696,6 +2708,13 @@ public partial class SrpGameController
         if (!_logVisible)
             OnToggleLog();
         return TestLogDrawerVisible && TestLogDrawerWidth >= 640f;
+    }
+
+    public bool TestHideLogDrawer()
+    {
+        if (_logVisible)
+            OnToggleLog();
+        return TestLogDrawerBodyCollapsed;
     }
 
     public bool TestOpenSecondaryDrawerStance()

@@ -515,7 +515,7 @@ MonoBehaviour:
   frameCameraOnStart: 1
   orthoViewPadding: 3.5
   leftPanelWidth: 170
-  rightPanelWidth: 220
+  rightPanelWidth: 640
   startWithLogVisible: 0
 --- !u!4 &843159607
 Transform:

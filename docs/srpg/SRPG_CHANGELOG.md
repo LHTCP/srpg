@@ -30,6 +30,16 @@
   - Changed cover rendering so occupying cover objects are central ruin blocks while edge cover segments are low edge walls/boards instead of central cubes.
   - Added EditMode/PlayMode coverage for cover object standing, start overlap, edge walkability, edge visual placement, visual/unit overlap, and move-preview ghost avoidance.
 
+- 전투 HUD 패널 피드백 반영
+  - 좌측 전술 콘솔 폭을 명령 전용 레일 수준으로 줄이고, 설명/preview 정보는 하단 현재 유닛 카드와 행동 preview 카드로 분리
+  - 스킬 목록을 좌측 콘솔 내부가 아닌 별도 `SkillSelectionDrawerPanel`로 분리하고 `닫기` 버튼과 스킬 버튼 재클릭 닫힘을 추가
+  - 로그 패널을 기본 접힘 상태로 시작하게 하고, 접힘 시 작은 재열기 레일만 화면 공간을 차지하도록 조정
+  - `SrpgBattle` 씬의 serialized HUD 폭/로그 기본값을 코드 기본값과 동기화
+  - PlayMode HUD 스모크 테스트에 좌측 콘솔 폭, 로그 접힘/펼침, 스킬 drawer 분리/닫힘 계약을 추가
+- PG 붕괴/그로기/처단 밸런스 후속 구현 프롬프트 추가
+  - 기획자 피드백을 `SRPG_BALANCE_FEEDBACK_EXECUTION_PROMPT_2026-06-15.md`로 정리하고 문서 맵에 연결
+  - 확정 구현 요구와 기획 확인 필요 항목을 분리해 다음 구현 세션에서 바로 착수 가능하게 정리
+
 ## 2026-06-11
 
 - Playtest UX follow-up 3 (`TBD-017`)
@@ -47,8 +57,6 @@
   - Added `SrpTacticalCameraController` for perspective/top orthographic view, wheel zoom, middle-drag/WASD/arrow pan, and focus.
   - Added world-space unit facing arrows and one-tile cover cube objects, with a stronger visual tier for `blocksLineOfSight` cover.
   - Updated PlayMode coverage for world-space line existence, tier separation, hover cleanup, tactical camera, facing arrows, and cover object visibility.
-
-## 2026-06-11
 
 - 전투 preview 문법 재정렬 (`TBD-015`)
   - 기본 전투 화면은 현재 행동 유닛의 이동 가능 marker만 유지하고, 일반 공격/경계태세/엄폐/스킬/상호작용 범위는 버튼 hover 때만 열리도록 분리
