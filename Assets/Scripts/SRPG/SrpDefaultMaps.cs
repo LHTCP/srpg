@@ -177,6 +177,18 @@ public static class SrpDefaultMaps
             },
         };
 
+        var coverObjects = new[]
+        {
+            new SrpCoverObjectData { x = 5, y = 1, coverDef = 2, coverGrd = 1, blocksLineOfSight = true, visualKey = "qa_ruin" },
+            new SrpCoverObjectData { x = 6, y = 1, coverDef = 2, coverGrd = 1, blocksLineOfSight = true, visualKey = "qa_ruin" },
+            new SrpCoverObjectData { x = 5, y = 3, coverDef = 2, coverGrd = 1, blocksLineOfSight = true, visualKey = "qa_ruin" },
+            new SrpCoverObjectData { x = 6, y = 3, coverDef = 2, coverGrd = 1, blocksLineOfSight = true, visualKey = "qa_ruin" },
+            new SrpCoverObjectData { x = 5, y = 4, coverDef = 2, coverGrd = 1, blocksLineOfSight = true, visualKey = "qa_ruin" },
+            new SrpCoverObjectData { x = 6, y = 4, coverDef = 2, coverGrd = 1, blocksLineOfSight = true, visualKey = "qa_ruin" },
+            new SrpCoverObjectData { x = 5, y = 6, coverDef = 2, coverGrd = 1, blocksLineOfSight = true, visualKey = "qa_ruin" },
+            new SrpCoverObjectData { x = 6, y = 6, coverDef = 2, coverGrd = 1, blocksLineOfSight = true, visualKey = "qa_ruin" },
+        };
+
         return new SrpMapFileV1
         {
             version = 2,
@@ -188,6 +200,7 @@ public static class SrpDefaultMaps
             templates = templates,
             placements = placements,
             interactionPoints = interactionPoints,
+            coverObjects = coverObjects,
             coverSegments = coverSegments,
         };
     }
@@ -456,6 +469,16 @@ public static class SrpDefaultMaps
             },
         };
 
+        var coverObjects = new[]
+        {
+            new SrpCoverObjectData { x = 4, y = 3, coverDef = 3, coverGrd = 1, blocksLineOfSight = true, visualKey = "opening_central_ruin" },
+            new SrpCoverObjectData { x = 5, y = 3, coverDef = 3, coverGrd = 1, blocksLineOfSight = true, visualKey = "opening_central_ruin" },
+            new SrpCoverObjectData { x = 6, y = 3, coverDef = 3, coverGrd = 1, blocksLineOfSight = true, visualKey = "opening_central_ruin" },
+            new SrpCoverObjectData { x = 4, y = 5, coverDef = 3, coverGrd = 1, blocksLineOfSight = true, visualKey = "opening_central_ruin" },
+            new SrpCoverObjectData { x = 5, y = 5, coverDef = 3, coverGrd = 1, blocksLineOfSight = true, visualKey = "opening_central_ruin" },
+            new SrpCoverObjectData { x = 6, y = 5, coverDef = 3, coverGrd = 1, blocksLineOfSight = true, visualKey = "opening_central_ruin" },
+        };
+
         return new SrpMapFileV1
         {
             version = 2,
@@ -467,6 +490,7 @@ public static class SrpDefaultMaps
             templates = templates,
             placements = placements,
             interactionPoints = interactionPoints,
+            coverObjects = coverObjects,
             coverSegments = coverSegments,
         };
     }

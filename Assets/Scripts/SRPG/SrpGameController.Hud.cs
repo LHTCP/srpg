@@ -17,12 +17,31 @@ public partial class SrpGameController
     const int MaxLogLines = 80;
     const int QueuePreviewCount = 5;
     const float TopHudHeight = 170f;
+    const float CommandRailWidth = 150f;
+    const float SecondaryDrawerMinWidth = 320f;
+    const float SecondaryDrawerWidth = 360f;
+    const float SecondaryTabStripWidth = 104f;
+    const float SecondaryStanceFacingHeight = 210f;
+    const float SecondaryTacticalAssistHeight = 124f;
+    const float SecondarySystemHeight = 104f;
+    const float SkillSelectionDrawerMinWidth = 420f;
+    const float SkillSelectionDrawerWidth = 520f;
+    const float SkillSelectionDrawerHeight = 500f;
+    const float SkillSelectionRowMinHeight = 56f;
+    const float LogCollapsedWidth = 92f;
     const float TurnOrderStripWidth = 560f;
     const float TurnOrderStripHeight = 82f;
     const float TurnOrderCurrentTokenSize = 66f;
     const float TurnOrderNextTokenSize = 48f;
     const string OverlayLegendText = "범례: 초록=이동 중심점 | 주황=ZOC/주의 ring | 빨강=공격/위험 marker | 보라=스킬 marker | 청록=패링 가능 스킬 ring | 파랑=경계태세 marker | 연두=엄폐/방향엄폐 테두리 | 노랑=상호작용 목표 marker";
     readonly List<string> _log = new List<string>();
+
+    enum SecondaryActionDrawerTab
+    {
+        StanceFacing,
+        TacticalAssist,
+        System,
+    }
 
     TextMeshProUGUI _txtTurn;
     TextMeshProUGUI _txtStatus;
@@ -45,6 +64,8 @@ public partial class SrpGameController
     Button _btnLobby;
     Button _btnToggleLog;
     Button _btnUseSkill;
+    Button _btnCloseSkillSelection;
+    Button _btnBasicAttack;
     Button _btnCancelSkill;
     Button _btnDangerArea;
     Button _btnOverwatch;
@@ -59,20 +80,38 @@ public partial class SrpGameController
     Button _btnFacingWest;
     Button _btnOverclock;
     GameObject _skillListPanel;
+    GameObject _skillSelectionDrawerPanel;
+    TextMeshProUGUI _txtSkillSelectionTitle;
+    LayoutElement _skillSelectionDrawerLayout;
+    CanvasGroup _skillSelectionDrawerCanvasGroup;
     GameObject _topStatusPanel;
     GameObject _leftConsolePanel;
+    GameObject _commandRailPanel;
+    GameObject _contextPanel;
+    GameObject _secondaryActionPanel;
+    GameObject _secondaryActionTabStripPanel;
+    GameObject _secondaryStancePage;
+    GameObject _secondaryTacticalPage;
+    GameObject _secondarySystemPage;
+    LayoutElement _secondaryActionLayout;
+    CanvasGroup _secondaryActionCanvasGroup;
+    bool _secondaryDrawerOpen;
+    SecondaryActionDrawerTab _secondaryDrawerTab = SecondaryActionDrawerTab.StanceFacing;
+    TextMeshProUGUI _txtContextTitle;
+    TextMeshProUGUI _txtContextBody;
+    GameObject _rightLogDrawerPanel;
     GameObject _turnOrderTrackerPanel;
     GameObject _activeUnitCardPanel;
     GameObject _actionPreviewPanel;
+    GameObject _inspectorPreviewPanel;
     readonly List<SkillListEntry> _skillListButtons = new List<SkillListEntry>();
     TextMeshProUGUI _txtLogToggleLabel;
     GameObject _logBody;
+    LayoutElement _logBodyLayout;
     ScrollRect _logScrollRect;
     RectTransform _logContent;
     bool _logVisible = true;
     bool _logScrollPending;
-    GameObject _tooltipGo;
-    TextMeshProUGUI _tooltipText;
     Canvas _hudCanvas;
     bool _postUndoHint;
     readonly List<TurnOrderIconEntry> _turnOrderIcons = new List<TurnOrderIconEntry>();
@@ -109,6 +148,7 @@ public partial class SrpGameController
     void BuildHud()
     {
         var canvasGo = new GameObject("SrpCanvas");
+        canvasGo.transform.SetParent(transform, false);
         var canvas = canvasGo.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 
@@ -123,9 +163,10 @@ public partial class SrpGameController
         BuildTopStatusArea(canvasGo.transform);
         BuildTurnOrderTracker(canvasGo.transform);
         BuildLeftPanel(canvasGo.transform);
+        BuildSecondaryActionDrawer(canvasGo.transform);
+        BuildSkillSelectionDrawer(canvasGo.transform);
         BuildRightPanel(canvasGo.transform);
         BuildBottomTacticalCards(canvasGo.transform);
-        BuildTooltip(canvasGo.transform);
         _logVisible = startWithLogVisible;
         ApplyLogVisibility();
     }
@@ -183,80 +224,243 @@ public partial class SrpGameController
         rt.anchorMax = new Vector2(0f, 1f);
         rt.pivot = new Vector2(0f, 0.5f);
         rt.sizeDelta = new Vector2(leftPanelWidth, 0f);
-        panel.AddComponent<Image>().color = new Color(0.08f, 0.09f, 0.12f, 0.86f);
+        panel.AddComponent<Image>().color = new Color(0.055f, 0.065f, 0.085f, 0.88f);
 
-        var vlg = panel.AddComponent<VerticalLayoutGroup>();
-        vlg.padding = new RectOffset(12, 12, 14, 14);
+        var hlg = panel.AddComponent<HorizontalLayoutGroup>();
+        hlg.padding = new RectOffset(10, 10, 12, 12);
+        hlg.spacing = 10f;
+        hlg.childControlHeight = true;
+        hlg.childControlWidth = true;
+        hlg.childForceExpandHeight = true;
+        hlg.childForceExpandWidth = false;
+
+        var rail = new GameObject("CommandRailPanel", typeof(RectTransform));
+        _commandRailPanel = rail;
+        rail.transform.SetParent(panel.transform, false);
+        var railLayout = rail.AddComponent<LayoutElement>();
+        railLayout.minWidth = CommandRailWidth;
+        railLayout.preferredWidth = CommandRailWidth;
+        railLayout.flexibleHeight = 1f;
+        rail.AddComponent<Image>().color = new Color(0.08f, 0.09f, 0.12f, 0.92f);
+        var railVlg = rail.AddComponent<VerticalLayoutGroup>();
+        railVlg.padding = new RectOffset(8, 8, 10, 10);
+        railVlg.spacing = 8f;
+        railVlg.childControlHeight = true;
+        railVlg.childControlWidth = true;
+        railVlg.childForceExpandHeight = false;
+        railVlg.childForceExpandWidth = true;
+
+        var railTitle = MakeLabel(rail.transform, "CommandRailTitle", 17, new Color(1f, 0.9f, 0.5f), 30);
+        railTitle.text = "명령";
+        railTitle.alignment = TextAlignmentOptions.MidlineLeft;
+        MakeSeparator(rail.transform);
+
+        _btnBasicAttack = MakeButton(rail.transform, "일반 공격", OnBasicAttackUi, 48, 18);
+        _btnBasicAttack.GetComponent<Image>().color = new Color(0.46f, 0.20f, 0.16f, 0.9f);
+        ConfigureActionPreviewTrigger(_btnBasicAttack, SrpActionPreviewKind.BasicAttack);
+        _btnUseSkill = MakeButton(rail.transform, "스킬", OnShowSkillList, 50, 18);
+        _btnUseSkill.GetComponent<Image>().color = new Color(0.40f, 0.22f, 0.55f, 0.9f);
+        _btnOverwatch = MakeButton(rail.transform, "경계태세", OnOverwatchUi, 48, 18);
+        _btnOverwatch.GetComponent<Image>().color = new Color(0.15f, 0.24f, 0.55f, 0.9f);
+        ConfigureActionPreviewTrigger(_btnOverwatch, SrpActionPreviewKind.Overwatch);
+        _btnCover = MakeButton(rail.transform, "엄폐", OnCoverUi, 48, 18);
+        _btnCover.GetComponent<Image>().color = new Color(0.24f, 0.42f, 0.18f, 0.9f);
+        ConfigureActionPreviewTrigger(_btnCover, SrpActionPreviewKind.Cover);
+        _btnReload = MakeButton(rail.transform, "재장전", OnReloadUi, 48, 18);
+        _btnReload.GetComponent<Image>().color = new Color(0.18f, 0.38f, 0.28f, 0.9f);
+        _btnInteract = MakeButton(rail.transform, "상호작용", OnInteractUi, 48, 18);
+        _btnInteract.GetComponent<Image>().color = new Color(0.45f, 0.36f, 0.12f, 0.9f);
+        ConfigureActionPreviewTrigger(_btnInteract, SrpActionPreviewKind.Interaction);
+        MakeSeparator(rail.transform);
+        _btnSkipAttack = MakeButton(rail.transform, "행동 종료", OnEndTurnSoft, 54, 19);
+        _btnSkipAttack.GetComponent<Image>().color = new Color(0.32f, 0.34f, 0.38f, 0.96f);
+        _btnEndTurn = null;
+
+        // Selection/hover explanations live in the bottom tactical cards, not beside the command rail.
+    }
+
+    Vector2 SkillSelectionDrawerPosition => new Vector2(10f + CommandRailWidth + 10f, 90f);
+
+    void BuildSkillSelectionDrawer(Transform canvasRoot)
+    {
+        var panel = MakeFloatingPanel(canvasRoot, "SkillSelectionDrawer",
+            new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+            new Vector2(0f, 0.5f), SkillSelectionDrawerPosition,
+            new Vector2(SkillSelectionDrawerWidth, SkillSelectionDrawerHeight),
+            new Color(0.07f, 0.055f, 0.105f, 0.94f));
+        _skillSelectionDrawerPanel = panel;
+        _skillSelectionDrawerCanvasGroup = panel.AddComponent<CanvasGroup>();
+        _skillSelectionDrawerLayout = panel.GetComponent<LayoutElement>();
+        if (_skillSelectionDrawerLayout == null)
+            _skillSelectionDrawerLayout = panel.AddComponent<LayoutElement>();
+        _skillSelectionDrawerLayout.minWidth = SkillSelectionDrawerMinWidth;
+        _skillSelectionDrawerLayout.preferredWidth = SkillSelectionDrawerWidth;
+
+        _txtSkillSelectionTitle = MakeLabel(panel.transform, "SkillSelectionTitle", 20, new Color(1f, 0.88f, 0.52f), 30);
+        _txtSkillSelectionTitle.text = "\uC2A4\uD0AC \uC120\uD0DD";
+        _txtSkillSelectionTitle.textWrappingMode = TextWrappingModes.NoWrap;
+
+        var caption = MakeLabel(panel.transform, "SkillSelectionCaption", 14, new Color(0.76f, 0.86f, 1f), 34);
+        caption.text = "\uC0AC\uC6A9\uD560 \uC561\uD2F0\uBE0C \uC2A4\uD0AC\uC744 \uACE0\uB974\uBA74 \uD0C0\uAE43 \uC120\uD0DD\uC73C\uB85C \uC804\uD658\uB429\uB2C8\uB2E4.";
+        caption.overflowMode = TextOverflowModes.Ellipsis;
+        caption.textWrappingMode = TextWrappingModes.NoWrap;
+
+        _btnCloseSkillSelection = MakeButton(panel.transform, "\uB2EB\uAE30", OnCloseSkillSelectionUi, 34, 15);
+        _btnCloseSkillSelection.GetComponent<Image>().color = new Color(0.20f, 0.18f, 0.24f, 0.92f);
+
+        _skillListPanel = new GameObject("SkillSelectionList", typeof(RectTransform));
+        _skillListPanel.transform.SetParent(panel.transform, false);
+        var listLayout = _skillListPanel.AddComponent<LayoutElement>();
+        listLayout.flexibleHeight = 1f;
+        listLayout.minWidth = SkillSelectionDrawerMinWidth - 24f;
+        _skillListPanel.AddComponent<Image>().color = new Color(0.10f, 0.08f, 0.16f, 0.72f);
+        var sklVlg = _skillListPanel.AddComponent<VerticalLayoutGroup>();
+        sklVlg.padding = new RectOffset(10, 10, 10, 10);
+        sklVlg.spacing = 8f;
+        sklVlg.childControlHeight = true;
+        sklVlg.childControlWidth = true;
+        sklVlg.childForceExpandHeight = false;
+        sklVlg.childForceExpandWidth = true;
+
+        SetSkillSelectionDrawerOpen(false);
+    }
+
+    void BuildSecondaryActionDrawer(Transform canvasRoot)
+    {
+        var tabs = MakeFloatingPanel(canvasRoot, "SecondaryActionTabStripPanel",
+            new Vector2(0f, 0f), new Vector2(0f, 0f),
+            new Vector2(0f, 0f), new Vector2(leftPanelWidth + 10f, 246f), new Vector2(SecondaryTabStripWidth, 146f),
+            new Color(0.05f, 0.06f, 0.08f, 0.84f));
+        _secondaryActionTabStripPanel = tabs;
+
+        var stanceTab = MakeButton(tabs.transform, "\uD0DC\uC138/\uBC29\uD5A5", () => ToggleSecondaryDrawer(SecondaryActionDrawerTab.StanceFacing), 42, 15);
+        stanceTab.GetComponent<Image>().color = new Color(0.16f, 0.23f, 0.34f, 0.94f);
+        var tacticalTab = MakeButton(tabs.transform, "\uC804\uC220 \uBCF4\uC870", () => ToggleSecondaryDrawer(SecondaryActionDrawerTab.TacticalAssist), 42, 15);
+        tacticalTab.GetComponent<Image>().color = new Color(0.18f, 0.24f, 0.22f, 0.94f);
+        var systemTab = MakeButton(tabs.transform, "\uC2DC\uC2A4\uD15C", () => ToggleSecondaryDrawer(SecondaryActionDrawerTab.System), 42, 15);
+        systemTab.GetComponent<Image>().color = new Color(0.25f, 0.23f, 0.18f, 0.94f);
+
+        var panel = MakeFloatingPanel(canvasRoot, "SecondaryActionPanel",
+            new Vector2(0f, 0f), new Vector2(0f, 0f),
+            new Vector2(0f, 0f), new Vector2(leftPanelWidth + SecondaryTabStripWidth + 18f, 224f),
+            new Vector2(SecondaryDrawerWidth, SecondaryStanceFacingHeight),
+            new Color(0.055f, 0.065f, 0.085f, 0.92f));
+        _secondaryActionPanel = panel;
+        _secondaryActionCanvasGroup = panel.AddComponent<CanvasGroup>();
+        _secondaryActionLayout = panel.GetComponent<LayoutElement>();
+        if (_secondaryActionLayout == null)
+            _secondaryActionLayout = panel.AddComponent<LayoutElement>();
+        _secondaryActionLayout.minWidth = SecondaryDrawerMinWidth;
+        _secondaryActionLayout.preferredWidth = SecondaryDrawerWidth;
+
+        var title = MakeLabel(panel.transform, "SecondaryTitle", 15, new Color(0.75f, 0.9f, 1f), 22);
+        title.text = "\uBCF4\uC870 \uC870\uC791";
+
+        _secondaryStancePage = MakeSecondaryDrawerPage(panel.transform, "SecondaryStanceFacingPage");
+        var stanceCaption = MakeLabel(_secondaryStancePage.transform, "SecondaryStanceCaption", 14, new Color(0.82f, 0.9f, 1f), 22);
+        stanceCaption.text = "\uD0DC\uC138";
+        var stanceRow = MakeButtonRow(_secondaryStancePage.transform, 44f);
+        _btnStanceAggressive = MakeButton(stanceRow.transform, "\uACF5\uACA9", () => OnSetStanceUi(SrpStance.Aggressive), 42, 18);
+        _btnStanceAggressive.GetComponent<Image>().color = new Color(0.42f, 0.18f, 0.16f, 0.9f);
+        _btnStanceDefensive = MakeButton(stanceRow.transform, "\uC218\uBE44", () => OnSetStanceUi(SrpStance.Defensive), 42, 18);
+        _btnStanceDefensive.GetComponent<Image>().color = new Color(0.16f, 0.28f, 0.44f, 0.9f);
+
+        var facingCaption = MakeLabel(_secondaryStancePage.transform, "SecondaryFacingCaption", 14, new Color(0.82f, 0.9f, 1f), 22);
+        facingCaption.text = "\uCD5C\uC885 \uBC29\uD5A5";
+        var facingRow = MakeButtonRow(_secondaryStancePage.transform, 44f);
+        _btnFacingNorth = MakeButton(facingRow.transform, "\uBD81", () => OnSetFacingUi(SrpFacing.North), 40, 18);
+        _btnFacingEast = MakeButton(facingRow.transform, "\uB3D9", () => OnSetFacingUi(SrpFacing.East), 40, 18);
+        _btnFacingSouth = MakeButton(facingRow.transform, "\uB0A8", () => OnSetFacingUi(SrpFacing.South), 40, 18);
+        _btnFacingWest = MakeButton(facingRow.transform, "\uC11C", () => OnSetFacingUi(SrpFacing.West), 40, 18);
+
+        _secondaryTacticalPage = MakeSecondaryDrawerPage(panel.transform, "SecondaryTacticalAssistPage");
+        var toolRow = MakeButtonRow(_secondaryTacticalPage.transform, 46f);
+        _btnOverclock = MakeButton(toolRow.transform, "\uC624\uBC84\uD074\uB7ED", OnOverclockUi, 44, 18);
+        _btnOverclock.GetComponent<Image>().color = new Color(0.38f, 0.26f, 0.12f, 0.9f);
+        _btnDangerArea = MakeButton(toolRow.transform, "\uC704\uD5D8\uC601\uC5ED", OnToggleDangerAreaUi, 44, 18);
+        _btnDangerArea.GetComponent<Image>().color = new Color(0.25f, 0.22f, 0.15f, 0.9f);
+        _btnCancelSkill = MakeButton(toolRow.transform, "\uC2A4\uD0AC \uCDE8\uC18C", OnCancelSkillUi, 44, 18);
+        _btnCancelSkill.GetComponent<Image>().color = new Color(0.55f, 0.25f, 0.20f, 0.9f);
+
+        _secondarySystemPage = MakeSecondaryDrawerPage(panel.transform, "SecondarySystemPage");
+        var systemRow = MakeButtonRow(_secondarySystemPage.transform, 46f);
+        _btnUndo = MakeButton(systemRow.transform, "\uB418\uAC10\uAE30", OnUndo, 48, 18);
+        _btnLobby = MakeButton(systemRow.transform, "\uB85C\uBE44",
+            SrpGameSettings.ReturnToLobby, 46, 18);
+
+        SetSecondaryDrawerOpen(false, _secondaryDrawerTab);
+    }
+
+    GameObject MakeSecondaryDrawerPage(Transform parent, string name)
+    {
+        var page = new GameObject(name, typeof(RectTransform));
+        page.transform.SetParent(parent, false);
+        page.AddComponent<LayoutElement>().flexibleHeight = 1f;
+        var vlg = page.AddComponent<VerticalLayoutGroup>();
+        vlg.padding = new RectOffset(0, 0, 0, 0);
         vlg.spacing = 8f;
         vlg.childControlHeight = true;
         vlg.childControlWidth = true;
         vlg.childForceExpandHeight = false;
         vlg.childForceExpandWidth = true;
+        return page;
+    }
 
-        var title = MakeLabel(panel.transform, "ConsoleTitle", 20, new Color(1f, 0.9f, 0.5f), 34);
-        title.text = "전술 콘솔";
-        title.alignment = TextAlignmentOptions.MidlineLeft;
-        MakeSeparator(panel.transform);
-        var stanceTitle = MakeLabel(panel.transform, "StanceTitle", 15, new Color(0.75f, 0.9f, 1f), 22);
-        stanceTitle.text = "태세 선택";
-        var stanceRow = MakeButtonRow(panel.transform, 42f);
-        _btnStanceAggressive = MakeButton(stanceRow.transform, "공격", () => OnSetStanceUi(SrpStance.Aggressive), 42, 18);
-        _btnStanceAggressive.GetComponent<Image>().color = new Color(0.42f, 0.18f, 0.16f, 0.9f);
-        _btnStanceDefensive = MakeButton(stanceRow.transform, "수비", () => OnSetStanceUi(SrpStance.Defensive), 42, 18);
-        _btnStanceDefensive.GetComponent<Image>().color = new Color(0.16f, 0.28f, 0.44f, 0.9f);
+    void ToggleSecondaryDrawer(SecondaryActionDrawerTab tab)
+    {
+        bool open = !_secondaryDrawerOpen || _secondaryDrawerTab != tab;
+        SetSecondaryDrawerOpen(open, tab);
+    }
 
-        var facingTitle = MakeLabel(panel.transform, "FacingTitle", 15, new Color(0.75f, 0.9f, 1f), 22);
-        facingTitle.text = "최종 방향";
-        var facingRow = MakeButtonRow(panel.transform, 40f);
-        _btnFacingNorth = MakeButton(facingRow.transform, "북", () => OnSetFacingUi(SrpFacing.North), 40, 18);
-        _btnFacingEast = MakeButton(facingRow.transform, "동", () => OnSetFacingUi(SrpFacing.East), 40, 18);
-        _btnFacingSouth = MakeButton(facingRow.transform, "남", () => OnSetFacingUi(SrpFacing.South), 40, 18);
-        _btnFacingWest = MakeButton(facingRow.transform, "서", () => OnSetFacingUi(SrpFacing.West), 40, 18);
+    void SetSecondaryDrawerOpen(bool open, SecondaryActionDrawerTab tab)
+    {
+        _secondaryDrawerOpen = open;
+        _secondaryDrawerTab = tab;
+        if (_secondaryActionPanel != null)
+        {
+            var rt = _secondaryActionPanel.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(SecondaryDrawerWidth, GetSecondaryDrawerHeight(tab));
+            _secondaryActionPanel.SetActive(true);
+        }
+        if (_secondaryStancePage != null)
+            _secondaryStancePage.SetActive(open && tab == SecondaryActionDrawerTab.StanceFacing);
+        if (_secondaryTacticalPage != null)
+            _secondaryTacticalPage.SetActive(open && tab == SecondaryActionDrawerTab.TacticalAssist);
+        if (_secondarySystemPage != null)
+            _secondarySystemPage.SetActive(open && tab == SecondaryActionDrawerTab.System);
+        if (_secondaryActionCanvasGroup != null)
+        {
+            _secondaryActionCanvasGroup.alpha = open ? 1f : 0f;
+            _secondaryActionCanvasGroup.interactable = open;
+            _secondaryActionCanvasGroup.blocksRaycasts = open;
+        }
+        if (open && _secondaryActionPanel != null)
+        {
+            var rt = _secondaryActionPanel.GetComponent<RectTransform>();
+            _secondaryActionPanel.transform.SetAsLastSibling();
+            MarkGraphicsDirty(_secondaryActionPanel);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
+            Canvas.ForceUpdateCanvases();
+        }
+    }
 
-        MakeSeparator(panel.transform);
-        _btnUseSkill = MakeButton(panel.transform, "스킬 사용", OnShowSkillList, 60);
-        _btnUseSkill.GetComponent<Image>().color = new Color(0.40f, 0.22f, 0.55f, 0.9f);
-        _btnCancelSkill = MakeButton(panel.transform, "스킬 취소", OnCancelSkillUi, 48, 20);
-        _btnCancelSkill.GetComponent<Image>().color = new Color(0.55f, 0.25f, 0.20f, 0.9f);
-        _btnOverclock = MakeButton(panel.transform, "오버클럭", OnOverclockUi, 48, 20);
-        _btnOverclock.GetComponent<Image>().color = new Color(0.38f, 0.26f, 0.12f, 0.9f);
-        _btnReload = MakeButton(panel.transform, "재장전", OnReloadUi, 48, 20);
-        _btnReload.GetComponent<Image>().color = new Color(0.18f, 0.38f, 0.28f, 0.9f);
-        _btnCover = MakeButton(panel.transform, "엄폐", OnCoverUi, 48, 20);
-        _btnCover.GetComponent<Image>().color = new Color(0.24f, 0.42f, 0.18f, 0.9f);
-        _btnInteract = MakeButton(panel.transform, "상호작용", OnInteractUi, 48, 20);
-        _btnInteract.GetComponent<Image>().color = new Color(0.45f, 0.36f, 0.12f, 0.9f);
-        _btnOverwatch = MakeButton(panel.transform, "경계태세", OnOverwatchUi, 48, 20);
-        _btnOverwatch.GetComponent<Image>().color = new Color(0.15f, 0.24f, 0.55f, 0.9f);
-        _btnDangerArea = MakeButton(panel.transform, "위험영역 보기", OnToggleDangerAreaUi, 48, 20);
-        _btnDangerArea.GetComponent<Image>().color = new Color(0.25f, 0.22f, 0.15f, 0.9f);
-
-        // 스킬 목록 패널 (숨김 시작)
-        _skillListPanel = new GameObject("SkillListPanel", typeof(RectTransform));
-        _skillListPanel.transform.SetParent(panel.transform, false);
-        _skillListPanel.AddComponent<LayoutElement>().flexibleHeight = 0.3f;
-        _skillListPanel.AddComponent<Image>().color = new Color(0.10f, 0.08f, 0.16f, 0.9f);
-        var sklVlg = _skillListPanel.AddComponent<VerticalLayoutGroup>();
-        sklVlg.padding = new RectOffset(6, 6, 4, 4);
-        sklVlg.spacing = 4f;
-        sklVlg.childControlHeight = true;
-        sklVlg.childControlWidth = true;
-        sklVlg.childForceExpandHeight = false;
-        sklVlg.childForceExpandWidth = true;
-        _skillListPanel.SetActive(false);
-
-        MakeSeparator(panel.transform);
-        _btnSkipAttack = MakeButton(panel.transform, "행동 종료", OnSkipAttack, 54, 22);
-        _btnEndTurn = MakeButton(panel.transform, "턴 종료", OnEndTurnSoft, 54, 22);
-        _btnUndo = MakeButton(panel.transform, "되감기", OnUndo, 54, 22);
-        MakeSeparator(panel.transform);
-        _btnLobby = MakeButton(panel.transform, "◀ 로비로 돌아가기",
-            SrpGameSettings.ReturnToLobby, 52, 22);
+    static float GetSecondaryDrawerHeight(SecondaryActionDrawerTab tab)
+    {
+        switch (tab)
+        {
+            case SecondaryActionDrawerTab.TacticalAssist:
+                return SecondaryTacticalAssistHeight;
+            case SecondaryActionDrawerTab.System:
+                return SecondarySystemHeight;
+            default:
+                return SecondaryStanceFacingHeight;
+        }
     }
 
     void BuildRightPanel(Transform canvasRoot)
     {
-        var panel = new GameObject("RightPanel", typeof(RectTransform));
+        var panel = new GameObject("LogDrawerPanel", typeof(RectTransform));
+        _rightLogDrawerPanel = panel;
         panel.transform.SetParent(canvasRoot, false);
         var rt = panel.GetComponent<RectTransform>();
         rt.anchorMin = new Vector2(1f, 0f);
@@ -279,7 +483,8 @@ public partial class SrpGameController
         // ScrollRect 컨테이너
         _logBody = new GameObject("LogScrollRect", typeof(RectTransform));
         _logBody.transform.SetParent(panel.transform, false);
-        _logBody.AddComponent<LayoutElement>().flexibleHeight = 1f;
+        _logBodyLayout = _logBody.AddComponent<LayoutElement>();
+        _logBodyLayout.flexibleHeight = 1f;
         _logBody.AddComponent<Image>().color = new Color(0.04f, 0.04f, 0.07f, 0.4f);
         _logScrollRect = _logBody.AddComponent<ScrollRect>();
         _logScrollRect.horizontal = false;
@@ -444,11 +649,12 @@ public partial class SrpGameController
         _gaugeActiveAmmo = MakeGauge(activePanel.transform, "탄약", new Color(0.45f, 0.95f, 0.45f));
         _txtActiveCardState = MakeLabel(activePanel.transform, "ActiveCardState", 13, new Color(0.82f, 0.86f, 0.9f), 42);
 
-        var previewPanel = MakeFloatingPanel(canvasRoot, "ActionPreviewPanel",
+        var previewPanel = MakeFloatingPanel(canvasRoot, "InspectorPreviewPanel",
             new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f),
             new Vector2(-(rightPanelWidth + 12f), 12f), new Vector2(500f, 230f),
             new Color(0.07f, 0.06f, 0.10f, 0.88f));
         _actionPreviewPanel = previewPanel;
+        _inspectorPreviewPanel = previewPanel;
         _txtPreviewTitle = MakeLabel(previewPanel.transform, "PreviewTitle", 18, new Color(1f, 0.86f, 0.45f), 30);
         _gaugePreviewHp = MakeGauge(previewPanel.transform, "대상 HP", new Color(0.85f, 0.22f, 0.18f));
         _gaugePreviewPg = MakeGauge(previewPanel.transform, "대상 PG", new Color(0.85f, 0.62f, 0.20f));
@@ -623,6 +829,12 @@ public partial class SrpGameController
     void OnShowSkillList()
     {
         if (_phase != Phase.UnitActive || !_selectedId.HasValue) return;
+        if (IsSkillSelectionDrawerOpen())
+        {
+            SetSkillSelectionDrawerOpen(false);
+            UpdateHud();
+            return;
+        }
         var u = GetUnit(_selectedId.Value);
         if (u == null) return;
 
@@ -652,8 +864,7 @@ public partial class SrpGameController
             entry.button.onClick.RemoveAllListeners();
             entry.button.onClick.AddListener(() =>
             {
-                HideTooltip();
-                _skillListPanel.SetActive(false);
+                SetSkillSelectionDrawerOpen(false);
                 BeginSkillTargeting(capturedData, capturedRuntime);
             });
 
@@ -664,21 +875,12 @@ public partial class SrpGameController
             entry.label.text = $"{data.displayName}{resourceText}{tagText}";
             entry.label.alignment = TextAlignmentOptions.MidlineLeft;
             entry.label.overflowMode = TextOverflowModes.Ellipsis;
-            entry.label.textWrappingMode = TextWrappingModes.Normal;
+            entry.label.textWrappingMode = TextWrappingModes.NoWrap;
 
-            string fullTooltip = $"<b>{data.displayName}</b>{resourceText}{tagText}\n{data.description}";
-            if (SrpSkills.UsesCharges(data))
-                fullTooltip += $"\n충전 회복: {Mathf.Max(1, data.chargeRecoveryTurns)} 라운드";
-            if (data.overclockFrozenHeartCost > 0)
-                fullTooltip += $"\n오버클럭: 안정도(FH) {data.overclockFrozenHeartCost} 소모";
-            if (data.overclockPowerBonus > 0)
-                fullTooltip += $"\n오버클럭 증폭: 다음 사용 피해/회복 +{data.overclockPowerBonus}";
-            if (sr.overclockedUsesRemaining > 0)
-                fullTooltip += "\n오버클럭 강화 대기: 다음 사용 1회 강화";
-            if (data.requiresParryTelegraph)
-                fullTooltip += "\n패링 가능 스킬: 대상에게 청록색 텔레그래프 표시";
-            if (data.endsActivation) fullTooltip += "\n(사용 후 활성화 종료)";
-            SetTooltipTrigger(entry.trigger, fullTooltip);
+            SetHoverTrigger(
+                entry.trigger,
+                () => ShowActionPreview(SrpActionPreviewKind.Skill, capturedData, capturedRuntime),
+                ClearActionPreview);
             entry.root.SetActive(true);
         }
 
@@ -693,25 +895,74 @@ public partial class SrpGameController
             entry.label.fontSize = 18;
             entry.label.color = new Color(0.6f, 0.6f, 0.6f);
             entry.label.alignment = TextAlignmentOptions.Center;
-            entry.label.textWrappingMode = TextWrappingModes.Normal;
-            SetTooltipTrigger(entry.trigger, string.Empty);
+            entry.label.overflowMode = TextOverflowModes.Ellipsis;
+            entry.label.textWrappingMode = TextWrappingModes.NoWrap;
+            SetHoverTrigger(entry.trigger, null, null);
             entry.root.SetActive(true);
         }
 
-        _skillListPanel.SetActive(true);
+        SetSkillSelectionDrawerOpen(true);
+        UpdateHud();
+    }
+
+    void OnCloseSkillSelectionUi()
+    {
+        SetSkillSelectionDrawerOpen(false);
         UpdateHud();
     }
 
     void OnCancelSkillUi()
     {
-        if (_skillListPanel != null && _skillListPanel.activeSelf && _phase == Phase.UnitActive)
+        if (IsSkillSelectionDrawerOpen() && _phase == Phase.UnitActive)
         {
-            HideTooltip();
-            _skillListPanel.SetActive(false);
+            SetSkillSelectionDrawerOpen(false);
             UpdateHud();
             return;
         }
         CancelSkillTargeting();
+    }
+
+    void SetSkillSelectionDrawerOpen(bool open)
+    {
+        if (_skillListPanel != null)
+            _skillListPanel.SetActive(open);
+        if (_skillSelectionDrawerPanel != null)
+        {
+            _skillSelectionDrawerPanel.SetActive(true);
+            if (_skillSelectionDrawerCanvasGroup != null)
+            {
+                _skillSelectionDrawerCanvasGroup.alpha = open ? 1f : 0f;
+                _skillSelectionDrawerCanvasGroup.interactable = open;
+                _skillSelectionDrawerCanvasGroup.blocksRaycasts = open;
+            }
+            if (open)
+            {
+                _skillSelectionDrawerPanel.transform.SetAsLastSibling();
+                MarkGraphicsDirty(_skillSelectionDrawerPanel);
+                LayoutRebuilder.ForceRebuildLayoutImmediate(_skillSelectionDrawerPanel.GetComponent<RectTransform>());
+                Canvas.ForceUpdateCanvases();
+            }
+        }
+    }
+
+    bool IsSkillSelectionDrawerOpen()
+    {
+        return _skillSelectionDrawerPanel != null
+            && _skillSelectionDrawerCanvasGroup != null
+            && _skillSelectionDrawerCanvasGroup.alpha > 0.5f;
+    }
+
+    static void MarkGraphicsDirty(GameObject root)
+    {
+        if (root == null)
+            return;
+        var graphics = root.GetComponentsInChildren<Graphic>(true);
+        foreach (var graphic in graphics)
+        {
+            if (graphic == null)
+                continue;
+            graphic.SetAllDirty();
+        }
     }
 
     void OnToggleDangerAreaUi()
@@ -783,7 +1034,9 @@ public partial class SrpGameController
         {
             var btnGo = new GameObject("SkillBtn", typeof(RectTransform));
             btnGo.transform.SetParent(_skillListPanel.transform, false);
-            btnGo.AddComponent<LayoutElement>().minHeight = 48f;
+            var layout = btnGo.AddComponent<LayoutElement>();
+            layout.minHeight = SkillSelectionRowMinHeight;
+            layout.preferredHeight = SkillSelectionRowMinHeight;
             btnGo.AddComponent<Image>().color = new Color(0.30f, 0.18f, 0.50f, 0.9f);
             var btn = btnGo.AddComponent<Button>();
             var trigger = btnGo.AddComponent<EventTrigger>();
@@ -800,7 +1053,7 @@ public partial class SrpGameController
             tx.color = Color.white;
             tx.alignment = TextAlignmentOptions.MidlineLeft;
             tx.overflowMode = TextOverflowModes.Ellipsis;
-            tx.textWrappingMode = TextWrappingModes.Normal;
+            tx.textWrappingMode = TextWrappingModes.NoWrap;
 
             _skillListButtons.Add(new SkillListEntry
             {
@@ -821,86 +1074,51 @@ public partial class SrpGameController
                 continue;
             entry.root.SetActive(false);
             entry.button.onClick.RemoveAllListeners();
-            SetTooltipTrigger(entry.trigger, string.Empty);
+            SetHoverTrigger(entry.trigger, null, null);
         }
     }
 
-    void BuildTooltip(Transform canvasRoot)
-    {
-        _tooltipGo = new GameObject("Tooltip", typeof(RectTransform));
-        _tooltipGo.transform.SetParent(canvasRoot, false);
-        var rt = _tooltipGo.GetComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(380f, 0f);
-        rt.pivot = new Vector2(0f, 1f);
-        _tooltipGo.AddComponent<Image>().color = new Color(0.06f, 0.06f, 0.10f, 0.95f);
-        _tooltipGo.AddComponent<VerticalLayoutGroup>().padding = new RectOffset(12, 12, 8, 8);
-
-        var csf = _tooltipGo.AddComponent<ContentSizeFitter>();
-        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-        csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-
-        var txtGo = new GameObject("Text", typeof(RectTransform));
-        txtGo.transform.SetParent(_tooltipGo.transform, false);
-        _tooltipText = txtGo.AddComponent<TextMeshProUGUI>();
-        _tooltipText.fontSize = 18;
-        _tooltipText.color = new Color(0.92f, 0.95f, 1f);
-        _tooltipText.alignment = TextAlignmentOptions.TopLeft;
-        _tooltipText.textWrappingMode = TextWrappingModes.Normal;
-        _tooltipText.richText = true;
-        _tooltipText.overflowMode = TextOverflowModes.Overflow;
-
-        _tooltipGo.AddComponent<CanvasGroup>().blocksRaycasts = false;
-        _tooltipGo.SetActive(false);
-    }
-
-    void AddTooltipTrigger(GameObject target, string text)
-    {
-        var et = target.AddComponent<EventTrigger>();
-        SetTooltipTrigger(et, text);
-    }
-
-    void SetTooltipTrigger(EventTrigger et, string text)
+    void SetHoverTrigger(EventTrigger et, Action onEnter, Action onExit)
     {
         if (et == null)
             return;
         et.triggers.Clear();
-        if (string.IsNullOrEmpty(text))
+        if (onEnter == null && onExit == null)
             return;
 
         var enterEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
-        string capturedText = text;
-        enterEntry.callback.AddListener(_ => ShowTooltip(capturedText));
+        enterEntry.callback.AddListener(_ =>
+        {
+            onEnter?.Invoke();
+        });
         et.triggers.Add(enterEntry);
 
         var exitEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
-        exitEntry.callback.AddListener(_ => HideTooltip());
+        exitEntry.callback.AddListener(_ =>
+        {
+            onExit?.Invoke();
+        });
         et.triggers.Add(exitEntry);
     }
 
-    void ShowTooltip(string text)
+    EventTrigger EnsureEventTrigger(GameObject target)
     {
-        if (_tooltipGo == null) return;
-        _tooltipText.text = text;
-        _tooltipGo.SetActive(true);
-        StartCoroutine(PositionTooltipNextFrame());
+        if (target == null)
+            return null;
+        var trigger = target.GetComponent<EventTrigger>();
+        if (trigger == null)
+            trigger = target.AddComponent<EventTrigger>();
+        return trigger;
     }
 
-    IEnumerator PositionTooltipNextFrame()
+    void ConfigureActionPreviewTrigger(Button button, SrpActionPreviewKind kind)
     {
-        yield return null;
-        if (_tooltipGo == null || !_tooltipGo.activeSelf) yield break;
-        var rt = _tooltipGo.GetComponent<RectTransform>();
-        Vector2 pos;
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            _hudCanvas.GetComponent<RectTransform>(), Input.mousePosition, null, out pos);
-        pos.x += 16f;
-        pos.y -= 8f;
-        rt.anchoredPosition = pos;
-    }
-
-    void HideTooltip()
-    {
-        if (_tooltipGo != null) _tooltipGo.SetActive(false);
+        if (button == null)
+            return;
+        SetHoverTrigger(
+            EnsureEventTrigger(button.gameObject),
+            () => ShowActionPreview(kind),
+            ClearActionPreview);
     }
 
     void OnToggleLog()
@@ -911,9 +1129,45 @@ public partial class SrpGameController
 
     void ApplyLogVisibility()
     {
-        if (_logBody != null) _logBody.SetActive(_logVisible);
+        if (_logBody != null)
+            _logBody.SetActive(_logVisible);
+        if (_logBodyLayout != null)
+            _logBodyLayout.ignoreLayout = !_logVisible;
+        ApplyLogDrawerGeometry();
         if (_txtLogToggleLabel != null)
-            _txtLogToggleLabel.text = _logVisible ? "로그 숨기기" : "로그 보기";
+            _txtLogToggleLabel.text = _logVisible ? "로그 숨기기" : "로그";
+    }
+
+    float CurrentLogDrawerWidth => _logVisible ? Mathf.Max(rightPanelWidth, 640f) : LogCollapsedWidth;
+
+    void ApplyLogDrawerGeometry()
+    {
+        float width = CurrentLogDrawerWidth;
+        if (_rightLogDrawerPanel != null)
+        {
+            var rt = _rightLogDrawerPanel.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(width, 0f);
+        }
+        if (_topStatusPanel != null)
+        {
+            var rt = _topStatusPanel.GetComponent<RectTransform>();
+            rt.offsetMax = new Vector2(-(width + TurnOrderStripWidth + 26f), 0f);
+        }
+        if (_turnOrderTrackerPanel != null)
+        {
+            var rt = _turnOrderTrackerPanel.GetComponent<RectTransform>();
+            rt.anchoredPosition = new Vector2(-(width + 16f), -14f);
+        }
+        if (_actionPreviewPanel != null)
+        {
+            var rt = _actionPreviewPanel.GetComponent<RectTransform>();
+            rt.anchoredPosition = new Vector2(-(width + 12f), 12f);
+        }
+        if (_skillSelectionDrawerPanel != null)
+        {
+            var rt = _skillSelectionDrawerPanel.GetComponent<RectTransform>();
+            rt.anchoredPosition = SkillSelectionDrawerPosition;
+        }
     }
 
     // ── 로그 · HUD 갱신 ──────────────────────────────────────────────────────
@@ -967,6 +1221,9 @@ public partial class SrpGameController
     void UpdateHud()
     {
         if (_txtTurn == null) return;
+        if (_secondaryActionPanel != null && (_gameOver
+            || (_phase != Phase.UnitActive && _phase != Phase.SelectingSkillTarget)))
+            SetSecondaryDrawerOpen(false, _secondaryDrawerTab);
         if (_state == null)
         {
             _txtTurn.text = "초기화 중...";
@@ -979,6 +1236,7 @@ public partial class SrpGameController
         _txtUnit.text = BuildUnitHudText();
         UpdateTurnOrderTracker();
         UpdateBottomTacticalCards();
+        UpdateContextPanel();
 
         bool unitActive = !_gameOver && _phase == Phase.UnitActive;
         if (_btnSkipAttack != null)
@@ -990,10 +1248,19 @@ public partial class SrpGameController
             _btnUndo.interactable = _undo.Count > 0;
         if (_btnUseSkill != null)
             _btnUseSkill.interactable = unitActive;
+        if (_btnBasicAttack != null)
+        {
+            bool canBasicAttack = unitActive
+                && _selectedId.HasValue
+                && !_hasAttackedThisTurn
+                && _attackIds.Count > 0;
+            _btnBasicAttack.interactable = canBasicAttack;
+            SetButtonLabel(_btnBasicAttack, canBasicAttack ? "일반 공격" : "일반 공격 불가");
+        }
         if (_btnCancelSkill != null)
             _btnCancelSkill.interactable = !_gameOver
                 && (_phase == Phase.SelectingSkillTarget
-                    || (_phase == Phase.UnitActive && _skillListPanel != null && _skillListPanel.activeSelf));
+                    || (_phase == Phase.UnitActive && IsSkillSelectionDrawerOpen()));
         if (_btnDangerArea != null)
         {
             _btnDangerArea.interactable = !_gameOver;
@@ -1012,8 +1279,8 @@ public partial class SrpGameController
         }
         UpdateDirectControlButtons(unitActive);
 
-        if (_skillListPanel != null && _phase != Phase.UnitActive && _phase != Phase.SelectingSkillTarget)
-            _skillListPanel.SetActive(false);
+        if (_skillSelectionDrawerPanel != null && _phase != Phase.UnitActive && _phase != Phase.SelectingSkillTarget)
+            SetSkillSelectionDrawerOpen(false);
     }
 
     void UpdateBottomTacticalCards()
@@ -1021,6 +1288,55 @@ public partial class SrpGameController
         var active = GetDisplayedUnit();
         UpdateActiveUnitCard(active);
         UpdateActionPreviewCard(active);
+    }
+
+    void UpdateContextPanel()
+    {
+        if (_txtContextTitle == null || _txtContextBody == null)
+            return;
+        var active = GetDisplayedUnit();
+        if (active == null)
+        {
+            _txtContextTitle.text = "상황";
+            _txtContextBody.text = "현재 행동 유닛이 없습니다.";
+            return;
+        }
+
+        _txtContextTitle.text = $"{active.displayName} ({active.id})";
+        var parts = new List<string>
+        {
+            $"AP {active.actionPoints}/{active.maxActionPoints} | 이동 {_remainingMove}",
+            $"사거리 {active.attackRange} | 공격 대상 {_attackIds.Count}명",
+            $"태세 {active.stance} | 방향 {active.facing}",
+        };
+        if (active.UsesAmmo)
+            parts.Add($"탄약 {active.ammo}/{active.maxAmmo}");
+        if (active.overwatchArmed)
+            parts.Add($"경계태세 준비 | 사거리 {active.overwatchRange}");
+        if (active.coverActive)
+            parts.Add($"엄폐 중 ({active.coverSourceX},{active.coverSourceY})");
+        if (_actionPreviewKind != SrpActionPreviewKind.None)
+            parts.Add($"Preview: {DescribeActionPreviewKind(_actionPreviewKind)}");
+        _txtContextBody.text = string.Join("\n", parts);
+    }
+
+    static string DescribeActionPreviewKind(SrpActionPreviewKind kind)
+    {
+        switch (kind)
+        {
+            case SrpActionPreviewKind.BasicAttack:
+                return "일반 공격";
+            case SrpActionPreviewKind.Overwatch:
+                return "경계태세";
+            case SrpActionPreviewKind.Cover:
+                return "엄폐";
+            case SrpActionPreviewKind.Skill:
+                return "스킬";
+            case SrpActionPreviewKind.Interaction:
+                return "상호작용";
+            default:
+                return "없음";
+        }
     }
 
     void UpdateTurnOrderTracker()
@@ -1066,6 +1382,10 @@ public partial class SrpGameController
         entry.ownerPip.sprite = GetTurnOrderPipSprite();
         entry.ownerPip.color = GetTurnOrderOwnerColor(unit.owner);
         entry.currentPointer.SetActive(isCurrent);
+        SetHoverTrigger(
+            EnsureEventTrigger(entry.root),
+            () => OnTurnOrderTokenHoverEnter(unit.id),
+            () => OnTurnOrderTokenHoverExit(unit.id));
         entry.root.transform.SetAsLastSibling();
     }
 
@@ -1398,9 +1718,7 @@ public partial class SrpGameController
 
     static string BuildReloadButtonLabel(SrpUnitRuntime unit, bool canReload)
     {
-        if (unit == null || unit.weaponClass != SrpWeaponClass.Firearm)
-            return "재장전 불가";
-        if (!unit.UsesAmmo)
+        if (unit == null || !unit.UsesAmmo)
             return "재장전 불가";
         if (unit.ammo >= unit.maxAmmo)
             return "재장전 완료";
@@ -1558,7 +1876,7 @@ public partial class SrpGameController
         }
 
         string moveInfo = _remainingMove > 0 ? $"이동력 {_remainingMove}" : "이동력 없음";
-        string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능 (공격 후 턴 종료)";
+        string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능 (공격 후 행동 종료)";
         string dangerInfo = IsDangerAreaVisible ? "위험영역 ON" : "위험영역 OFF";
         string undoInfo = _undo.Count > 0 ? "되감기 가능" : "되감기 없음(행동 확정 후 생성)";
         return $"행동 단계: {moveInfo} | {atkInfo} | {dangerInfo} | {undoInfo}\n{OverlayLegendText}";
@@ -1636,6 +1954,11 @@ public partial class SrpGameController
         if (_state == null)
             return ("행동 Preview", "전투 상태를 준비 중입니다.");
 
+        if (_actionPreviewKind != SrpActionPreviewKind.None
+            && (_hoverTileX < 0 || _hoverTileY < 0)
+            && target == null)
+            return BuildActionButtonPreview(active);
+
         if (_hoverTileX >= 0 && _hoverTileY >= 0)
         {
             if (_phase == Phase.SelectingSkillTarget && _pendingSkillData != null)
@@ -1646,9 +1969,17 @@ public partial class SrpGameController
 
             if (active != null && _moveCostMap.TryGetValue(new Vector2Int(_hoverTileX, _hoverTileY), out int moveCost))
             {
-                int threatCount = CountEnemyAttackersForTile(_hoverTileX, _hoverTileY, active.owner);
-                string risk = threatCount > 0 ? $"예상 위협 {threatCount}명" : "직접 위협 없음";
-                return ("이동 Preview", $"위치 ({_hoverTileX},{_hoverTileY})\n이동 비용 {moveCost} | AP-1\n{risk}");
+                int threatCount = _currentMovePreview != null
+                    ? _currentMovePreview.threats.Count
+                    : CountEnemyAttackersForTile(_hoverTileX, _hoverTileY, active.owner);
+                int overwatchCount = CountOverwatchThreats(_currentMovePreview);
+                string risk = threatCount > 0
+                    ? $"예상 위협 {threatCount}명 | 경계사격 {overwatchCount}명"
+                    : "직접 위협 없음";
+                string cover = _currentMovePreview != null && _currentMovePreview.hasCover
+                    ? $"엄폐 가능 ({_currentMovePreview.coverX},{_currentMovePreview.coverY})"
+                    : "엄폐 가능 지점 없음";
+                return ("이동 Preview", $"위치 ({_hoverTileX},{_hoverTileY})\n이동 비용 {moveCost} | AP-1\n{cover}\n{risk}");
             }
         }
 
@@ -1664,9 +1995,33 @@ public partial class SrpGameController
         return ("행동 Preview", "현재 행동 유닛을 선택하면 preview가 활성화됩니다.");
     }
 
+    (string title, string body) BuildActionButtonPreview(SrpUnitRuntime active)
+    {
+        if (active == null)
+            return ("행동 Preview", "현재 행동 유닛이 없습니다.");
+
+        switch (_actionPreviewKind)
+        {
+            case SrpActionPreviewKind.BasicAttack:
+                return ("일반 공격 Preview", $"인접 대상: 근접 공격/처단 | 비인접 대상: 총기 공격\n총기 사거리 {active.attackRange} | 공격 가능 대상 {_attackIds.Count}명\n탄약 없음이어도 인접 근접 공격은 가능합니다.");
+            case SrpActionPreviewKind.Overwatch:
+                return ("경계태세 Preview", $"사거리 {Mathf.Max(0, active.attackRange)} | 대상 조건: 이동하는 적\n{DescribeOverwatchArmStatus(SrpOverwatch.GetArmStatus(active))}\n경계사격 반응 가능 범위를 표시합니다.");
+            case SrpActionPreviewKind.Cover:
+                return ("엄폐 Preview", _state.HasAdjacentCover(active) ? "대상 조건: 인접 엄폐물\nAP-1 | 원거리 피해 완충 가능" : "현재 위치에서 사용할 수 있는 엄폐가 없습니다.");
+            case SrpActionPreviewKind.Interaction:
+                return ("상호작용 Preview", _state.TryGetAdjacentInteraction(active, out var point) ? $"대상 조건: 인접 오브젝트\n상호작용 가능: {GetInteractionLabel(point)}" : "현재 위치에서 가능한 상호작용이 없습니다.");
+            case SrpActionPreviewKind.Skill:
+                string skillName = _hoverPreviewSkillData != null ? _hoverPreviewSkillData.displayName : "스킬";
+                return ($"스킬 Preview: {skillName}", BuildSkillEffectSummary(_hoverPreviewSkillData, _hoverPreviewSkillRuntime));
+            default:
+                return ("행동 Preview", "이동/공격/스킬/상호작용 대상 위에 마우스를 올리면 예상 결과가 표시됩니다.");
+        }
+    }
+
     (string title, string body) BuildAttackPreview(SrpUnitRuntime active, SrpUnitRuntime target)
     {
-        if (!active.HasAmmoForAttack())
+        var attackKind = SrpCombatResolver.ResolveBasicAttackKind(_state, active, target);
+        if (!SrpCombatResolver.HasAmmoForBasicAttack(attackKind, active))
             return ($"공격 Preview: {target.displayName}", "탄약 없음. 재장전 후 공격할 수 있습니다.");
 
         var clone = _state.Clone();
@@ -1676,13 +2031,15 @@ public partial class SrpGameController
             return ($"공격 Preview: {target.displayName}", "예상 피해를 계산할 수 없습니다.");
 
         var outcome = SrpCombatResolver.ApplyAttack(clone, cloneActive, cloneTarget);
+        string attackKindText = outcome.basicAttackKind == SrpBasicAttackKind.Firearm ? "총기 공격" : outcome.wasExecution ? "근접 처단" : "근접 공격";
         var parts = new List<string>
         {
+            $"공격 방식: {attackKindText}",
             $"예상 피해: HP-{outcome.damageToHp} / PG-{outcome.damageToPg}",
             $"결과 예상: HP {Mathf.Max(0, target.hp - outcome.damageToHp)}/{target.maxHp}, PG {Mathf.Max(0, target.pg - outcome.damageToPg)}/{target.maxPg}",
-            active.UsesAmmo ? "소모: AP-1, 탄약-1" : "소모: AP-1",
+            outcome.basicAttackKind == SrpBasicAttackKind.Firearm && active.UsesAmmo ? "소모: AP-1, 탄약-1" : "소모: AP-1",
         };
-        if (active.weaponClass == SrpWeaponClass.Firearm
+        if (outcome.basicAttackKind == SrpBasicAttackKind.Firearm
             && SrpFirearmAim.CanBasicAttack(_state, active, target, out var aim))
         {
             parts.Add($"총기 기본 조준: 벡터 조준, 거리 {aim.distance}, 방향 {aim.facing}, sector {aim.sector8}");
@@ -1913,7 +2270,7 @@ public partial class SrpGameController
             case SrpOverwatchArmStatus.NoReaction:
                 return "반응 소모";
             case SrpOverwatchArmStatus.NotFirearm:
-                return "총기 유닛만 예약 가능";
+                return "총기 능력 없음";
             case SrpOverwatchArmStatus.RangeTooShort:
                 return "원거리 사거리 필요";
             case SrpOverwatchArmStatus.NoAmmo:
@@ -1929,10 +2286,85 @@ public partial class SrpGameController
         && _turnOrderTrackerPanel != null && _turnOrderIcons.Count == QueuePreviewCount + 1;
     public bool TestHasTopStatusPanel => _topStatusPanel != null && _topStatusPanel.activeInHierarchy;
     public bool TestHasLeftConsolePanel => _leftConsolePanel != null && _leftConsolePanel.activeInHierarchy;
+    public bool TestHasCommandRailPanel => _commandRailPanel != null && _commandRailPanel.activeInHierarchy;
+    public bool TestHasContextPanel => _contextPanel != null && _contextPanel.activeInHierarchy;
+    public bool TestCommandRailIsOnlyLeftConsoleContent => CommandRailIsOnlyLeftConsoleContent();
+    public float TestLeftConsoleWidth => _leftConsolePanel != null
+        ? Mathf.Max(_leftConsolePanel.GetComponent<RectTransform>().rect.width,
+            _leftConsolePanel.GetComponent<RectTransform>().sizeDelta.x)
+        : 0f;
+    public bool TestHasSkillSelectionDrawer => _skillSelectionDrawerPanel != null;
+    public bool TestSkillSelectionDrawerOpen => IsSkillSelectionDrawerOpen();
+    public bool TestSkillSelectionDrawerDetachedFromCommandContext => _skillSelectionDrawerPanel != null
+        && _skillSelectionDrawerPanel.transform.parent != null
+        && _skillSelectionDrawerPanel.transform.parent != _commandRailPanel?.transform
+        && _skillSelectionDrawerPanel.transform.parent != _contextPanel?.transform
+        && _skillListPanel != null
+        && _skillListPanel.transform.parent == _skillSelectionDrawerPanel.transform;
+    public float TestSkillSelectionDrawerWidth => _skillSelectionDrawerPanel != null
+        ? Mathf.Max(_skillSelectionDrawerPanel.GetComponent<RectTransform>().rect.width,
+            _skillSelectionDrawerPanel.GetComponent<RectTransform>().sizeDelta.x)
+        : 0f;
+    public float TestSkillSelectionDrawerHeight => _skillSelectionDrawerPanel != null
+        ? Mathf.Max(_skillSelectionDrawerPanel.GetComponent<RectTransform>().rect.height,
+            _skillSelectionDrawerPanel.GetComponent<RectTransform>().sizeDelta.y)
+        : 0f;
+    public bool TestSkillSelectionDrawerAdjacentToCommandRail => SkillSelectionDrawerAdjacentToCommandRail();
+    public float TestSkillSelectionDrawerVisibleScreenArea => VisibleScreenIntersectionArea(_skillSelectionDrawerPanel);
+    public string TestSkillSelectionDrawerScreenRect => ScreenRectText(_skillSelectionDrawerPanel);
+    public float TestSkillSelectionMinRowHeight => GetSkillSelectionMinRowHeight();
+    public bool TestSkillSelectionTextUsesNoWrapEllipsis => SkillSelectionTextUsesNoWrapEllipsis();
+    public bool TestHasSecondaryActionPanel => _secondaryActionPanel != null;
+    public bool TestHasSecondaryActionTabStrip => _secondaryActionTabStripPanel != null && _secondaryActionTabStripPanel.activeInHierarchy;
+    public bool TestSecondaryActionDrawerOpen => _secondaryActionPanel != null
+        && _secondaryActionCanvasGroup != null
+        && _secondaryActionCanvasGroup.alpha > 0.5f;
+    public float TestSecondaryActionDrawerWidth => _secondaryActionPanel != null
+        ? Mathf.Max(_secondaryActionPanel.GetComponent<RectTransform>().rect.width,
+            _secondaryActionPanel.GetComponent<RectTransform>().sizeDelta.x)
+        : 0f;
+    public float TestSecondaryActionDrawerHeight => _secondaryActionPanel != null
+        ? Mathf.Max(_secondaryActionPanel.GetComponent<RectTransform>().rect.height,
+            _secondaryActionPanel.GetComponent<RectTransform>().sizeDelta.y)
+        : 0f;
+    public float TestSecondaryActionVisibleScreenArea => VisibleScreenIntersectionArea(_secondaryActionPanel);
+    public string TestSecondaryActionScreenRect => ScreenRectText(_secondaryActionPanel);
+    public bool TestHasPlayerFacingFloatingTooltip => GameObject.Find("Tooltip") != null;
+    public bool TestHasInspectorPreviewPanel => _inspectorPreviewPanel != null && _inspectorPreviewPanel.activeInHierarchy;
+    public bool TestHasLogDrawerPanel => _rightLogDrawerPanel != null && _rightLogDrawerPanel.activeInHierarchy;
+    public bool TestLogDrawerVisible => _logVisible && _logBody != null && _logBody.activeSelf;
+    public bool TestLogDrawerBodyCollapsed => !_logVisible
+        && _logBody != null
+        && !_logBody.activeSelf
+        && (_logBodyLayout == null || _logBodyLayout.ignoreLayout)
+        && TestLogDrawerWidth <= LogCollapsedWidth + 1f;
+    public bool TestLogDrawerConsumesLayoutSpace => _logBody != null
+        && _logBody.activeSelf
+        && (_logBodyLayout == null || !_logBodyLayout.ignoreLayout);
+    public float TestLogDrawerWidth => _rightLogDrawerPanel != null
+        ? _rightLogDrawerPanel.GetComponent<RectTransform>().rect.width
+        : 0f;
+    public string TestContextPanelText
+    {
+        get
+        {
+            var sb = new StringBuilder();
+            if (_txtContextTitle != null) sb.AppendLine(_txtContextTitle.text);
+            if (_txtContextBody != null) sb.AppendLine(_txtContextBody.text);
+            return sb.ToString();
+        }
+    }
+    public string TestCommandRailText => BuildChildButtonText(_commandRailPanel);
+    public string TestSecondaryActionPanelText => BuildChildButtonText(_secondaryActionPanel);
+    public string TestSecondaryActionVisibleText => BuildVisibleChildText(_secondaryActionPanel);
+    public string TestSecondaryActionTabStripText => BuildChildButtonText(_secondaryActionTabStripPanel);
+    public string TestSkillSelectionDrawerText => BuildVisibleChildText(_skillSelectionDrawerPanel);
+    public bool TestSkillSelectionDrawerHasCloseButton => TestSkillSelectionDrawerText.Contains("\uB2EB\uAE30");
+    public bool TestPrimaryHudPanelsDoNotOverlap => PrimaryHudPanelsDoNotOverlap();
     public bool TestHasTurnOrderTrackerPanel => _turnOrderTrackerPanel != null && _turnOrderTrackerPanel.activeInHierarchy;
     public bool TestTurnOrderTrackerIsLogChild => _turnOrderTrackerPanel != null
         && _turnOrderTrackerPanel.transform.parent != null
-        && _turnOrderTrackerPanel.transform.parent.name == "RightPanel";
+        && _turnOrderTrackerPanel.transform.parent.name == "LogDrawerPanel";
     public int TestTurnOrderVisibleIconCount
     {
         get
@@ -2013,6 +2445,34 @@ public partial class SrpGameController
         }
     }
     public string TestLogText => _txtLog != null ? _txtLog.text : string.Empty;
+    float GetSkillSelectionMinRowHeight()
+    {
+        float minHeight = 0f;
+        foreach (var entry in _skillListButtons)
+        {
+            if (entry == null || entry.root == null || !entry.root.activeSelf)
+                continue;
+            var layout = entry.root.GetComponent<LayoutElement>();
+            if (layout != null)
+                minHeight = minHeight <= 0f ? layout.minHeight : Mathf.Min(minHeight, layout.minHeight);
+        }
+        return minHeight;
+    }
+
+    bool SkillSelectionTextUsesNoWrapEllipsis()
+    {
+        foreach (var entry in _skillListButtons)
+        {
+            if (entry == null || entry.root == null || !entry.root.activeSelf || entry.label == null)
+                continue;
+            if (entry.label.textWrappingMode != TextWrappingModes.NoWrap)
+                return false;
+            if (entry.label.overflowMode != TextOverflowModes.Ellipsis)
+                return false;
+        }
+        return true;
+    }
+
     public string TestSkillListText
     {
         get
@@ -2040,7 +2500,10 @@ public partial class SrpGameController
         }
     }
     public string TestOverclockButtonText => GetButtonText(_btnOverclock);
+    public string TestEndActionButtonText => GetButtonText(_btnSkipAttack);
+    public string TestDebugEndTurnButtonText => GetButtonText(_btnEndTurn);
     public string TestReloadButtonText => GetButtonText(_btnReload);
+    public string TestBasicAttackButtonText => GetButtonText(_btnBasicAttack);
     public string TestCoverButtonText => GetButtonText(_btnCover);
     public string TestInteractButtonText => GetButtonText(_btnInteract);
     public string TestStanceAggressiveButtonText => GetButtonText(_btnStanceAggressive);
@@ -2058,10 +2521,300 @@ public partial class SrpGameController
         return label != null ? label.text : string.Empty;
     }
 
+    static string BuildChildButtonText(GameObject root)
+    {
+        if (root == null)
+            return string.Empty;
+        var sb = new StringBuilder();
+        var labels = root.GetComponentsInChildren<TextMeshProUGUI>(true);
+        foreach (var label in labels)
+        {
+            if (label == null || string.IsNullOrWhiteSpace(label.text))
+                continue;
+            if (sb.Length > 0)
+                sb.Append("\n");
+            sb.Append(label.text);
+        }
+        return sb.ToString();
+    }
+
+    static string BuildVisibleChildText(GameObject root)
+    {
+        if (root == null || !root.activeInHierarchy)
+            return string.Empty;
+        var sb = new StringBuilder();
+        var labels = root.GetComponentsInChildren<TextMeshProUGUI>(false);
+        foreach (var label in labels)
+        {
+            if (label == null || string.IsNullOrWhiteSpace(label.text))
+                continue;
+            if (sb.Length > 0)
+                sb.Append("\n");
+            sb.Append(label.text);
+        }
+        return sb.ToString();
+    }
+
+    bool SkillSelectionDrawerAdjacentToCommandRail()
+    {
+        if (_skillSelectionDrawerPanel == null || _commandRailPanel == null || !TestSkillSelectionDrawerOpen)
+            return false;
+        Canvas.ForceUpdateCanvases();
+        Rect rail = ToScreenRect(_commandRailPanel.GetComponent<RectTransform>());
+        Rect drawer = ToScreenRect(_skillSelectionDrawerPanel.GetComponent<RectTransform>());
+        float gap = drawer.xMin - rail.xMax;
+        return gap >= -1f && gap <= 24f;
+    }
+
+    bool PrimaryHudPanelsDoNotOverlap()
+    {
+        Canvas.ForceUpdateCanvases();
+        return !RectOverlaps(_commandRailPanel, _contextPanel)
+            && !RectOverlaps(_contextPanel, _turnOrderTrackerPanel)
+            && !RectOverlaps(_contextPanel, _rightLogDrawerPanel)
+            && !RectOverlaps(_inspectorPreviewPanel, _rightLogDrawerPanel)
+            && !RectOverlaps(_inspectorPreviewPanel, _turnOrderTrackerPanel)
+            && !RectOverlaps(_topStatusPanel, _turnOrderTrackerPanel)
+            && !RectOverlaps(_topStatusPanel, _rightLogDrawerPanel);
+    }
+
+    bool CommandRailIsOnlyLeftConsoleContent()
+    {
+        if (_leftConsolePanel == null || _commandRailPanel == null)
+            return false;
+        if (_commandRailPanel.transform.parent != _leftConsolePanel.transform)
+            return false;
+
+        int visibleChildren = 0;
+        for (int i = 0; i < _leftConsolePanel.transform.childCount; i++)
+        {
+            var child = _leftConsolePanel.transform.GetChild(i);
+            if (child == null || !child.gameObject.activeInHierarchy)
+                continue;
+            visibleChildren++;
+            if (child != _commandRailPanel.transform)
+                return false;
+        }
+        return visibleChildren == 1;
+    }
+
+    static bool RectOverlaps(GameObject a, GameObject b)
+    {
+        if (a == null || b == null || !a.activeInHierarchy || !b.activeInHierarchy)
+            return false;
+        var art = a.GetComponent<RectTransform>();
+        var brt = b.GetComponent<RectTransform>();
+        if (art == null || brt == null)
+            return false;
+        return RectIntersectionArea(ToScreenRect(art), ToScreenRect(brt)) > 1f;
+    }
+
+    static float RectIntersectionArea(Rect a, Rect b)
+    {
+        float minX = Mathf.Max(a.xMin, b.xMin);
+        float maxX = Mathf.Min(a.xMax, b.xMax);
+        float minY = Mathf.Max(a.yMin, b.yMin);
+        float maxY = Mathf.Min(a.yMax, b.yMax);
+        if (maxX <= minX || maxY <= minY)
+            return 0f;
+        return (maxX - minX) * (maxY - minY);
+    }
+
+    static float VisibleScreenIntersectionArea(GameObject go)
+    {
+        if (go == null || !go.activeInHierarchy)
+            return 0f;
+        var rt = go.GetComponent<RectTransform>();
+        if (rt == null)
+            return 0f;
+        Canvas.ForceUpdateCanvases();
+        var screen = Rect.MinMaxRect(0f, 0f, Screen.width, Screen.height);
+        return RectIntersectionArea(ToScreenRect(rt), screen);
+    }
+
+    static string ScreenRectText(GameObject go)
+    {
+        if (go == null || !go.activeInHierarchy)
+            return "<inactive>";
+        var rt = go.GetComponent<RectTransform>();
+        if (rt == null)
+            return "<no-rect>";
+        Canvas.ForceUpdateCanvases();
+        Rect rect = ToScreenRect(rt);
+        return $"x={rect.xMin:0.0}..{rect.xMax:0.0}, y={rect.yMin:0.0}..{rect.yMax:0.0}, screen={Screen.width}x{Screen.height}";
+    }
+
+    static Rect ToScreenRect(RectTransform rt)
+    {
+        var corners = new Vector3[4];
+        rt.GetWorldCorners(corners);
+        float minX = corners[0].x;
+        float maxX = corners[0].x;
+        float minY = corners[0].y;
+        float maxY = corners[0].y;
+        for (int i = 1; i < corners.Length; i++)
+        {
+            minX = Mathf.Min(minX, corners[i].x);
+            maxX = Mathf.Max(maxX, corners[i].x);
+            minY = Mathf.Min(minY, corners[i].y);
+            maxY = Mathf.Max(maxY, corners[i].y);
+        }
+        return Rect.MinMaxRect(minX, minY, maxX, maxY);
+    }
+
     public bool TestShowSkillList()
     {
         OnShowSkillList();
-        return _skillListPanel != null && _skillListPanel.activeSelf;
+        return TestSkillSelectionDrawerOpen;
+    }
+
+    public bool TestCloseSkillSelectionDrawer()
+    {
+        SetSkillSelectionDrawerOpen(false);
+        return !TestSkillSelectionDrawerOpen;
+    }
+
+    public bool TestToggleSkillSelectionDrawerClosedFromCommandButton()
+    {
+        if (!TestSkillSelectionDrawerOpen)
+            OnShowSkillList();
+        if (!TestSkillSelectionDrawerOpen)
+            return false;
+        OnShowSkillList();
+        return !TestSkillSelectionDrawerOpen;
+    }
+
+    public bool TestToggleLogDrawerHiddenReturnsLayoutSpace()
+    {
+        if (_logVisible)
+            OnToggleLog();
+        return TestLogDrawerBodyCollapsed;
+    }
+
+    public bool TestShowLogDrawer()
+    {
+        if (!_logVisible)
+            OnToggleLog();
+        return TestLogDrawerVisible && TestLogDrawerWidth >= 640f;
+    }
+
+    public bool TestOpenSecondaryDrawerStance()
+    {
+        SetSecondaryDrawerOpen(true, SecondaryActionDrawerTab.StanceFacing);
+        return TestSecondaryActionDrawerOpen
+            && TestSecondaryActionDrawerWidth >= SecondaryDrawerMinWidth
+            && _secondaryStancePage != null
+            && _secondaryStancePage.activeInHierarchy
+            && _secondaryTacticalPage != null
+            && !_secondaryTacticalPage.activeInHierarchy
+            && _secondarySystemPage != null
+            && !_secondarySystemPage.activeInHierarchy;
+    }
+
+    public bool TestOpenSecondaryDrawerTactical()
+    {
+        SetSecondaryDrawerOpen(true, SecondaryActionDrawerTab.TacticalAssist);
+        return TestSecondaryActionDrawerOpen
+            && TestSecondaryActionDrawerWidth >= SecondaryDrawerMinWidth
+            && _secondaryTacticalPage != null
+            && _secondaryTacticalPage.activeInHierarchy
+            && _secondaryStancePage != null
+            && !_secondaryStancePage.activeInHierarchy
+            && _secondarySystemPage != null
+            && !_secondarySystemPage.activeInHierarchy;
+    }
+
+    public bool TestOpenSecondaryDrawerSystem()
+    {
+        SetSecondaryDrawerOpen(true, SecondaryActionDrawerTab.System);
+        return TestSecondaryActionDrawerOpen
+            && TestSecondaryActionDrawerWidth >= SecondaryDrawerMinWidth
+            && _secondarySystemPage != null
+            && _secondarySystemPage.activeInHierarchy
+            && _secondaryStancePage != null
+            && !_secondaryStancePage.activeInHierarchy
+            && _secondaryTacticalPage != null
+            && !_secondaryTacticalPage.activeInHierarchy;
+    }
+
+    public bool TestCloseSecondaryDrawerReturnsSpace()
+    {
+        SetSecondaryDrawerOpen(true, SecondaryActionDrawerTab.System);
+        SetSecondaryDrawerOpen(false, SecondaryActionDrawerTab.System);
+        return !TestSecondaryActionDrawerOpen
+            && TestHasSecondaryActionTabStrip
+            && TestSecondaryActionDrawerWidth >= SecondaryDrawerMinWidth;
+    }
+
+    public bool TestHoverFirstTurnOrderToken()
+    {
+        if (_state == null || _state.CurrentUnitId <= 0)
+            return false;
+        OnTurnOrderTokenHoverEnter(_state.CurrentUnitId);
+        return _hoverUnitId == _state.CurrentUnitId;
+    }
+
+    public bool TestShowBasicAttackPreview()
+    {
+        ShowActionPreview(SrpActionPreviewKind.BasicAttack);
+        return TestDangerAttackTintTileCount == 0 && TestActionPreviewText.Contains("일반 공격 Preview");
+    }
+
+    public bool TestShowOverwatchPreview()
+    {
+        ShowActionPreview(SrpActionPreviewKind.Overwatch);
+        return TestActionPreviewText.Contains("경계태세 Preview");
+    }
+
+    public bool TestShowCoverPreview()
+    {
+        ShowActionPreview(SrpActionPreviewKind.Cover);
+        return TestCoverPreviewMarkerCount > 0;
+    }
+
+    public bool TestShowFirstSkillHoverPreview()
+    {
+        var unit = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+        if (_state == null)
+            return false;
+        if (TryShowFirstSkillHoverPreviewForUnit(unit))
+            return true;
+
+        foreach (var candidate in _state.Units)
+        {
+            if (candidate == null || candidate.eliminated)
+                continue;
+            if (TryShowFirstSkillHoverPreviewForUnit(candidate))
+                return true;
+        }
+        return false;
+    }
+
+    bool TryShowFirstSkillHoverPreviewForUnit(SrpUnitRuntime unit)
+    {
+        if (unit == null || _state == null)
+            return false;
+        foreach (var runtime in unit.skillRuntimes)
+        {
+            if (runtime == null || !_state.SkillLookup.TryGetValue(runtime.skillId, out var data))
+                continue;
+            if (data.skillType != SrpSkillType.Active)
+                continue;
+            _selectedId = unit.id;
+            _state.CurrentUnitId = unit.id;
+            _phase = Phase.UnitActive;
+            _remainingMove = unit.moveRange;
+            unit.actionPoints = Mathf.Max(unit.actionPoints, 1);
+            _hoverUnitId = -1;
+            _hoverTileX = -1;
+            _hoverTileY = -1;
+            RefreshActiveHighlights(unit);
+            ShowActionPreview(SrpActionPreviewKind.Skill, data, runtime);
+            return TestSkillPreviewMarkerCount > 0
+                || data.targetType == SrpTargetType.Self
+                || TestActionPreviewText.Contains("스킬 Preview");
+        }
+        return false;
     }
 
     public bool TestEndTurnSelectedUnit()
