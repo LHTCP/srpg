@@ -207,8 +207,13 @@ public static class SrpBattleSimRunner
         if (!SrpCombatResolver.CanAttack(state, actor, target))
             return false;
 
-        var outcome = SrpCombatResolver.ApplyAttack(actor, target);
-        RecordDamage(actor, outcome, ref result);
+        var attackKind = SrpCombatResolver.ResolveBasicAttackKind(state, actor, target);
+        if (!SrpCombatResolver.SpendAmmoForBasicAttack(attackKind, actor))
+            return false;
+        if (attackKind == SrpBasicAttackKind.Firearm)
+            SrpFirearmAim.TurnShooterTowardTarget(actor, target);
+        var outcome = SrpCombatResolver.ApplyAttack(state, actor, target);
+        RecordDamage(outcome, ref result);
 
         if (actor.stance == SrpStance.Aggressive) result.aggressiveAttackCount++;
         if (actor.stance == SrpStance.Defensive) result.defensiveAttackCount++;
@@ -217,19 +222,15 @@ public static class SrpBattleSimRunner
         return true;
     }
 
-    static void RecordDamage(SrpUnitRuntime actor, SrpCombatResolver.AttackOutcome outcome, ref SrpSingleBattleResult result)
+    static void RecordDamage(SrpCombatResolver.AttackOutcome outcome, ref SrpSingleBattleResult result)
     {
-        switch (actor.weaponClass)
+        switch (outcome.basicAttackKind)
         {
-            case SrpWeaponClass.Firearm:
+            case SrpBasicAttackKind.Firearm:
                 result.firearmHpDamage += Mathf.Max(0, outcome.damageToHp);
                 result.firearmPgDamage += Mathf.Max(0, outcome.damageToPg);
                 break;
-            case SrpWeaponClass.Magic:
-                result.magicHpDamage += Mathf.Max(0, outcome.damageToHp);
-                result.magicPgDamage += Mathf.Max(0, outcome.damageToPg);
-                break;
-            case SrpWeaponClass.Melee:
+            case SrpBasicAttackKind.Melee:
             default:
                 result.meleeHpDamage += Mathf.Max(0, outcome.damageToHp);
                 result.meleePgDamage += Mathf.Max(0, outcome.damageToPg);

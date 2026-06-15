@@ -29,7 +29,7 @@ public partial class SrpGameController : MonoBehaviour
     public float leftPanelWidth = 170f;
 
     [Tooltip("오른쪽 로그 패널 폭(캔버스 단위).")]
-    public float rightPanelWidth = 520f;
+    public float rightPanelWidth = 640f;
 
     [Tooltip("시작 시 오른쪽 로그 패널 표시 여부.")]
     public bool startWithLogVisible = false;
@@ -59,6 +59,8 @@ public partial class SrpGameController : MonoBehaviour
     int _hoverUnitId = -1;
     int _hoverTileX = -1;
     int _hoverTileY = -1;
+    SrpMovePreviewEvaluation _currentMovePreview;
+    SrpTacticalCameraController _tacticalCamera;
 
     bool _gameOver;
 
@@ -107,21 +109,26 @@ public partial class SrpGameController : MonoBehaviour
 
     public void FrameBoardCamera()
     {
-        var cam = Camera.main;
-        if (cam == null) return;
+        var cam = EnsureTacticalCamera();
         float w = _state.Width;
         float h = _state.Height;
-        float cx = (w - 1f) * 0.5f * cellSize;
-        float cz = (h - 1f) * 0.5f * cellSize;
-        cam.orthographic = true;
-        float aspect = Mathf.Max(cam.aspect, 0.01f);
-        float halfNeededV = h * cellSize * 0.5f;
-        float halfNeededH = w * cellSize / (2f * aspect);
-        cam.orthographicSize = Mathf.Max(halfNeededV, halfNeededH) + orthoViewPadding;
-        cam.nearClipPlane = 0.01f;
-        cam.farClipPlane = 50f;
-        cam.transform.position = new Vector3(cx, 12f, cz);
-        cam.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+        _tacticalCamera = SrpTacticalCameraController.Ensure(cam);
+        _tacticalCamera.ConfigureBoard(w, h, cellSize, orthoViewPadding);
+        _tacticalCamera.FocusBoard();
+    }
+
+    static Camera EnsureTacticalCamera()
+    {
+        var cam = Camera.main;
+        if (cam != null)
+            return cam;
+
+        var go = new GameObject("Main Camera");
+        go.tag = "MainCamera";
+        cam = go.AddComponent<Camera>();
+        cam.clearFlags = CameraClearFlags.Skybox;
+        cam.depth = -1f;
+        return cam;
     }
 
     // ── 초기화 헬퍼 ──────────────────────────────────────────────────────────
@@ -319,7 +326,7 @@ public partial class SrpGameController : MonoBehaviour
                     LogLine($"공격 불가: {u.displayName}은 이번 활성화에서 이미 공격을 사용했습니다.");
                 else if (dist > u.attackRange)
                     LogLine($"공격 불가: 사거리 밖 대상입니다. (거리 {dist}, 사거리 {u.attackRange})");
-                else if (!u.HasAmmoForAttack())
+                else if (!SrpCombatResolver.HasAmmoForBasicAttack(_state, u, occ))
                     LogLine($"공격 불가: {u.displayName} 탄약 없음. 재장전 필요");
                 else if (!EnsureApAvailable(u, "공격"))
                     return;
@@ -346,6 +353,8 @@ public partial class SrpGameController : MonoBehaviour
 
         ClearOverlayLayer(OverlayHover);
         ClearOverlayLayer(OverlayDangerBlocked);
+        ClearOverlayLayer(OverlayAimLine);
+        ClearMovePreviewVisuals();
 
         var u = GetUnit(_selectedId.Value);
         if (u == null)
@@ -354,12 +363,20 @@ public partial class SrpGameController : MonoBehaviour
         var cell = new Vector2Int(x, y);
         if (_moveCostMap.TryGetValue(cell, out int moveCost))
         {
-            int threatCount = CountEnemyAttackersForTile(x, y, u.owner);
+            _currentMovePreview = SrpPreviewEvaluator.EvaluateMove(_state, u, x, y);
+            RenderMovePreview(u, _currentMovePreview);
+            int threatCount = _currentMovePreview != null ? _currentMovePreview.threats.Count : CountEnemyAttackersForTile(x, y, u.owner);
+            int overwatchThreatCount = CountOverwatchThreats(_currentMovePreview);
             bool inZoc = _state.IsEnemyAdjacentToTile(x, y, u.owner);
-            if (threatCount > 0)
+            if (overwatchThreatCount > 0)
+            {
+                SetOverlayTile(OverlayHover, x, y, new Color(1.0f, 0.1f, 0.1f));
+                _hoverStatusHint = $"경계사격 위험: {overwatchThreatCount}명 | 일반 위협 {threatCount}명 | 이동 비용 {moveCost}";
+            }
+            else if (threatCount > 0)
             {
                 SetOverlayTile(OverlayHover, x, y, new Color(0.95f, 0.2f, 0.2f));
-                _hoverStatusHint = $"위험도 높음: 해당 칸은 {threatCount}명에게 공격 노출";
+                _hoverStatusHint = $"위협 높음: 해당 칸은 {threatCount}명에게 공격 노출 | 이동 비용 {moveCost}";
             }
             else if (inZoc)
             {
@@ -398,6 +415,8 @@ public partial class SrpGameController : MonoBehaviour
         }
         ClearOverlayLayer(OverlayHover);
         ClearOverlayLayer(OverlayDangerBlocked);
+        ClearOverlayLayer(OverlayAimLine);
+        ClearMovePreviewVisuals();
         _hoverStatusHint = string.Empty;
         UpdateHud();
     }
@@ -413,7 +432,27 @@ public partial class SrpGameController : MonoBehaviour
         _hoverUnitId = unitId;
         _hoverTileX = unit.anchorX;
         _hoverTileY = unit.anchorY;
+        ClearOverlayLayer(OverlayAimLine);
         RenderUnitHoverOverlays(unit);
+        var active = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+        if (_phase == Phase.UnitActive
+            && active != null
+            && unit.owner != active.owner
+            && _attackIds.Contains(unit.id))
+        {
+            var attackKind = SrpCombatResolver.ResolveBasicAttackKind(_state, active, unit);
+            if (attackKind == SrpBasicAttackKind.Firearm)
+                HighlightFirearmAimLine(active, unit);
+            bool willExecute = attackKind == SrpBasicAttackKind.Melee && (unit.pg <= 0 || unit.groggy);
+            _hoverStatusHint = attackKind == SrpBasicAttackKind.Firearm
+                ? $"총기 조준: {active.displayName} -> {unit.displayName} | 실제 대상 벡터"
+                : willExecute
+                    ? $"근접 처단 예상: {active.displayName} -> {unit.displayName}"
+                    : $"근접 공격 미리보기: {active.displayName} -> {unit.displayName}";
+            UpdateUnitFeedbackVisuals();
+            UpdateHud();
+            return;
+        }
         _hoverStatusHint = $"유닛 미리보기: {unit.displayName} 공격범위/ZOC 표시";
         UpdateUnitFeedbackVisuals();
         UpdateHud();
@@ -428,6 +467,7 @@ public partial class SrpGameController : MonoBehaviour
         _hoverTileY = -1;
         ClearOverlayLayer(OverlayUnitHoverRange);
         ClearOverlayLayer(OverlayUnitHoverZoc);
+        ClearOverlayLayer(OverlayAimLine);
         _hoverStatusHint = string.Empty;
         UpdateUnitFeedbackVisuals();
         UpdateHud();
@@ -467,6 +507,10 @@ public partial class SrpGameController : MonoBehaviour
     {
         ResetTileColors();
         _moveCostMap.Clear();
+        _currentMovePreview = null;
+        _actionPreviewKind = SrpActionPreviewKind.None;
+        _hoverPreviewSkillData = null;
+        _hoverPreviewSkillRuntime = null;
         if (_remainingMove > 0 && u.actionPoints > 0)
         {
             var costs = SrpPathfinder.GetReachableWithCosts(_state, u, _remainingMove);
@@ -477,14 +521,6 @@ public partial class SrpGameController : MonoBehaviour
             }
         }
         RefreshAttackTargets(u);
-        if (!_hasAttackedThisTurn)
-        {
-            HighlightAttackTiles();
-            HighlightOverwatchTiles(u);
-            HighlightParryTelegraphForAttackTargets(u);
-        }
-        HighlightCoverTiles(u);
-        HighlightInteractionTiles(u);
         RebuildDangerAndIntentOverlays();
         UpdateUnitFeedbackVisuals();
     }
@@ -495,8 +531,6 @@ public partial class SrpGameController : MonoBehaviour
     {
         _attackIds.Clear();
         if (atk.actionPoints <= 0)
-            return;
-        if (!atk.HasAmmoForAttack())
             return;
         foreach (var o in _state.Units)
         {
@@ -628,6 +662,10 @@ public partial class SrpGameController : MonoBehaviour
         _hoverTileX = -1;
         _hoverTileY = -1;
         _hoverStatusHint = string.Empty;
+        _currentMovePreview = null;
+        _actionPreviewKind = SrpActionPreviewKind.None;
+        _hoverPreviewSkillData = null;
+        _hoverPreviewSkillRuntime = null;
         ResetTileColors();
         RefreshUnitViews();
         LogLine("— 되감기 —");
@@ -688,7 +726,7 @@ public partial class SrpGameController : MonoBehaviour
 
         if (!SrpOverwatch.TryTrigger(_state, watcher, target, out var outcome))
             return false;
-        SpawnWorldFeedback(watcher, "\uC624\uBC84\uC6CC\uCE58!", new Color(0.35f, 0.55f, 1f));
+        SpawnWorldFeedback(watcher, "\uACBD\uACC4\uC0AC\uACA9!", new Color(0.35f, 0.55f, 1f));
         SrpSkills.OnAttackResolved(watcher, target, outcome, _state, LogLine);
         if (outcome.damageToHp > 0 || outcome.damageToPg > 0)
         {
@@ -697,7 +735,7 @@ public partial class SrpGameController : MonoBehaviour
         }
 
         LogLine(
-            $"오버워치 사격: {watcher.displayName}({watcher.id}) → {target.displayName}({target.id}) | " +
+            $"경계사격: {watcher.displayName}({watcher.id}) → {target.displayName}({target.id}) | " +
             $"피해 PG-{outcome.damageToPg} HP-{outcome.damageToHp} | 반응 사격 소모 | 탄약 {watcher.ammo}/{watcher.maxAmmo}");
         LogDefenseBuffers(target, outcome);
         LogReactionOutcome(target, outcome);
@@ -707,8 +745,22 @@ public partial class SrpGameController : MonoBehaviour
         {
             _state.RemoveUnit(target);
             _state.RebuildEngagements();
+            if (_selectedId == target.id)
+                _selectedId = null;
+            if (_hoverUnitId == target.id)
+                _hoverUnitId = -1;
+            if (_hoverTileX == target.anchorX && _hoverTileY == target.anchorY)
+            {
+                _hoverTileX = -1;
+                _hoverTileY = -1;
+            }
+            ClearOverlayLayer(OverlayHover);
+            ClearOverlayLayer(OverlayDangerBlocked);
+            ClearOverlayLayer(OverlayAimLine);
             LogLine($"사망: {target.displayName}({target.id})");
             CheckWin();
+            RefreshUnitViews();
+            UpdateHud();
         }
 
         return outcome.defenderDied;
@@ -733,20 +785,23 @@ public partial class SrpGameController : MonoBehaviour
 
     void DoAttack(SrpUnitRuntime atk, SrpUnitRuntime def)
     {
-        if (!atk.HasAmmoForAttack())
+        var attackKind = SrpCombatResolver.ResolveBasicAttackKind(_state, atk, def);
+        if (!SrpCombatResolver.HasAmmoForBasicAttack(attackKind, atk))
         {
             LogLine($"공격 불가: {atk.displayName} 탄약 없음. 재장전 필요");
             UpdateHud();
             return;
         }
         PushUndo();
-        if (!atk.SpendAmmoForAttack())
+        if (!SrpCombatResolver.SpendAmmoForBasicAttack(attackKind, atk))
         {
             _undo.Pop();
             LogLine($"공격 불가: {atk.displayName} 탄약 없음. 재장전 필요");
             UpdateHud();
             return;
         }
+        if (attackKind == SrpBasicAttackKind.Firearm)
+            SrpFirearmAim.TurnShooterTowardTarget(atk, def);
         SpawnWorldFeedback(atk, "\uACF5\uACA9!", new Color(1f, 0.42f, 0.35f));
         var outcome = SrpCombatResolver.ApplyAttack(_state, atk, def);
         SrpSkills.OnAttackResolved(atk, def, outcome, _state, LogLine);
@@ -758,9 +813,10 @@ public partial class SrpGameController : MonoBehaviour
         atk.hasAttackedThisActivation = true;
         _hasAttackedThisTurn = true;
         atk.actionPoints = Mathf.Max(0, atk.actionPoints - 1);
-        string ammoText = atk.UsesAmmo ? $" | 탄약 {atk.ammo}/{atk.maxAmmo}" : string.Empty;
+        string attackKindText = outcome.basicAttackKind == SrpBasicAttackKind.Firearm ? "총기" : "근접";
+        string ammoText = outcome.basicAttackKind == SrpBasicAttackKind.Firearm && atk.UsesAmmo ? $" | 탄약 {atk.ammo}/{atk.maxAmmo}" : string.Empty;
         LogLine(
-            $"공격: {atk.displayName}({atk.id}) → {def.displayName}({def.id}) | " +
+            $"공격({attackKindText}): {atk.displayName}({atk.id}) → {def.displayName}({def.id}) | " +
             $"피해 PG-{outcome.damageToPg} HP-{outcome.damageToHp} | " +
             $"처단:{outcome.wasExecution} 그로기:{outcome.becameGroggy}{ammoText}");
         LogDefenseBuffers(def, outcome);
@@ -839,7 +895,7 @@ public partial class SrpGameController : MonoBehaviour
         var ended = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
         if (ended != null)
         {
-            SpawnWorldFeedback(ended, "\uD134 \uC885\uB8CC", new Color(0.9f, 0.9f, 0.9f));
+            SpawnWorldFeedback(ended, "\uD589\uB3D9 \uC885\uB8CC", new Color(0.9f, 0.9f, 0.9f));
             FlashUnit(ended, new Color(1f, 1f, 1f));
         }
         ResetTileColors();
@@ -1046,8 +1102,8 @@ public partial class SrpGameController : MonoBehaviour
         {
             if (logFailure && unit != null)
             {
-                string reason = unit.weaponClass != SrpWeaponClass.Firearm
-                    ? "총기 유닛만 재장전 가능"
+                string reason = !unit.UsesAmmo
+                    ? "재장전 가능한 총기가 없음"
                     : unit.actionPoints <= 0
                         ? "AP 부족"
                         : "탄약이 이미 가득 참";
@@ -1272,6 +1328,17 @@ public partial class SrpGameController : MonoBehaviour
         return count;
     }
 
+    static int CountOverwatchThreats(SrpMovePreviewEvaluation preview)
+    {
+        if (preview == null)
+            return 0;
+        int count = 0;
+        foreach (var threat in preview.threats)
+            if (threat != null && threat.isOverwatch)
+                count++;
+        return count;
+    }
+
     void RenderUnitHoverOverlays(SrpUnitRuntime unit)
     {
         ClearOverlayLayer(OverlayUnitHoverRange);
@@ -1283,7 +1350,7 @@ public partial class SrpGameController : MonoBehaviour
             {
                 int dist = Mathf.Max(Mathf.Abs(unit.anchorX - x), Mathf.Abs(unit.anchorY - y));
                 if (dist > 0 && dist <= unit.attackRange)
-                    SetOverlayTile(OverlayUnitHoverRange, x, y, new Color(0.35f, 0.55f, 1f));
+                    SetOverlayTile(OverlayUnitHoverRange, x, y, new Color(0.42f, 0.48f, 0.70f));
             }
         }
 
@@ -1315,7 +1382,7 @@ public partial class SrpGameController : MonoBehaviour
                 {
                     int dist = Mathf.Max(Mathf.Abs(enemy.anchorX - x), Mathf.Abs(enemy.anchorY - y));
                     if (dist > 0 && dist <= enemy.attackRange)
-                        SetOverlayTile(OverlayDangerAttack, x, y, new Color(0.95f, 0.22f, 0.22f));
+                        SetOverlayTile(OverlayDangerAttack, x, y, new Color(0.64f, 0.18f, 0.18f));
                 }
             }
 
@@ -1367,6 +1434,9 @@ public partial class SrpGameController : MonoBehaviour
     public int TestRoundQueueCount => _state != null && _state.RoundQueue != null ? _state.RoundQueue.Count : -1;
     public bool TestDangerAreaVisible => _dangerAreaVisible;
     public int TestHoveredUnitId => _hoverUnitId;
+    public int TestCurrentMovePreviewThreatCount => _currentMovePreview != null ? _currentMovePreview.threats.Count : 0;
+    public int TestCurrentMovePreviewOverwatchThreatCount => CountOverwatchThreats(_currentMovePreview);
+    public bool TestCurrentMovePreviewHasCover => _currentMovePreview != null && _currentMovePreview.hasCover;
 
     public int TestAliveUnitCount()
     {
@@ -1384,6 +1454,20 @@ public partial class SrpGameController : MonoBehaviour
         foreach (var kv in _moveCostMap)
         {
             if (TestIsInteractionPointTile(kv.Key.x, kv.Key.y))
+                continue;
+            OnTileHoverEnter(kv.Key.x, kv.Key.y);
+            return true;
+        }
+        return false;
+    }
+
+    public bool TestTryHoverFirstThreatenedMoveTile()
+    {
+        foreach (var kv in _moveCostMap)
+        {
+            var unit = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+            var preview = SrpPreviewEvaluator.EvaluateMove(_state, unit, kv.Key.x, kv.Key.y);
+            if (preview == null || preview.threats.Count == 0)
                 continue;
             OnTileHoverEnter(kv.Key.x, kv.Key.y);
             return true;
@@ -1414,6 +1498,115 @@ public partial class SrpGameController : MonoBehaviour
             return true;
         }
         return false;
+    }
+
+    public bool TestTryHoverFirstAttackTargetOfKind(SrpBasicAttackKind kind)
+    {
+        foreach (int id in _attackIds)
+        {
+            var unit = GetUnit(id);
+            var active = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+            if (unit == null || active == null)
+                continue;
+            if (SrpCombatResolver.ResolveBasicAttackKind(_state, active, unit) != kind)
+                continue;
+            OnUnitHoverEnter(unit.id);
+            return true;
+        }
+        return false;
+    }
+
+    public bool TestSetFirstAttackTargetGuardState(SrpBasicAttackKind kind, int pg, bool groggy)
+    {
+        foreach (int id in _attackIds)
+        {
+            var unit = GetUnit(id);
+            var active = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+            if (unit == null || active == null)
+                continue;
+            if (SrpCombatResolver.ResolveBasicAttackKind(_state, active, unit) != kind)
+                continue;
+            unit.pg = Mathf.Max(0, pg);
+            unit.groggy = groggy;
+            UpdateHud();
+            return true;
+        }
+        return false;
+    }
+
+    public bool TestClickFirstAttackTargetOfKind(SrpBasicAttackKind kind)
+    {
+        foreach (int id in _attackIds)
+        {
+            var unit = GetUnit(id);
+            var active = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+            if (unit == null || active == null)
+                continue;
+            if (SrpCombatResolver.ResolveBasicAttackKind(_state, active, unit) != kind)
+                continue;
+            OnTileClicked(unit.anchorX, unit.anchorY);
+            return true;
+        }
+        return false;
+    }
+
+    public bool TestForceLethalOverwatchAgainstCurrentUnit()
+    {
+        if (_state == null || _state.CurrentUnitId <= 0)
+            return false;
+
+        var target = GetUnit(_state.CurrentUnitId);
+        if (target == null || target.eliminated)
+            return false;
+
+        SrpUnitRuntime watcher = null;
+        foreach (var candidate in _state.Units)
+        {
+            if (candidate != null && !candidate.eliminated && candidate.owner != target.owner)
+            {
+                watcher = candidate;
+                break;
+            }
+        }
+        if (watcher == null || !_state.InBounds(0, 1) || !_state.InBounds(2, 1))
+            return false;
+
+        int targetId = target.id;
+        target.anchorX = 2;
+        target.anchorY = 1;
+        target.hp = 1;
+        target.pg = 0;
+        target.groggy = true;
+        target.reactionPoints = 0;
+        target.eliminated = false;
+
+        watcher.anchorX = 0;
+        watcher.anchorY = 1;
+        watcher.weaponClass = SrpWeaponClass.Firearm;
+        watcher.attackRange = 4;
+        watcher.attackPower = Mathf.Max(watcher.attackPower, 8);
+        watcher.maxAmmo = Mathf.Max(watcher.maxAmmo, 1);
+        watcher.ammo = watcher.maxAmmo;
+        watcher.maxReactionPoints = Mathf.Max(watcher.maxReactionPoints, 1);
+        watcher.reactionPoints = watcher.maxReactionPoints;
+        watcher.overwatchArmed = true;
+        watcher.overwatchRange = watcher.attackRange;
+        watcher.overwatchRound = _state.RoundNumber;
+
+        _selectedId = target.id;
+        _state.CurrentUnitId = target.id;
+        _phase = Phase.UnitActive;
+        _state.RebuildEngagements();
+        RefreshUnitViews();
+        UpdateHud();
+
+        bool died = TryResolveOverwatchAgainst(target);
+        if (died)
+            FinishActivation();
+
+        bool viewRemoved = !_unitObjs.TryGetValue(targetId, out var go) || go == null || !go.activeInHierarchy;
+        bool hudCleared = !TestTurnOrderTrackerText.Contains($"({targetId})");
+        return died && target.eliminated && viewRemoved && hudCleared;
     }
 
     public bool TestTryHoverFirstInteractionPoint()

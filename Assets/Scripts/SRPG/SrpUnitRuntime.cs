@@ -9,6 +9,12 @@ public enum SrpWeaponClass
     Magic,
 }
 
+public enum SrpBasicAttackKind
+{
+    Melee,
+    Firearm,
+}
+
 public enum SrpStance
 {
     Aggressive,
@@ -113,6 +119,7 @@ public static class SrpCombatTagUtility
 public class SrpUnitRuntime
 {
     public const int DefaultFirearmMaxAmmo = 1;
+    public const int DefaultHumanFirearmRange = 3;
 
     public int id;
     public string templateId;
@@ -252,7 +259,7 @@ public class SrpUnitRuntime
         return consumed;
     }
 
-    public bool UsesAmmo => weaponClass == SrpWeaponClass.Firearm && maxAmmo > 0;
+    public bool UsesAmmo => maxAmmo > 0;
 
     public bool HasAmmoForAttack()
     {

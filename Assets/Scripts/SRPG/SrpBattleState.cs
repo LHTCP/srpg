@@ -20,6 +20,7 @@ public class SrpBattleState
     public Dictionary<string, SrpUnitTemplateData> TemplateLookup { get; private set; } = new Dictionary<string, SrpUnitTemplateData>();
     public Dictionary<string, SrpSkillData> SkillLookup { get; private set; } = new Dictionary<string, SrpSkillData>();
     public List<SrpInteractionPointData> InteractionPoints { get; private set; } = new List<SrpInteractionPointData>();
+    public List<SrpCoverObjectData> CoverObjects { get; private set; } = new List<SrpCoverObjectData>();
     public List<SrpCoverSegmentData> CoverSegments { get; private set; } = new List<SrpCoverSegmentData>();
 
     int _nextUnitId = 1;
@@ -41,6 +42,7 @@ public class SrpBattleState
             TemplateLookup = new Dictionary<string, SrpUnitTemplateData>(TemplateLookup),
             SkillLookup = new Dictionary<string, SrpSkillData>(SkillLookup),
             InteractionPoints = CloneInteractionPoints(InteractionPoints),
+            CoverObjects = CloneCoverObjects(CoverObjects),
             CoverSegments = CloneCoverSegments(CoverSegments),
         };
         foreach (var u in Units)
@@ -85,6 +87,7 @@ public class SrpBattleState
 
         st.SpawnFromPlacements(map);
         st.LoadInteractionPoints(map);
+        st.LoadCoverObjects(map);
         st.LoadCoverSegments(map);
         st.RebuildEngagements();
         return st;
@@ -118,6 +121,20 @@ public class SrpBattleState
         }
     }
 
+    void LoadCoverObjects(SrpMapFileV1 map)
+    {
+        CoverObjects.Clear();
+        if (map.coverObjects == null)
+            return;
+
+        foreach (var coverObject in map.coverObjects)
+        {
+            if (coverObject == null || !InBounds(coverObject.x, coverObject.y))
+                continue;
+            CoverObjects.Add(coverObject.Clone());
+        }
+    }
+
     static Dictionary<int, List<int>> CloneEngagements(Dictionary<int, List<int>> source)
     {
         var copy = new Dictionary<int, List<int>>();
@@ -139,6 +156,20 @@ public class SrpBattleState
         {
             if (segment != null)
                 copy.Add(segment.Clone());
+        }
+        return copy;
+    }
+
+    static List<SrpCoverObjectData> CloneCoverObjects(List<SrpCoverObjectData> source)
+    {
+        var copy = new List<SrpCoverObjectData>();
+        if (source == null)
+            return copy;
+
+        foreach (var coverObject in source)
+        {
+            if (coverObject != null)
+                copy.Add(coverObject.Clone());
         }
         return copy;
     }
@@ -225,9 +256,8 @@ public class SrpBattleState
         HashSet<string> disabledSkillIds)
     {
         var weaponClass = ResolveWeaponClass(t);
-        int maxAmmo = weaponClass == SrpWeaponClass.Firearm
-            ? (t.maxAmmo > 0 ? t.maxAmmo : SrpUnitRuntime.DefaultFirearmMaxAmmo)
-            : 0;
+        int maxAmmo = t.maxAmmo > 0 ? t.maxAmmo : SrpUnitRuntime.DefaultFirearmMaxAmmo;
+        int attackRange = Mathf.Max(t.attackRange, SrpUnitRuntime.DefaultHumanFirearmRange);
         var u = new SrpUnitRuntime
         {
             id = _nextUnitId++,
@@ -249,7 +279,7 @@ public class SrpBattleState
             stance = t.stance,
             facing = t.facing,
             moveRange = t.moveRange,
-            attackRange = t.attackRange,
+            attackRange = attackRange,
             attackPower = t.attackPower,
             maxAmmo = maxAmmo,
             ammo = maxAmmo,
@@ -342,7 +372,23 @@ public class SrpBattleState
 
     public bool IsCoverTile(int x, int y)
     {
-        return InBounds(x, y) && !IsWalkableTile(x, y);
+        return TryGetCoverObjectAt(x, y, out _);
+    }
+
+    public bool TryGetCoverObjectAt(int x, int y, out SrpCoverObjectData coverObject)
+    {
+        coverObject = null;
+        if (CoverObjects == null)
+            return false;
+        for (int i = 0; i < CoverObjects.Count; i++)
+        {
+            var candidate = CoverObjects[i];
+            if (candidate == null || candidate.x != x || candidate.y != y)
+                continue;
+            coverObject = candidate;
+            return true;
+        }
+        return false;
     }
 
     public bool HasAdjacentCover(SrpUnitRuntime unit)

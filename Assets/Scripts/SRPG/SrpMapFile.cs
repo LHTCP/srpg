@@ -121,6 +121,30 @@ public class SrpCoverSegmentData
 }
 
 [Serializable]
+public class SrpCoverObjectData
+{
+    public int x;
+    public int y;
+    public int coverDef = 2;
+    public int coverGrd = 1;
+    public bool blocksLineOfSight = true;
+    public string visualKey = "ruin";
+
+    public SrpCoverObjectData Clone()
+    {
+        return new SrpCoverObjectData
+        {
+            x = x,
+            y = y,
+            coverDef = coverDef,
+            coverGrd = coverGrd,
+            blocksLineOfSight = blocksLineOfSight,
+            visualKey = visualKey,
+        };
+    }
+}
+
+[Serializable]
 public class SrpMapFileV1
 {
     public int version = 2;
@@ -132,6 +156,7 @@ public class SrpMapFileV1
     public SrpUnitTemplateData[] templates = Array.Empty<SrpUnitTemplateData>();
     public SrpPlacementData[] placements = Array.Empty<SrpPlacementData>();
     public SrpInteractionPointData[] interactionPoints = Array.Empty<SrpInteractionPointData>();
+    public SrpCoverObjectData[] coverObjects = Array.Empty<SrpCoverObjectData>();
     public SrpCoverSegmentData[] coverSegments = Array.Empty<SrpCoverSegmentData>();
     public string[] allowedSkillIds = Array.Empty<string>();
 }

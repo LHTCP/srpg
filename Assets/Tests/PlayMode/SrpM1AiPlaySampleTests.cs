@@ -30,7 +30,19 @@ public class SrpM1AiPlaySampleTests
             yield return null;
 
         StringAssert.Contains("라운드", controller.TestTurnHudText);
-        StringAssert.Contains("현재:", controller.TestTurnHudText);
+        StringAssert.Contains("상태:", controller.TestTurnHudText);
+        Assert.IsFalse(controller.TestTurnHudText.Contains("현재:"), "상단 HUD에 현재 유닛 정보가 다시 섞였습니다.");
+        Assert.IsTrue(controller.TestHasTurnOrderTrackerPanel, "행동 순서 패널이 생성되지 않았습니다.");
+        Assert.IsFalse(controller.TestTurnOrderTrackerIsLogChild, "행동 순서 패널이 로그 패널 위/안에 배치되었습니다.");
+        Assert.IsTrue(controller.TestTurnOrderCurrentIconHighlighted, "현재 행동 유닛 아이콘 강조가 없습니다.");
+        Assert.GreaterOrEqual(controller.TestTurnOrderVisibleIconCount, 4, "행동 순서 아이콘 preview가 부족합니다.");
+        Assert.LessOrEqual(controller.TestTurnOrderVisibleIconCount, 6, "행동 순서 아이콘이 너무 많이 노출됩니다.");
+        StringAssert.Contains($"({controller.TestCurrentUnitId})", controller.TestTurnOrderCurrentText);
+        StringAssert.Contains("NOW >", controller.TestTurnOrderCurrentText);
+        StringAssert.Contains("SPD", controller.TestTurnOrderTrackerText);
+        StringAssert.Contains("P", controller.TestTurnOrderTrackerText);
+        Assert.GreaterOrEqual(controller.TestTurnOrderPreviewLineCount, 3, "다음 행동 순서 preview가 부족합니다.");
+        Assert.LessOrEqual(controller.TestTurnOrderPreviewLineCount, 5, "다음 행동 순서 preview가 너무 깁니다.");
         Assert.IsTrue(controller.TestHasTopStatusPanel, "상단 전투 상태 헤더가 생성되지 않았습니다.");
         Assert.IsTrue(controller.TestHasLeftConsolePanel, "좌측 조작 콘솔이 생성되지 않았습니다.");
         StringAssert.Contains("범례:", controller.TestStatusHudText);
@@ -38,7 +50,8 @@ public class SrpM1AiPlaySampleTests
         StringAssert.Contains("AP", controller.TestUnitHudText);
         StringAssert.Contains("반응:", controller.TestUnitHudText);
         StringAssert.Contains("PG", controller.TestUnitHudText);
-        StringAssert.Contains("오버워치", controller.TestOverwatchButtonText);
+        StringAssert.Contains("경계태세", controller.TestOverwatchButtonText);
+        Assert.IsFalse(controller.TestOverwatchButtonText.Contains("오버워치"), "플레이어-facing 버튼에 이전 오버워치 명칭이 남았습니다.");
         StringAssert.Contains("행동 시작", controller.TestLogText);
 
         Object.Destroy(go);

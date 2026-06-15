@@ -82,7 +82,7 @@
 ### 방향성 엄폐 사선 차단 (`TBD-001`, `TBD-004`)
 
 - `blocksLineOfSight=true`인 `SrpCoverSegmentData`는 해당 edge를 통과하는 사선을 차단한다.
-- 오버워치와 총기 기본 공격 판정이 같은 사선 helper를 공유한다.
+- 오버워치와 총기 기본 공격은 `TBD-010` 이후 같은 목표 벡터 LOS와 `blocksLineOfSight` 차단을 공유한다. 8-sector 분류는 표시/디버그/방향성 판정 보조값이며 targetability 제한이 아니다.
 - 대각선 사선은 이동 단계마다 수평/수직 edge를 함께 검사하는 최소 브릿지다.
 - 맵 메이커 엄폐 segment 편집 UI는 선행 조건이 아니라 후속 UX로 분리했다. 현재는 프리셋/JSON 데이터로 검증 가능하다.
 
@@ -238,16 +238,58 @@
 2. 북쪽 사격 루트와 남쪽 돌입/상호작용 루트가 실제 사람 플레이에서도 서로 다른 판단으로 읽히는지는 화면 관찰 표본이 더 필요하다.
 3. `blocksLineOfSight` 엄폐는 자동 시뮬레이션에서 총기 HP 비중과 근접 PG 비중을 무너뜨리지 않았지만, 시각적으로 답답한 차단인지 읽을 수 있는 위협인지는 `TBD-012` 화면 문법과 함께 재확인한다.
 
+## 2026-06-08 첫 전투 화면 관찰 표본
+
+### 표본 방식
+
+- PlayMode 관찰 테스트 `SrpM1OpeningObservationTests.M1OpeningPrototype_Captures_FirstScreen_RouteObservation`을 추가했다.
+- 테스트는 `M1OpeningPrototype` 첫 화면, 위험영역/이동 hover, 남쪽 `신호 장치` hover, ring/floating text 표본을 `TestResults/SrpPlayObservation/`에 PNG와 Markdown으로 남긴다.
+- batchmode 캡처는 camera render 기반이라 HUD overlay는 이미지가 아니라 Markdown 텍스트 필드로 기록한다.
+
+### 관찰 결과
+
+- 첫 화면에서 아군 4명과 적 5명의 좌우 대치, 북쪽 총기 압박병과 남쪽 돌입 병력의 위치 차이는 보인다.
+- 첫 행동 유닛의 current/selected ring과 turn-start floating text는 실제 tile 위에서 충분히 읽힌다. PR #61의 얇은 floor decal 기준은 유지한다.
+- 위험영역을 켜면 동쪽 전장이 압박권이라는 정보는 강해지지만, 북쪽 사격 루트와 남쪽 상호작용 루트의 차이가 전체 위험색에 묻힌다.
+- `신호 장치`는 데이터와 hover preview에는 잡히지만, 전장 world 캡처에서는 독립 상호작용 목표처럼 강하게 보이지 않는다.
+- `blocksLineOfSight` 엄폐는 북쪽 총기 압박병 옆 위협으로 배치되어 있지만, 현재 tile tint만으로는 "사선을 조절하는 엄폐"라는 뜻이 약하다.
+- 총기 압박병, 근접 돌입병, 방어형 적, 측면 교란병, 전술 장교의 역할 차이는 배치와 무기/방향으로 일부 드러나지만, 첫 화면만으로는 방어형 적과 전술 장교의 기능 차이가 충분히 설명되지는 않는다.
+
+### 판단
+
+- 데이터 보정은 하지 않는다. AI matrix가 6~10라운드 목표를 통과했고, 현재 표본에서 발견된 문제는 적 수치/배치보다 화면 문법과 목표 강조의 문제에 가깝다.
+- Heuristic vs Heuristic owner0 승률 `1.000`은 당장은 플레이어 우세 학습 전투로 받아들인다. 더 팽팽한 미러 검증은 첫 전투 프리셋이 아니라 별도 QA/밸런스 표본에서 다루는 편이 낫다.
+- 후속 우선순위는 `TBD-012` 타일 overlay 문법과 `TBD-011` 행동 순서/초기 판단 지원이다. `TBD-010` 총기 조준 문법도 북쪽 사격 루트를 더 명확하게 보여줄 때 함께 재검토한다.
+
 ## 2026-06-08 P2 후보: 총기 발포 방향/조준 문법 (`TBD-010`)
 
 - 현상: 총기 발포 방향이 기본 공격/오버워치/발포 연출에서 모두 8방향 직선 사선처럼 고정되어 보이는 문제가 있다.
-- 기존 확정 범위: 명시형 `ReactionShot`/오버워치의 1차 규칙은 8방향 직선 사선, 장애물/유닛/`blocksLineOfSight` segment 차단이다.
-- 분리 필요성: 총기 기본 공격까지 항상 같은 8방향 문법을 따라야 하는지는 아직 확정하지 않았다. 플레이어가 보는 조준 가능 방향, 발포 연출, 타일 overlay가 오버워치 규칙을 그대로 복사하면 유닛 facing 4방향/정면·측면·후방 판정과 충돌해 보일 수 있다.
+- 기존 1차 구현 범위: 명시형 `ReactionShot`/오버워치는 한때 8방향 직선 사선, 장애물/유닛/`blocksLineOfSight` segment 차단으로 구현되어 있었다. `TBD-010`에서 8방향 직선 제한은 폐기하고 목표 벡터 LOS로 통합한다.
+- 문제 해석: 총기 기본 공격과 오버워치가 모두 8방향 고정 사선처럼 보이면 플레이어가 보는 조준 가능 방향, 발포 연출, 타일 overlay, 유닛 facing 4방향/정면·측면·후방 판정이 서로 충돌해 보일 수 있다.
 - P2 확인 항목:
-  1. 총기 기본 공격의 조준 가능 범위를 8방향 직선 사선으로 유지할지, 목표 타일 기반 사선/무기별 arc로 분리할지 결정
-  2. 오버워치 사격은 기존 8방향 규칙을 유지하더라도 기본 공격 UI/연출은 별도 문법을 쓸 수 있는지 검토
+  1. 총기 기본 공격과 오버워치의 조준 가능 범위를 목표 벡터 LOS로 통합할지, 무기별 arc로 분리할지 결정
+  2. 8-sector를 targetability 제한이 아니라 UI/facing/엄폐 설명용 보조값으로만 둘 수 있는지 검토
   3. 유닛 facing 4방향, 방향성 엄폐 edge, `blocksLineOfSight` 차단이 발포 방향 표시와 같은 언어로 읽히는지 실제 플레이 화면에서 검증
   4. 확정 후 `SrpOverwatch`, `SrpGameController`, `SrpGameController.Rendering`, 관련 PlayMode 시각/계약 테스트 갱신
+
+## 2026-06-09 총기 발포 방향/조준 문법 브릿지 결정 (`TBD-010`)
+
+### 브릿지 결정
+
+- 총기 기본 공격과 오버워치 사격의 targetability 계약을 통합한다.
+- 기본 총기 공격과 오버워치는 `SrpFirearmAim`을 사용해 공격자-대상 중심 360도 벡터의 LOS를 검증한다.
+  - 8방향 직선이 아니어도 사거리, walkable target, 중간 유닛/장애물, `blocksLineOfSight` segment 차단을 통과하면 발포 가능하다.
+  - `SrpOverwatch.IsTileInLineOfSight`는 같은 LOS helper를 그대로 사용하며 8방향 직선 lane 제한을 추가하지 않는다.
+  - 기본 공격 hover preview에는 황색 aim line과 `총기 기본 조준` 문구를 표시한다.
+- 8-sector(`SrpAimSector8`)는 `atan2` 기반 표시/디버그/방향성 판정 보조값으로만 둔다. dx/dy가 가로/세로/대각선일 때만 발포 가능하다는 제한은 없다.
+- 오버워치 overlay는 기존 청색 경계 범위 문법을 유지하고, 기본 공격 aim line과 섞지 않는다.
+- 발포 시 총기 유닛 facing은 목표 벡터의 우세 축 방향으로 갱신한다. 현재 유닛 시각 방향성은 4방향만 지원하므로 diagonal facing은 만들지 않는다.
+
+### 후속 의사결정
+
+- 총기별 arc, 산탄/원뿔형 조준, diagonal facing, 정식 발포 VFX/애니메이션은 이번 브릿지 범위가 아니다.
+- 타일 overlay 전체 문법(`TBD-012`)을 재정리할 때 aim line이 공격 가능 범위/위험 범위/오버워치 경계와 충분히 구분되는지 실제 플레이 화면에서 다시 검증한다.
+- 목표 벡터 LOS의 샘플링 방식은 현재 프로토타입용 보수적 tile path다. 정식 탄도/시야 수학이 필요해지면 별도 `SrpLineOfSight` 모듈로 승격한다.
 
 ## 2026-06-08 P2/P3 UX 후속 범위 명시 (`TBD-011`~`TBD-013`)
 
@@ -261,3 +303,129 @@
 - 메이커 화면 UX (`TBD-013`)
   - 효과유형 드롭다운 스크롤 지연은 우선 재현 확인이 필요하다.
   - 입력 가능 값과 필드 의미 툴팁은 유용하지만 전투 플레이 가독성보다 후순위인 P3로 둔다.
+
+## 2026-06-09 행동 순서 패널 분리 (`TBD-011`)
+
+### 확정한 범위
+
+- 상단 HUD는 라운드, 현재 입력 상태, 위험영역 ON/OFF, 맵 이름 요약만 남긴다.
+- 현재 행동 유닛과 다음 행동 순서는 캔버스 상단 우측의 `TurnOrderTrackerPanel` icon strip으로 분리한다.
+- 현재 행동 유닛은 더 큰 얼굴 토큰, 금색 frame, 하단 포인터로 강조한다.
+- 다음 순서는 3~5개의 작은 얼굴 토큰으로 표시한다. 현재 정식 초상화/역할 아이콘 에셋은 없으므로 런타임에서 owner 색상과 무기 계열 디테일이 들어간 임시 토큰 sprite를 생성한다.
+
+### 배치 판단
+
+- 새 패널은 로그 패널 위/안이 아니라 캔버스의 별도 상단 우측 UI로 둔다. 뮤제닉스 레퍼런스처럼 전장 상단에 얇은 아이콘 줄로 읽히게 하되, 좌측 조작 콘솔과 우측 로그 panel의 고정 영역은 건드리지 않는다.
+- 정식 초상화/아트 에셋 제작은 범위 밖이므로 외부 다운로드 에셋 대신 코드 생성 토큰을 사용한다. 이후 실제 캐릭터 초상화가 생기면 `portrait.sprite` 교체만으로 대체할 수 있게 둔다.
+
+### 검증
+
+- PlayMode HUD 테스트에 패널 존재, 로그 패널과의 분리, 현재 유닛 아이콘 강조, 3~5명 preview, 턴 종료 후 current icon 갱신 검증을 추가했다.
+- `scripts/validate-repo.sh` 통과.
+- Unity batchmode EditMode: `77 passed / 0 failed`.
+- Unity batchmode PlayMode: `7 passed / 0 failed`.
+
+## 2026-06-09 타일 overlay 시각 문법 1차 구현 (`TBD-012`)
+
+### 확정한 문법
+
+- PR #61의 current/selected/hover 유닛 발밑 ring은 유닛 상태 레이어로 유지한다. tile overlay는 별도 `SrpTileOverlayGrammarLayer` 아래 얇은 floor marker로 렌더링한다.
+- 이동 가능 범위는 타일 중심 작은 원 marker로 둔다. 이동 후보가 전장을 넓게 채우더라도 경로 가능성만 낮은 밀도로 읽히게 한다.
+- 공격 가능/위험 영역은 타일 외곽 danger 테두리로 둔다. `M1OpeningPrototype` 북쪽 사격 루트는 전체 빨강 채움이 아니라 외곽 압박으로 읽히게 한다.
+- ZOC/교전권 tile 힌트와 패링 가능 telegraph는 얇은 warning ring 계열로 둔다. ZOC/교전 unit badge는 기존 world-space badge를 유지한다.
+- 상호작용 목표는 노랑 objective diamond marker로 둔다. 남쪽 `신호 장치`가 이동/위험 채움에 섞이지 않고 목표로 읽히는 것을 우선한다.
+- 오버워치와 엄폐는 별도 테두리 계열, 스킬과 intent target은 marker 계열로 둔다. 색상만 다른 동일 채움 방식은 사용하지 않는다.
+
+### 레이어 기준
+
+- 현재 타일 표면은 `y=0.075`이며 tile overlay marker는 `TileSurfaceY + 0.008`부터 `TileSurfaceY + 0.031` 사이에 둔다.
+- PR #61 현재 행동 ring은 `TileSurfaceY + 0.035` 이상이므로 tile overlay가 유닛 발밑 ring을 덮지 않는다.
+- PlayMode 계약은 이동 marker, 위험 테두리, ZOC ring, 상호작용 objective marker 존재와 tile overlay 최대 높이가 current ring보다 낮은지를 검증한다.
+
+### 후속 결정
+
+- 실제 Unity 에디터 플레이에서 marker 크기, 선 두께, 채도는 추가 조정할 수 있다.
+- 총기 발포 방향/조준 문법(`TBD-010`)은 이번 overlay 문법과 분리했다. 공격/위험 테두리는 사격 가능성을 보여주지만 발포 방향 arc나 조준선 확정 문법은 아니다.
+
+### 검증
+
+- `scripts/validate-repo.sh` 통과.
+- Unity EditMode 테스트 통과: `77 passed / 0 failed`.
+- Unity PlayMode 테스트 통과: `7 passed / 0 failed`.
+- PlayMode 관찰 테스트는 `M1OpeningPrototype` 첫 화면의 이동 marker, 위험 테두리, ZOC ring, `신호 장치` objective marker, PR #61 ring/floating feedback 표본을 다시 캡처한다.
+
+## 2026-06-09 전투 UX 추가 피드백 후속 (`TBD-014`, `BUG-001`)
+
+### 결정한 후속 방향
+
+- 사용자 노출 명칭은 `오버워치` 대신 `경계태세`를 사용한다. 내부 코드 식별자 `SrpOverwatch`는 단기적으로 유지할 수 있지만, 버튼/로그/HUD/floating text/문서의 플레이어-facing 문구는 `경계태세`로 교체한다.
+- 경계태세 발동 문구는 별도 UX 작업에서 실제 화면 기준으로 고른다. 현재 후보는 예약 `경계태세 준비`, 발동 `경계사격!` 또는 `경계태세 발동!`, 해제 `경계태세 해제`다.
+- 경계태세로 사망한 유닛이 즉시 렌더링에 반영되지 않는 문제는 버그로 추적한다. 피해 적용, 사망 판정, 유닛 mesh/링/행동 순서/HUD 갱신이 같은 프레임 또는 발동 연출 직후 일관되게 보이는지 PlayMode로 검증한다.
+- 공격/위험 범위의 다이아몬드형 외곽선은 실제 플레이 화면에서 과도한 시각 소음으로 보일 수 있다. 공격 범위 표시는 타일 전체 채움도, 전장 전체 다이아몬드 선도 아닌 더 조용한 문법으로 재검토한다.
+
+### 다음 구현 후보
+
+- 공격 범위는 기본적으로 낮은 채도/낮은 밀도의 중심 marker 또는 짧은 edge segment를 사용하고, 유닛 hover/선택 시에만 범위를 확장 표시한다.
+- 전체 위험영역 토글은 “읽기용”이어야 하며, 전장이 움직이는 선 패턴처럼 보이면 실패로 본다.
+- 경계태세 발동으로 대상이 사망하는 시나리오를 QA 프리셋 또는 전용 PlayMode 테스트에 넣고, 사망 mesh 제거/행동 순서 갱신/HUD 로그를 함께 검증한다.
+
+## 2026-06-10 전투 UX 추가 피드백 구현 (`TBD-014`, `BUG-001`, `TBD-012` 후속)
+
+### 사용자-facing 명칭
+
+- 사용자 노출 명칭은 `경계태세`로 고정한다.
+- 내부 코드 식별자 `SrpOverwatch`, `overwatchArmed` 등은 이번 범위에서 유지한다. 대규모 리네임은 별도 리팩터링 후보로 남긴다.
+- 화면 문구는 짧게 읽히는 쪽을 우선해 예약 `경계태세 준비`, 발동 `경계사격!`, 불가 `경계태세 불가`, 예약 상태 `경계태세 준비 중`으로 둔다.
+- 로그 발동 문구는 `경계사격: 사수 -> 대상` 형식을 사용한다.
+
+### BUG-001 사망 즉시 갱신
+
+- 경계태세 발동으로 대상이 사망하면 `RemoveUnit`/교전 재계산 직후 선택/hover/aim overlay를 정리하고 `RefreshUnitViews()`와 `UpdateHud()`를 호출한다.
+- 이후 기존 activation 종료 흐름이 다음 유닛으로 넘기며, 행동 순서 패널은 제거된 유닛을 보여주지 않는다.
+- PlayMode에 현재 행동 유닛이 경계태세로 사망하는 전용 3유닛 맵을 추가해 유닛 mesh 제거, HUD/행동 순서 갱신, `경계사격!` floating text, 사망 로그를 함께 검증한다.
+
+### 공격/위험 overlay 후속
+
+- 추가 확인 결과, 사용자가 어지럽다고 지적한 파란 선 다이아몬드는 공격/위험 범위가 아니라 경계태세 범위였다.
+- 공격/위험 범위와 경계태세 범위는 모두 낮은 밀도의 중심 marker로 표시한다. 타일 전체 채움과 전장 전체 다이아몬드 선은 사용하지 않는다.
+- 이동 가능 범위는 중심 marker, ZOC/패링은 warning ring, 상호작용은 objective marker로 유지해 범위 marker와 의미를 분리한다.
+- PlayMode와 관찰 테스트는 공격/위험 및 경계태세 레이어가 tile tint 없이 mesh marker를 사용하는지 검증한다.
+
+### 검증 메모
+
+- `git diff --check`와 `scripts/validate-repo.sh`는 통과했다.
+- marker 후속 보정 뒤 Unity batchmode EditMode `79 passed / 0 failed`, PlayMode `9 passed / 0 failed`를 확인했다 (`TestResults/EditMode-TBD-014-review-fix.xml`, `TestResults/PlayMode-TBD-014-review-fix.xml`).
+
+### 후속 의사결정
+
+- 경계태세 사격 VFX/애니메이션, marker 크기/채도/펄스, 정식 초상/행동 순서 아트는 실제 에디터 플레이와 아트 에셋이 생긴 뒤 별도 튜닝한다.
+## 2026-06-15 tactical HUD drawer and cover semantics decisions
+
+- 전투 HUD 보조 조작은 고정 side panel이 아니라 tab/drawer로 연다.
+  - 기본 노출은 `CommandRailPanel`, `ActiveUnitCardPanel`, `InspectorPreviewPanel`, 접힌 `LogDrawerPanel`, `TurnOrderTracker`로 제한한다.
+  - `SecondaryActionPanel`은 기본 닫힘이며 `SecondaryActionTabStripPanel`에서 `태세/방향`, `전술 보조`, `시스템` 중 하나만 연다.
+  - 열린 drawer는 최소 320px 이상 읽기 폭을 보장한다.
+  - page별 높이는 내용량에 맞춘다: `태세/방향` 210px, `전술 보조` 124px, `시스템` 104px.
+- 점유형 엄폐물과 방향성 edge cover segment를 분리한다.
+  - `SrpCoverObjectData`: 비보행 점유형 장애물/폐허. 해당 타일은 `walkable=false`, `CanStandAt=false`이며 중앙 visual을 가진다.
+  - `SrpCoverSegmentData`: 유닛이 설 수 있는 타일의 방향성 edge 엄폐. 이동 점유를 막지 않고 edge 위 낮은 벽/판자 visual로 표현한다.
+- `M1OpeningPrototype` 중앙 비보행 폐허 타일은 현재는 엄폐 가능한 장애물로 해석한다.
+  - 중앙 비보행 칸을 빈 구멍으로 바꾸려면 후속으로 terrain semantics를 추가하고 `coverObjects`에서 제거한다.
+  - 이번 범위에서는 중앙 폐허 visual을 생성해 플레이어가 왜 엄폐가 되는지 납득할 수 있게 한다.
+## 2026-06-15 skill selection drawer decision
+
+- 스킬 선택 UI는 `CommandRailPanel`/`ContextPanel` 안에 끼워 넣지 않는다.
+  - 핵심 명령 버튼은 `CommandRailPanel`에 남기되, `스킬` 버튼은 별도 `SkillSelectionDrawer`를 여는 트리거다.
+- command-adjacent `ContextPanel`은 제거한다.
+  - 스킬 목록이 빠진 뒤에도 왼쪽 명령 rail 바로 옆에 설명 칸이 남으면 이전의 한 글자 UI 공간처럼 읽힌다.
+  - 현재 유닛/hover/preview 설명은 `ActiveUnitCardPanel`과 `InspectorPreviewPanel`로 보낸다.
+- `SkillSelectionDrawer`는 캔버스 직속 drawer로 배치한다.
+  - anchor는 `CommandRailPanel` 바로 우측으로 고정해 `CommandRailPanel -> SkillSelectionDrawer` 흐름이 한 덩어리처럼 보이게 한다.
+  - preferred width 520px, minimum readable width 420px.
+  - skill row minimum height 56px.
+  - label policy는 `NoWrap + Ellipsis`; 상세 설명은 bottom tactical cards/`InspectorPreviewPanel`로 보낸다.
+  - drawer 안에는 `닫기` 버튼을 두고, 이미 열려 있을 때 `스킬` command를 다시 누르면 닫힌다.
+- 로그 drawer는 기본 접힘 상태로 시작한다. 플레이어가 로그를 확인하려는 경우에만 우측 `로그` rail을 눌러 넓은 로그를 연다.
+- HUD 검수 캡처는 두 계층으로 둔다.
+  - camera-render 캡처는 전장/오버레이 표본용이다.
+  - ScreenCapture/GameView 캡처는 ScreenSpaceOverlay HUD 검수용이며 skill drawer, secondary drawer, log expanded/collapsed 상태를 남긴다. 캡처 직전 visible body/collapsed state assertion을 둬 파일명과 실제 UI 상태가 어긋나지 않게 한다.

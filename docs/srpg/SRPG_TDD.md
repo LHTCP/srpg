@@ -1,5 +1,40 @@
 # SRPG 기술 설계 문서 (TDD) v2.0
 
+## 2026-06-15 update - `TBD-017R` / `TBD-016R`
+
+- Basic attack model correction: `SrpBasicAttackKind` is resolved by Chebyshev distance, not by `weaponClass`. `dist <= 1` resolves to `Melee`; `dist > 1` resolves to `Firearm`.
+- Adjacent melee basic attacks are available to all humanoid units, do not require or spend ammo, do not use firearm LOS/aim line, and do not apply firearm HP-to-PG spillover or firearm cover buffering.
+- Non-adjacent basic attacks are firearm attacks. They require `attackRange`, ammo, and `SrpFirearmAim` LOS, spend ammo on execution/simulation, turn the shooter toward the target, and keep the existing firearm HP pressure plus HP-based PG spillover policy.
+- Execution now checks adjacent melee state only: `dist <= 1` and target `pg <= 0` or `groggy`, then resolves as a guaranteed kill. Firearm-role units can execute adjacent broken/groggy targets; `weaponClass == Melee` is no longer an execution prerequisite.
+- UI/preview routing uses the resolved basic attack kind. Adjacent target hover shows melee/execute expectation and suppresses aim line; non-adjacent firearm target hover shows firearm aim line and firearm preview copy.
+- AI simulation records damage by `AttackOutcome.basicAttackKind`, so adjacent attacks performed by Firearm-role units are counted as melee damage. Simulation attack execution also spends ammo only for resolved firearm attacks.
+- Data bridge: `SrpBattleState.CreateUnitFromTemplate` gives humanoid templates a default sidearm ammo pool (`DefaultFirearmMaxAmmo`) and a minimum firearm reach (`DefaultHumanFirearmRange`) while leaving `weaponClass` as role/display metadata. A dedicated sidearm/firearm-range data model remains a follow-up decision.
+- Overwatch/경계태세 remains a firearm reaction, but arming is based on firearm capability (`maxAmmo > 0`), firearm reach (`attackRange > 1` after the current bridge), ammo, AP/RP, and LOS at trigger time, not `weaponClass == Firearm`. Adjacent targets are always blocked from overwatch firearm reaction.
+- Combat balance review correction: HP-based PG vulnerability is a final incoming PG modifier and must run after mitigation/reaction/tag/firearm spillover pressure on both basic attacks and `SrpSkills` damage skills.
+- Execution threat policy is state-based: PG 0/groggy targets are executed only by adjacent melee threats (`Chebyshev <= 1`) when resolving against a `SrpBattleState`.
+- AI simulation thresholds follow the distance-resolved attack metric bridge: melee PG share floor `0.44`, first-battle player-policy max average rounds `13`, opening heuristic mirror match warn-only.
+- `TBD-017S` moves skill selection out of `ContextPanel` into a dedicated `SkillSelectionDrawer` because action choice lists need a readable selection surface, not a state-summary column.
+- `SkillSelectionDrawer` is a canvas-level action detail drawer anchored immediately to the right of `CommandRailPanel`, with preferred width 520px, minimum readable width 420px, and 56px minimum row height. Skill labels use `NoWrap + Ellipsis`; detailed skill meaning remains in bottom tactical cards/`InspectorPreviewPanel` through hover/preview.
+- The old command-adjacent `ContextPanel` column is removed from the left console because it reads as the previous one-character skill column. The left console must contain only `CommandRailPanel`.
+- `SkillSelectionDrawer` must be closable with an explicit `닫기` button and by pressing the `스킬` command again.
+- `LogDrawerPanel` starts collapsed by default and expands only when requested.
+- `SrpM1OpeningObservationTests` now keeps the camera-render board samples and adds ScreenCapture/GameView HUD samples for skill drawer open, secondary drawer open, log expanded, and log collapsed states; each HUD capture asserts the corresponding visible body/collapsed state before capture.
+- `TBD-017R` changes the secondary battle HUD contract from an always-visible floating `SecondaryActionPanel` to a default-closed drawer opened from `SecondaryActionTabStripPanel`.
+- Secondary drawer pages are `태세/방향`, `전술 보조`, and `시스템`; `SetSecondaryDrawerOpen` keeps only one page active, requires a readable drawer width of at least 320px, and applies compact page heights (`태세/방향` 210px, `전술 보조` 124px, `시스템` 104px).
+- The primary HUD contract is now: fixed `CommandRailPanel`, bottom `ActiveUnitCardPanel`, bottom/right `InspectorPreviewPanel`, right `LogDrawerPanel`, top `TurnOrderTracker`, and no player-facing floating tooltip. PlayMode checks that these panels do not overlap in the default state.
+- `TBD-016R` separates occupying cover objects from directional edge cover. `SrpCoverObjectData` is for non-walkable obstacle/ruin tiles and can provide cover mitigation; `SrpCoverSegmentData` remains an edge-based segment that does not block standing on its tile.
+- `M1OpeningPrototype` central non-walkable cells are currently interpreted as ruin cover objects. If those cells later become holes/empty voids, add separate terrain semantics instead of reusing `IsCoverTile`.
+- Rendering contract: occupying cover objects render at tile center; edge cover segments render as low walls/boards on the tile edge, never as central cubes.
+
+## 2026-06-11 update - `TBD-015` / `TBD-016` / `TBD-017`
+
+- `TBD-015` correction keeps `SrpPreviewEvaluator` threat calculation unchanged and moves only the rendering grammar from tile marker chains to world-space parabolic `LineRenderer` objects. Lines start above the attacker, arc above tile overlays, and end near the move ghost.
+- Threat visual tiers are explicit: basic attack is thin/subdued, overwatch is thicker/brighter and includes an endpoint pulse marker. Hover exit must destroy/clear all move-preview threat line objects.
+- `TBD-016` first pass adds `SrpTacticalCameraController` for perspective/top orthographic toggle, zoom, pan, and focus. `SrpGameController` configures the board framing but camera input is separated into the component. The projection toggle key is `C`, not `Tab`, and PlayMode keeps a pan/zoom/focus drift guard. Perspective zoom is focus-point + distance based: pan moves `_focusPoint`, wheel zoom changes `_perspectiveDistance`, and zoom must never reuse the camera position as the focus. Top orthographic zoom changes orthographic size around the same focus point.
+- Unit facing now has a world-space arrow mesh in addition to HUD text, and cover segments are visible one-tile cube objects. `blocksLineOfSight` cover is rendered with a stronger visual tier.
+- `TBD-017` restructures the battle HUD into a fixed `CommandRailPanel`, bottom tactical cards, a state-based `SecondaryActionPanel`, an `InspectorPreviewPanel`, and a collapsible `LogDrawerPanel`. Hidden logs must be inactive/ignored by layout rather than transparent-only. Runtime battle HUD explanation does not use floating tooltip bubbles; hover contracts update bottom tactical cards and `InspectorPreviewPanel` instead.
+- Player-facing action completion uses one label, `행동 종료`. `턴 종료` is not exposed as a normal HUD button until a future faction-turn/player-turn layer gives it distinct meaning.
+
 상위 기준:
 
 - `docs/srpg/SRPG_전투규칙_기준서_v2.md`
@@ -26,9 +61,10 @@ SrpGameController
 
 2차 확장/후속 모듈:
 
-- `SrpOverwatch`: AP 예약/RP 발동, 8방향 직선 사선, 장애물/유닛/`blocksLineOfSight` segment 차단, 1회 발동/해제, 다중 후보 우선순위 규칙 구현 완료
+- `SrpOverwatch`: AP 예약/RP 발동, 목표 벡터 기반 LOS, 장애물/유닛/`blocksLineOfSight` segment 차단, 1회 발동/해제, 다중 후보 우선순위 규칙 구현 완료
 - `SrpReaction`: 별도 파일 대신 `SrpCombatResolver`의 반응 선택/소비 흐름에 흡수
 - `SrpLineOfSight`: 현재는 `SrpOverwatch` helper로 유지, 다른 시스템이 사선을 공유할 때 별도 모듈 분리 검토
+- `SrpFirearmAim`: 총기 기본 공격/오버워치 공용 조준 helper. 공격자-대상 중심 360도 벡터의 LOS/장애물/`blocksLineOfSight` 차단만 targetability로 검증하고, 8-sector는 `atan2` 기반 표시/디버그/방향성 판정 보조값으로만 제공한다.
 
 ## 3. 핵심 데이터 계약
 
@@ -54,7 +90,7 @@ SrpGameController
 - 라운드/현재 행동 유닛/큐 상태를 유지한다.
 - 교전 상태와 반응 대기 이벤트를 상태에서 추적 가능해야 한다.
 - `SrpBattleState`는 Unity 엔진 타입에 의존하지 않는다.
-- 총기 유닛은 런타임 탄약(`ammo/maxAmmo`)을 가지며, 기본 공격/오버워치 발동 시 탄약을 소비한다. 명시 `maxAmmo`가 없는 총기 유닛은 전장식 총기 기본값으로 1발만 장전한다.
+- 총기 능력이 있는 유닛은 런타임 탄약(`ammo/maxAmmo`)을 가지며, 비인접 기본 공격/오버워치 발동 시 탄약을 소비한다. 현행 브릿지는 명시 `maxAmmo`가 없는 인간형 템플릿에도 전장식 총기 기본값 1발을 부여한다.
 - 유닛은 엄폐 상태(`coverActive/coverRound/coverSourceX/Y`)를 가질 수 있으며, 1차 구현은 인접 비보행 타일과 같은 칸 edge 기반 방향성 엄폐 segment를 엄폐물로 해석한다.
 - 맵은 방향성 엄폐 segment(`SrpCoverSegmentData`)를 가질 수 있으며, 런타임은 클론 가능한 `CoverSegments` 목록으로 보관한다.
 - 맵은 상호작용 포인트(`SrpInteractionPointData`)를 가질 수 있으며, 런타임은 클론 가능한 `InteractionPoints` 목록으로 보관한다. 1차 구현은 상하좌우 인접 유닛이 AP 1로 `singleUse` 포인트를 활성화하고, `requiredOwner < 0`이면 누구나, 아니면 해당 owner만 실행 가능하게 한다.
@@ -88,6 +124,8 @@ SrpGameController
 - `Firearm`: HP 압박 중심
   - 전장식 총기 기본 모델은 1발 고화력이다. 탄약을 소비하며, AP 1 재장전으로 탄약을 최대치까지 회복한다.
   - 기본 공격은 HP 피해를 크게 주고, 실제 HP 피해량의 50%를 PG 피해로 추가 파급한다.
+  - 비인접 기본 공격과 오버워치 사선은 `SrpFirearmAim`의 목표 벡터 LOS를 공유한다. 8방향 직선이 아니어도 사거리/LOS/장애물/`blocksLineOfSight` 차단을 통과하면 발포 가능하며, 인접 대상에게는 총기 발포/경계사격을 허용하지 않는다.
+  - `SrpAimSector8`은 UI/facing/엄폐 설명용 보조값이며, 발포 가능 여부를 제한하지 않는다.
   - 1차 구현은 최종 HP 피해량 기준으로 파급량을 산정하고, 남은 엄폐 GRD가 있으면 파급 PG를 줄인다. 50% 비율, 반올림 방식, 최소 PG 피해량, GRD 적용 순서는 밸런스 검사와 전투 시뮬레이션 후 조정 가능하게 둔다.
   - 엄폐 중인 원거리 대상에게는 HP/PG 피해 완충을 적용한다.
 - `Melee`: PG 붕괴 중심
@@ -159,7 +197,7 @@ SrpGameController
 14. RP/HUD 노출 정책 정리: RP 원시 수치 대신 반응 준비/소모/예약 상태 중심 표기
 15. 기획 대조 P1 보정: 기본공격 패링 제거, Dodge 확률형 시도/실패 브릿지, 측후면 방어 불리 브릿지 추가
 16. HUD/로그 가독성 동기화: 범례/반응/오버워치/스킬 자원/로그 문구 용어 통일 및 PlayMode 스모크 보강
-17. 오버워치 사선/횟수/해제 상세 규칙: 8방향 직선 사선, 장애물/유닛 차단, 예약 1회당 1회 발동, 라운드 리셋 해제
+17. 오버워치 사선/횟수/해제 상세 규칙: 목표 벡터 LOS, 장애물/유닛 차단, 예약 1회당 1회 발동, 라운드 리셋 해제
 18. 테스트 프리셋 v2 + HUD 레이아웃 개편: 최신 기능 체험용 `M1QaIntegrated`, 상단 헤더/정보 바/좌측 조작 콘솔 분리
 19. 전투 직접 조작 UI 보강: 태세 선택, 최종 방향 선택, 오버클럭 실행을 좌측 전술 콘솔에 연결
 20. 오버클럭 성능 증폭: 다음 스킬 사용 1회 피해/회복 보너스와 HUD/로그 상태 표기 추가
@@ -176,30 +214,37 @@ SrpGameController
 31. 첫 전투 프로토타입 프리셋 분리: `M1QaIntegrated` QA 맵 deprecated 유지, `M1OpeningPrototype` 첫 전투 판단용 기본 맵 추가, 로비 첫 선택/프리셋 검증/PlayMode 초기화 스모크 추가
 32. 전투 UX 피드백 레이어 P1: 현재 행동/선택/hover ring, ZOC/교전 unit badge, 턴 시작/종료와 주요 행동 world-space feedback, 피해/회복/선택 flash 추가 및 PlayMode 계약 검증
 33. 첫 전투 밸런스 관찰 P2: `M1OpeningPrototype` AI policy matrix를 EditMode에 추가하고, 핵심 정책 케이스 평균 종료 라운드 6~10 범위를 확인
-34. 전술 HUD 사용성 보정: 명령 전용 좌측 콘솔, 독립 스킬 선택 drawer, 기본 접힘 로그 레일, 하단 카드 중심 설명/preview 계약 추가
+34. 첫 전투 화면 관찰 P2: PlayMode 관찰 테스트로 첫 화면/위험영역/상호작용/ring feedback 캡처 표본을 생성하고, 데이터 보정보다 overlay 문법 후속이 우선임을 기록
+35. 타일 overlay 시각 문법 P2: 이동은 중심 marker, 공격/위험과 경계태세는 낮은 밀도 marker, ZOC/패링은 warning ring, 상호작용은 objective marker로 분리하며, tile overlay marker 높이가 PR #61 유닛 발밑 ring 아래에 머무르는 계약을 PlayMode에 추가
+36. 행동 순서 패널 분리 P2: 상단 HUD의 현재 유닛/대기열 정보를 상단 우측 `TurnOrderTrackerPanel` icon strip으로 분리하고, 현재 유닛 강조와 다음 3~5명 preview 및 턴 진행 후 갱신을 PlayMode에 추가
+37. 총기 발포 방향/조준 문법 P2: 기본 총기 공격과 오버워치를 공용 목표 벡터 LOS helper로 통합하고, 8-sector는 표시/디버그 보조값으로만 유지, hover aim line/preview 문구/facing 갱신 및 EditMode/PlayMode 계약 검증
+38. 전투 UX 추가 피드백 후속: 오버워치 사용자 노출 명칭을 `경계태세`로 교체하고, 예약 `경계태세 준비`/발동 `경계사격!` 문구를 고정했으며, 경계태세 사망 직후 렌더링/HUD/행동 순서 갱신과 공격/위험·경계태세 marker 계약을 PlayMode/관찰 QA로 검증
+39. 전투 preview 문법 재정렬: 기본 상태는 현재 행동 유닛 이동 marker만 유지하고 일반 공격/경계태세/엄폐/스킬/상호작용 범위는 버튼 hover preview로 분리한다. 이동 칸 hover는 clone 기반 evaluator로 ghost, 목적지 엄폐, 일반 threat line, 경계사격 강화 threat line을 표시하며 행동 순서 token hover는 전장 highlight와 preview/inspector 정보를 갱신한다.
+40. 전술 콘솔/로그/행동 종료 UX 정리: 핵심 행동은 command rail에 고정하고, 선택/hover 세부 정보는 context/inspector panel로 분리한다. 로그 drawer는 접힘 시 레이아웃 공간을 반환하며, player-facing 버튼은 `행동 종료` 하나로 통일한다. PlayMode에 패널 존재, 로그 collapse, hover preview 유지, 행동 순서 hover highlight, 카메라 `C` 토글/드리프트 가드를 추가한다.
+41. PG 붕괴/그로기/처단 밸런스 후속 프롬프트: 확정 구현 요구와 기획 확인 필요 항목을 별도 프롬프트 문서로 분리한다.
 
 다음 구현 순서:
 
-1. 로컬 Unity 에디터 플레이로 전투 UX 피드백 레이어의 ring 두께, badge 위치, floating text 지속시간을 가독성 기준으로 튜닝
-2. `M1OpeningPrototype` 후속 플레이 세션에서 북쪽 사격 루트/남쪽 돌입 루트 선택 이유와 실제 화면 가독성을 표본 기록
-3. 메이커/맵 에디터 UX에서 엄폐 segment와 상호작용 포인트 편집 방식 검토
-4. 초기 4인 고유 패시브/대표 스킬 최종 수치와 전직 연계 확정
-5. 공용 전투 태그/패링/총기 파급 브릿지 수치 밸런스 검증
-6. 총기 기본 공격/오버워치/발포 연출의 방향 문법을 분리 검토하고, 8방향 고정으로 보이는 조준 문제를 P2에서 재정의
-7. 행동 순서 패널을 별도 initiative/turn order tracker로 분리할지 UI 구조를 확정
-8. 이동/공격/ZOC/오버워치/패링/상호작용 타일 overlay를 중심 원, 외곽 danger, 경고 ring 계열 문법으로 재정리
-9. 메이커 효과유형 드롭다운 성능과 필드 의미 툴팁은 P3 UX로 재현/설계
+1. 카메라/방향/엄폐물 시각화 후속(`TBD-016`)을 처리한다. projection 전환, pan/zoom/focus, 방향 표시 decal, cover object 시각화를 한 묶음으로 본다.
+2. 전술 콘솔/로그/행동 종료 UX 정리(`TBD-017`)를 실제 에디터 플레이 화면에서 밀도/겹침/접힘 폭 기준으로 QA한다.
+3. 메이커/맵 에디터 UX에서 엄폐 segment와 상호작용 포인트 편집 방식을 검토한다.
+4. 초기 4인 고유 패시브/대표 스킬 최종 수치와 전직 연계를 확정한다.
+5. 공용 전투 태그/패링/총기 파급 브릿지 수치 밸런스를 검증한다.
+6. 메이커 효과유형 드롭다운 성능과 필드 의미 툴팁은 P3 UX로 재현/설계한다.
 
 ## 7. 미정 기술 항목
 
 - GRD/경미 HP 피해 계산 공식
 - 총기 HP-PG 파급 비율/반올림/최소값/GRD 적용 순서
-- 총기 발포 방향/조준 문법: 기본 공격, 오버워치, 발포 연출/overlay가 모두 8방향 직선 사선을 따라야 하는지 재검토 (`TBD-010`)
-- 행동 순서 패널 구조: 상단 HUD에 남길 정보와 별도 tracker로 분리할 정보 범위 (`TBD-011`)
-- 타일 overlay 시각 문법: 이동/공격/ZOC/오버워치/패링/상호작용을 채움, 중심 원, 외곽 danger, 경고 ring 중 어떤 언어로 분리할지 (`TBD-012`)
+- 총기 발포 후속 의사결정: 정식 VFX/애니메이션, 무기별 arc, diagonal facing을 도입할지 검토 (`TBD-010` 후속)
+- 행동 순서 패널 후속 polish: `TBD-011` 1차 구현은 런타임 생성 얼굴 토큰 icon strip으로 고정했고, 정식 초상화/역할 아이콘/크기 미세 조정은 아트 에셋과 실제 플레이 피드백 후 결정한다.
+- 타일 overlay 세부 튜닝: `TBD-012` 공격/위험 범위와 경계태세 범위는 후속 피드백 기준으로 낮은 밀도 marker를 사용한다. 정식 VFX/크기/채도/펄스 같은 화면 미세 조정은 실제 플레이 피드백 후 결정한다.
+- 경계태세 후속 UX/버그: 사용자-facing 명칭과 사망 직후 갱신은 구현했다. 정식 경계태세 사격 VFX/애니메이션은 후속 아트 튜닝으로 둔다 (`TBD-014`, `BUG-001`).
+- 전투 preview 문법 후속: `TBD-015` 1차는 clone 기반 예측과 hover 문법을 고정했다. 포물선 threat line의 정식 곡선/애니메이션, endpoint pulse, 버튼 hover 미세 연출은 실제 플레이 화면 QA 후 조정한다.
+- 전술 콘솔 후속: `TBD-017` 1차는 command rail/inspector/log drawer 계약과 `행동 종료` 단일 버튼 정책을 고정했다. 실제 화면에서 버튼 밀도, 로그 접힘 폭, 스킬 drawer 닫기/배치 감각은 추가 QA 후 조정한다.
 - 메이커 효과유형 드롭다운 성능과 필드 의미 툴팁 범위 (`TBD-013`)
 - 회피 확률 계산식
-- 오버워치 특수 지형 상호작용의 복합 효과
+- 경계태세 특수 지형 상호작용의 복합 효과
 - 패링 PG 피해량, `균형 붕괴` 지속, 실패 패널티 정량 수치
 - `완벽한 수비`와 기존 탱커 다중 대응 브릿지 통합 방식
 - 공용 전투 태그 수치/지속시간/소모 조건

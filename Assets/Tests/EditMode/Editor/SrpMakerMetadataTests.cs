@@ -315,6 +315,39 @@ public class SrpMakerMetadataTests
     }
 
     [Test]
+    public void MapMetadata_JsonRoundTrip_PreservesCoverObjects()
+    {
+        var map = CreateMetadataMap(new SrpUnitTemplateData
+        {
+            id = "cover_object_actor",
+            displayName = "Cover Object Actor",
+        });
+        map.coverObjects = new[]
+        {
+            new SrpCoverObjectData
+            {
+                x = 4,
+                y = 3,
+                coverDef = 5,
+                coverGrd = 2,
+                blocksLineOfSight = true,
+                visualKey = "central_ruin",
+            },
+        };
+
+        string json = JsonUtility.ToJson(map, true);
+        var restored = JsonUtility.FromJson<SrpMapFileV1>(json);
+        var coverObject = restored.coverObjects[0];
+
+        Assert.AreEqual(4, coverObject.x);
+        Assert.AreEqual(3, coverObject.y);
+        Assert.AreEqual(5, coverObject.coverDef);
+        Assert.AreEqual(2, coverObject.coverGrd);
+        Assert.IsTrue(coverObject.blocksLineOfSight);
+        Assert.AreEqual("central_ruin", coverObject.visualKey);
+    }
+
+    [Test]
     public void M1QaIntegratedPreset_ExposesPhase2SkillsAndScenarioHooks()
     {
         var state = SrpBattleState.FromMap(SrpDefaultMaps.GetPreset(SrpMapPreset.M1QaIntegrated));

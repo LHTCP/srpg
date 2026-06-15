@@ -12,7 +12,7 @@ public struct SrpSimThresholdConfig
         return new SrpSimThresholdConfig
         {
             minFirearmHpShare = 0.45f,
-            minMeleePgShare = 0.50f,
+            minMeleePgShare = 0.44f,
             maxDrawRate = 0.20f,
             maxAverageRounds = 16f,
         };

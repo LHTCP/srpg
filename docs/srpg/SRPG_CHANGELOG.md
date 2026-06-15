@@ -2,6 +2,34 @@
 
 ## 2026-06-15
 
+- Combat balance review correction
+  - Added HP-based PG vulnerability to the shared combat resolver path so both basic attacks and `SrpSkills` damage skills apply the same final incoming PG modifier.
+  - Tightened execution threat policy so groggy/PG 0 targets are executed only by adjacent melee threats when battle state is available.
+  - Corrected execution resolution from bonus damage to guaranteed kill so adjacent PG-broken/groggy targets cannot survive the execution hit.
+  - Updated AI simulation thresholds for the stricter state-based execution path: melee PG share floor `0.45`, first-battle player-policy observation max average rounds `13`, opening heuristic mirror match warn-only.
+  - Kept TMP/font fallback changes out of this correction; `Pretendard-Regular SDF.asset` remains untouched.
+
+- Tactical HUD skill selection follow-up (`TBD-017S`)
+  - Moved skill selection out of the narrow `ContextPanel` into a dedicated `SkillSelectionDrawer`.
+  - The drawer now opens immediately to the right of `CommandRailPanel` as an action detail drawer with preferred width 520px, minimum readable width 420px, and skill row minimum height 56px.
+  - Removed the command-adjacent `ContextPanel` column from the left console; state/hover/preview summary now routes to the bottom tactical cards and `InspectorPreviewPanel`.
+  - Skill labels use `NoWrap + Ellipsis` so long names do not collapse into one-character columns.
+  - Added a visible `닫기` control and command-button toggle close behavior for the skill drawer.
+  - Changed the battle log drawer default to collapsed while preserving explicit expand/collapse behavior.
+  - Added PlayMode coverage for drawer default-closed state, detached parent, command-rail adjacency, width, row height, close controls, default-collapsed log, and text policy.
+  - Added GameView/ScreenCapture observation captures with pre-capture assertions for skill drawer body, secondary drawer body, log expanded, and log collapsed HUD states.
+  - Extended the tactical UI research document with XCOM 2 / Into the Breach / Triangle Strategy principles mapped to concrete implementation policies.
+- Tactical HUD redesign follow-up (`TBD-017R`)
+  - Added `SRPG_TACTICAL_UI_REDESIGN_RESEARCH_2026-06-15.md` and `docs/srpg/ux/tactical_hud_redesign_wireframe_2026-06-15.svg`.
+  - Replaced the fixed-open secondary action panel behavior with a default-closed `SecondaryActionPanel` drawer opened from `SecondaryActionTabStripPanel`.
+  - Split secondary controls into `태세/방향`, `전술 보조`, and `시스템` pages, with only one drawer page open at once and compact per-page heights.
+  - Added PlayMode coverage for drawer default state, minimum 320px open width, per-page compact heights, close-space return, and primary HUD non-overlap.
+- Cover semantics/visualization review (`TBD-016R`)
+  - Added `SrpCoverObjectData` for occupying cover/obstacle tiles and kept `SrpCoverSegmentData` as directional edge cover.
+  - Interpreted `M1OpeningPrototype` central non-walkable tiles as ruin cover objects for this pass.
+  - Changed cover rendering so occupying cover objects are central ruin blocks while edge cover segments are low edge walls/boards instead of central cubes.
+  - Added EditMode/PlayMode coverage for cover object standing, start overlap, edge walkability, edge visual placement, visual/unit overlap, and move-preview ghost avoidance.
+
 - 전투 HUD 패널 피드백 반영
   - 좌측 전술 콘솔 폭을 명령 전용 레일 수준으로 줄이고, 설명/preview 정보는 하단 현재 유닛 카드와 행동 preview 카드로 분리
   - 스킬 목록을 좌측 콘솔 내부가 아닌 별도 `SkillSelectionDrawerPanel`로 분리하고 `닫기` 버튼과 스킬 버튼 재클릭 닫힘을 추가
@@ -12,8 +40,74 @@
   - 기획자 피드백을 `SRPG_BALANCE_FEEDBACK_EXECUTION_PROMPT_2026-06-15.md`로 정리하고 문서 맵에 연결
   - 확정 구현 요구와 기획 확인 필요 항목을 분리해 다음 구현 세션에서 바로 착수 가능하게 정리
 
+## 2026-06-11
+
+- Playtest UX follow-up 3 (`TBD-017`)
+  - Split the tactical console into `CommandRailPanel`, bottom tactical cards, `InspectorPreviewPanel`, and `SecondaryActionPanel`; core actions stay fixed in the rail while stance/facing/tools leave the narrow command column.
+  - Removed the player-facing floating Tooltip object/path from battle HUD hover behavior. Hover information now routes through bottom tactical cards and `InspectorPreviewPanel`.
+  - Reframed the bottom action preview as `InspectorPreviewPanel` and reused it for action hover, skill hover, unit/target hover, and turn-order token hover.
+  - Widened the log drawer and made collapse return layout/screen space, leaving only a small reopen rail while preserving log data.
+  - Removed the player-facing `턴 종료` HUD button; `행동 종료` is the single exposed activation-ending action, with round changes handled by automatic logs.
+  - Changed tactical camera projection toggle to `C` and fixed perspective zoom to use a retained board focus point plus camera distance instead of feeding the camera position back as focus.
+  - Expanded PlayMode coverage for rail/context/secondary/inspector/log drawer contracts, no player-facing floating Tooltip object, hover preview continuity, action-end naming, turn-order hover battlefield highlight, and perspective focus-distance zoom.
+
+- Playtest UX follow-up 2 (`TBD-015` correction, `TBD-016` first pass)
+  - Replaced move-hover threat tile marker chains with world-space parabolic `LineRenderer` objects.
+  - Split basic attack and overwatch threat visuals: subdued/thin basic lines versus stronger overwatch lines with endpoint pulse markers.
+  - Added `SrpTacticalCameraController` for perspective/top orthographic view, wheel zoom, middle-drag/WASD/arrow pan, and focus.
+  - Added world-space unit facing arrows and one-tile cover cube objects, with a stronger visual tier for `blocksLineOfSight` cover.
+  - Updated PlayMode coverage for world-space line existence, tier separation, hover cleanup, tactical camera, facing arrows, and cover object visibility.
+
+- 전투 preview 문법 재정렬 (`TBD-015`)
+  - 기본 전투 화면은 현재 행동 유닛의 이동 가능 marker만 유지하고, 일반 공격/경계태세/엄폐/스킬/상호작용 범위는 버튼 hover 때만 열리도록 분리
+  - 좌측 전술 콘솔에 `일반 공격` 버튼과 hover preview를 추가
+  - 이동 가능 칸 hover 시 ghost 유닛, 목적지 기준 엄폐 marker, 일반 threat line, 경계사격 강화 threat line/endpoint marker 표시
+  - 행동 순서 token hover 시 해당 유닛 전장 highlight와 하단 preview/inspector 정보 갱신
+  - preview evaluator는 clone을 사용해 원본 battle state를 변경하지 않도록 EditMode 계약 추가
+  - 검증 통과: `git diff --check`, `scripts/validate-repo.sh`, Unity EditMode `80 passed / 0 failed` (`TestResults/EditMode-TBD-015-final.xml`), Unity PlayMode `9 passed / 0 failed` (`TestResults/PlayMode-TBD-015-final.xml`)
+
+## 2026-06-10
+
+- 전투 UX 추가 피드백 후속 구현 (`TBD-014`, `BUG-001`, `TBD-012` 후속)
+  - 플레이어-facing HUD/버튼/로그/floating text/QA 프리셋 표시명을 `경계태세`/`경계사격` 기준으로 정리
+  - 예약 문구는 `경계태세 준비`, 발동 world-space text는 `경계사격!`, 불가/예약 상태는 `경계태세 불가`/`경계태세 준비 중`으로 고정
+  - 경계태세 발동으로 대상이 사망하면 선택/hover/aim overlay를 정리하고 유닛 mesh, HUD, 행동 순서 패널을 즉시 갱신
+  - 공격/위험 범위와 경계태세 범위는 낮은 밀도 marker로 표시하고, ZOC warning ring/이동 marker/상호작용 marker와 시각 계약을 분리
+  - PlayMode에 경계태세 사망 직후 갱신 시나리오와 공격/위험·경계태세 marker 계약 검증 추가
+  - 검증: `git diff --check`, `scripts/validate-repo.sh` 통과. marker 후속 보정 뒤 Unity batchmode EditMode `79 passed / 0 failed`, PlayMode `9 passed / 0 failed` 확인 (`TestResults/EditMode-TBD-014-review-fix.xml`, `TestResults/PlayMode-TBD-014-review-fix.xml`).
+
+## 2026-06-09
+
+- 행동 순서 패널 분리 (`TBD-011`)
+  - 상단 HUD의 현재 유닛/대기열 정보를 상단 우측의 별도 initiative/turn order icon strip으로 분리: `SrpGameController.Hud`
+  - 현재 유닛은 큰 얼굴 토큰과 포인터로 강조하고, 다음 3~5명은 owner/무기 계열을 반영한 런타임 생성 토큰으로 표시
+  - 상단 HUD는 라운드/상태/위험영역/맵 요약 중심으로 가볍게 정리
+  - PlayMode HUD 테스트에 패널 존재, 로그 패널과의 분리, 현재 아이콘 강조, preview 범위, 턴 종료 후 갱신 검증 추가
+  - 검증 통과: `scripts/validate-repo.sh`, EditMode `77 passed / 0 failed`, PlayMode `7 passed / 0 failed`
+- 타일 overlay 시각 문법 개편 (`TBD-012`)
+  - 이동 가능 범위는 타일 중심 marker, 공격/위험은 외곽 테두리, ZOC/패링은 warning ring, 상호작용은 objective marker로 분리
+  - `M1OpeningPrototype` 첫 화면에서 북쪽 사격 루트와 남쪽 `신호 장치` 루트가 같은 색상 채움으로 묻히지 않도록 tile overlay를 별도 marker layer로 전환
+  - PR #61의 current/selected/hover 유닛 발밑 ring은 유지하고, tile overlay marker 최대 높이를 current ring보다 낮게 검증
+  - 검증 통과: `scripts/validate-repo.sh`, EditMode `77 passed / 0 failed`, PlayMode `7 passed / 0 failed`
+- `TBD-010` 총기 발포 방향/조준 문법 브릿지 구현
+  - 총기 기본 공격과 오버워치를 공용 목표 벡터 기반 `SrpFirearmAim` LOS helper로 판정
+  - 오버워치의 8방향 직선 lane 제한을 제거하고, 사거리/장애물/유닛/`blocksLineOfSight` 차단만 targetability 제한으로 유지
+  - `SrpAimSector8`은 `atan2` 기반 표시/디버그/방향성 판정 보조값으로 추가
+  - 총기 기본 공격 hover preview에 황색 aim line과 `총기 기본 조준` 문구를 추가하고, 발포 시 총기 유닛 facing을 목표 방향으로 갱신
+  - 비8방향 기본 총기 공격/오버워치 허용, LOS 차단, aim line PlayMode smoke 테스트 추가
+  - 정식 VFX/애니메이션, 무기별 arc, diagonal facing은 후속 의사결정으로 유지
+- 전투 UX 추가 피드백 문서화 (`TBD-014`, `BUG-001`)
+  - 사용자 노출 명칭을 `오버워치`에서 `경계태세`로 변경하는 후속 작업을 등록
+  - 경계태세 발동 가이드 텍스트 선정, 경계태세 사망 렌더링 지연 수정, 공격/위험 범위 다이아몬드 표시 재검토를 다음 UX 작업으로 정리
+
 ## 2026-06-08
 
+- 첫 전투 화면 관찰 P2
+  - `M1OpeningPrototype` 관찰용 PlayMode 캡처 테스트 추가: `SrpM1OpeningObservationTests.M1OpeningPrototype_Captures_FirstScreen_RouteObservation`
+  - 표본 산출물: `TestResults/SrpPlayObservation/`의 첫 화면, 위험영역/이동 hover, `신호 장치` hover, ring/floating text 캡처와 Markdown 요약
+  - 관찰: 첫 대치와 PR #61 ring/floating text는 읽히지만, 북쪽 사격 루트와 남쪽 신호 장치 루트의 차이는 현재 위험영역/상호작용 overlay 문법에 묻힘
+  - 판단: AI matrix가 6~10라운드 목표를 통과했으므로 이번 차수에서는 적 수/HP/PG/배치 데이터를 보정하지 않고, `TBD-012` overlay 문법 후속을 우선함
+  - 검증 통과: 관찰 PlayMode `1 passed / 0 failed`
 - 첫 전투 밸런스 관찰 P2
   - `M1OpeningPrototype` 전용 AI policy matrix 관찰 테스트 추가: `SrpM1AiSimAllEntry.Run_M1OpeningPrototype_Ai_Policy_Matrix_For_BalanceObservation`
   - 핵심 정책 케이스 평균 종료 라운드 확인: Heuristic vs Random `8.31`, Random vs Heuristic `7.65`, Heuristic vs Heuristic `8.00`
@@ -168,7 +262,7 @@
   - PlayMode HUD 스모크 테스트를 범례, 반응 상태, 오버워치 버튼, hover 문구, 로그 핵심 문구까지 확장
   - 검증 통과: EditMode `43 passed / 0 failed`, PlayMode `4 passed / 0 failed`
 - Phase2 오버워치 사선/횟수/해제 상세 규칙 완료
-  - 오버워치 발동을 8방향 직선 사선으로 제한하고 중간 장애물/유닛 차단을 반영: `SrpOverwatch`
+  - 오버워치 발동을 1차로 8방향 직선 사선으로 제한하고 중간 장애물/유닛 차단을 반영했으나, 이 lane 제한은 `TBD-010`에서 목표 벡터 LOS로 교체: `SrpOverwatch`
   - 오버워치 범위 오버레이가 실제 발동 가능한 사선 타일만 표시하도록 동기화: `SrpGameController.Rendering`
   - 예약 1회당 1회 발동, 발동/라운드 리셋 시 예약 해제 정책을 기준서와 백로그에 반영
   - 사선/차단 회귀 테스트 추가 및 검증 통과: EditMode `45 passed / 0 failed`, PlayMode `4 passed / 0 failed`
@@ -332,7 +426,7 @@
   - 검증: EditMode `76 passed / 0 failed`, PlayMode `6 passed / 0 failed`
 - P2 총기 발포 방향/조준 문법 이슈 문서화
   - 총기 발포 방향이 기본 공격/오버워치/발포 연출에서 모두 8방향 직선 사선처럼 보이는 문제를 `TBD-010`으로 분리
-  - 오버워치의 8방향 규칙과 총기 기본 공격 UI/연출 문법을 같은 계약으로 둘지 P2에서 재검토
+  - 당시 오버워치 8방향 구현과 총기 기본 공격 UI/연출 문법을 같은 계약으로 둘지 P2에서 재검토 대상으로 등록
 - P2/P3 UX 후속 항목 문서화
   - 행동 순서 패널 분리를 `TBD-011`로 명시
   - 이동/공격/ZOC/오버워치/패링/상호작용 타일 overlay 시각 문법 개편을 `TBD-012`로 분리
