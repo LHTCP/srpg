@@ -23,6 +23,10 @@ public static class SrpCombatResolver
     const int BackAttackPgBonus = 2;
     const float DirectionalArcDotThreshold = 0.7071067f;
     const int FirearmHpToPgSpilloverPercent = 50;
+    const int LowHpPgVulnerabilityThresholdPercent = 50;
+    const int CriticalHpPgVulnerabilityThresholdPercent = 25;
+    const int LowHpPgVulnerabilityBonusPercent = 25;
+    const int CriticalHpPgVulnerabilityBonusPercent = 50;
     const int ParryCounterPgDamage = 8;
     const int MarkedPgBonus = 2;
     const int BalanceBrokenPgBonus = 4;
@@ -33,6 +37,7 @@ public static class SrpCombatResolver
 
     public struct AttackOutcome
     {
+        public SrpBasicAttackKind basicAttackKind;
         public int rawDamageToPg;
         public int rawDamageToHp;
         public int damageToPg;
@@ -48,6 +53,7 @@ public static class SrpCombatResolver
         public int coverGrdCapacity;
         public int reducedHpByPerfectDefense;
         public int firearmPgSpillover;
+        public int bonusPgFromLowHpVulnerability;
         public int bonusHpFromCombatTags;
         public int bonusPgFromCombatTags;
         public SrpCombatTag consumedCombatTags;
@@ -59,6 +65,7 @@ public static class SrpCombatResolver
         public bool coverBufferApplied;
         public bool perfectDefenseApplied;
         public bool combatTagBonusApplied;
+        public bool lowHpPgVulnerabilityApplied;
         public bool parryAppliedBalanceBreak;
         public bool parryCounterBecameGroggy;
         public bool wasDodged;
@@ -71,16 +78,53 @@ public static class SrpCombatResolver
 
     public static bool CanAttack(SrpBattleState state, SrpUnitRuntime attacker, SrpUnitRuntime defender)
     {
+        if (state == null || attacker == null || defender == null)
+            return false;
         if (attacker.eliminated || defender.eliminated)
             return false;
         if (attacker.owner == defender.owner)
             return false;
         int dist = state.ChebyshevAnchor(attacker, defender);
-        if (dist > attacker.attackRange)
-            return false;
-        if (attacker.weaponClass == SrpWeaponClass.Firearm && dist > 1)
-            return SrpFirearmAim.CanBasicAttack(state, attacker, defender, out _);
-        return true;
+        var kind = ResolveBasicAttackKind(dist);
+        if (kind == SrpBasicAttackKind.Melee)
+            return true;
+        return dist <= attacker.attackRange
+            && HasAmmoForBasicAttack(kind, attacker)
+            && SrpFirearmAim.CanBasicAttack(state, attacker, defender, out _);
+    }
+
+    public static SrpBasicAttackKind ResolveBasicAttackKind(SrpBattleState state, SrpUnitRuntime attacker, SrpUnitRuntime defender)
+    {
+        if (state != null && attacker != null && defender != null)
+            return ResolveBasicAttackKind(state.ChebyshevAnchor(attacker, defender));
+
+        return attacker != null && attacker.weaponClass == SrpWeaponClass.Firearm
+            ? SrpBasicAttackKind.Firearm
+            : SrpBasicAttackKind.Melee;
+    }
+
+    public static SrpBasicAttackKind ResolveBasicAttackKind(int chebyshevDistance)
+    {
+        return chebyshevDistance <= 1 ? SrpBasicAttackKind.Melee : SrpBasicAttackKind.Firearm;
+    }
+
+    public static bool HasAmmoForBasicAttack(SrpBattleState state, SrpUnitRuntime attacker, SrpUnitRuntime defender)
+    {
+        return HasAmmoForBasicAttack(ResolveBasicAttackKind(state, attacker, defender), attacker);
+    }
+
+    public static bool HasAmmoForBasicAttack(SrpBasicAttackKind kind, SrpUnitRuntime attacker)
+    {
+        if (kind != SrpBasicAttackKind.Firearm)
+            return true;
+        return attacker != null && attacker.HasAmmoForAttack();
+    }
+
+    public static bool SpendAmmoForBasicAttack(SrpBasicAttackKind kind, SrpUnitRuntime attacker)
+    {
+        if (kind != SrpBasicAttackKind.Firearm)
+            return true;
+        return attacker != null && attacker.SpendAmmoForAttack();
     }
 
     public static bool CanDefenderParry(
@@ -164,9 +208,13 @@ public static class SrpCombatResolver
         ApplyDirectionalVulnerability(attacker, defender, ref hpDamage, ref pgDamage);
         ApplyConstantMitigation(defender, ref hpDamage, ref pgDamage, ref outcome);
         ApplySustainedDefenseBuffers(state, defender, ref hpDamage, ref pgDamage, ref outcome);
-        ApplyCoverBuffer(state, attacker, defender, ref hpDamage, ref pgDamage, ref outcome);
+        var skillCoverKind = attacker != null && attacker.weaponClass == SrpWeaponClass.Firearm
+            ? SrpBasicAttackKind.Firearm
+            : SrpBasicAttackKind.Melee;
+        ApplyCoverBuffer(state, attacker, defender, skillCoverKind, ref hpDamage, ref pgDamage, ref outcome);
         ApplyReactionIfAvailable(state, attacker, defender, attackSkill, ref hpDamage, ref pgDamage, ref outcome);
         ApplyCombatTagPressure(attacker, defender, ref hpDamage, ref pgDamage, ref outcome);
+        ApplyLowHpPgVulnerability(defender, ref pgDamage, ref outcome);
         RecordDefensivePressure(state, defender);
         return outcome;
     }
@@ -178,30 +226,29 @@ public static class SrpCombatResolver
 
     static AttackOutcome ApplyAttack(SrpBattleState state, SrpUnitRuntime attacker, SrpUnitRuntime defender, SrpSkillData attackSkill, bool isOpportunityAttack)
     {
-        var o = new AttackOutcome();
+        var attackKind = isOpportunityAttack
+            ? SrpBasicAttackKind.Melee
+            : ResolveBasicAttackKind(state, attacker, defender);
+        var o = new AttackOutcome { basicAttackKind = attackKind };
         int raw = Mathf.Max(1, attacker.attackPower);
         int hpDamage;
         int pgDamage;
 
-        if (defender.pg <= 0 || defender.groggy)
+        if ((defender.pg <= 0 || defender.groggy) && IsMeleeExecutionThreat(state, attacker, defender))
         {
             o.wasExecution = true;
-            hpDamage = raw + ExecutionBonusDamage;
+            hpDamage = Mathf.Max(defender.hp, raw + ExecutionBonusDamage);
             pgDamage = 0;
         }
         else
         {
-            switch (attacker.weaponClass)
+            switch (attackKind)
             {
-                case SrpWeaponClass.Firearm:
+                case SrpBasicAttackKind.Firearm:
                     hpDamage = raw * 2 + 6;
                     pgDamage = 0;
                     break;
-                case SrpWeaponClass.Magic:
-                    hpDamage = Mathf.Max(1, raw / 2);
-                    pgDamage = Mathf.Max(1, raw / 2);
-                    break;
-                case SrpWeaponClass.Melee:
+                case SrpBasicAttackKind.Melee:
                 default:
                     hpDamage = Mathf.Max(1, raw / 4);
                     pgDamage = raw + 4;
@@ -215,12 +262,14 @@ public static class SrpCombatResolver
             ApplyDirectionalVulnerability(attacker, defender, ref hpDamage, ref pgDamage);
             ApplyConstantMitigation(defender, ref hpDamage, ref pgDamage, ref o);
             ApplySustainedDefenseBuffers(state, defender, ref hpDamage, ref pgDamage, ref o);
-            ApplyCoverBuffer(state, attacker, defender, ref hpDamage, ref pgDamage, ref o);
-            ApplyReactionIfAvailable(state, attacker, defender, attackSkill, ref hpDamage, ref pgDamage, ref o);
-            bool isMajorHpThreat = attacker.weaponClass == SrpWeaponClass.Firearm || isOpportunityAttack;
+            ApplyCoverBuffer(state, attacker, defender, attackKind, ref hpDamage, ref pgDamage, ref o);
+            if (!isOpportunityAttack)
+                ApplyReactionIfAvailable(state, attacker, defender, attackSkill, ref hpDamage, ref pgDamage, ref o);
+            bool isMajorHpThreat = attackKind == SrpBasicAttackKind.Firearm || isOpportunityAttack;
             ApplyPerfectDefense(attacker, defender, isMajorHpThreat, ref hpDamage, ref o);
             ApplyCombatTagPressure(attacker, defender, ref hpDamage, ref pgDamage, ref o);
-            ApplyFirearmHpSpillover(attacker, hpDamage, ref pgDamage, ref o);
+            ApplyFirearmHpSpillover(attackKind, hpDamage, ref pgDamage, ref o);
+            ApplyLowHpPgVulnerability(defender, ref pgDamage, ref o);
         }
 
         ApplyResolvedDamage(defender, ref o, hpDamage, pgDamage);
@@ -273,6 +322,34 @@ public static class SrpCombatResolver
         outcome.reducedPgByGrd += beforePg - pgDamage;
     }
 
+    static bool IsMeleeExecutionThreat(SrpBattleState state, SrpUnitRuntime attacker, SrpUnitRuntime defender)
+    {
+        if (state == null || attacker == null || defender == null)
+            return false;
+        return ResolveBasicAttackKind(state, attacker, defender) == SrpBasicAttackKind.Melee;
+    }
+
+    static void ApplyLowHpPgVulnerability(SrpUnitRuntime defender, ref int pgDamage, ref AttackOutcome outcome)
+    {
+        if (defender == null || pgDamage <= 0 || defender.maxHp <= 0)
+            return;
+
+        int hpPercent = Mathf.CeilToInt(Mathf.Max(0, defender.hp) * 100f / defender.maxHp);
+        int bonusPercent = 0;
+        if (hpPercent <= CriticalHpPgVulnerabilityThresholdPercent)
+            bonusPercent = CriticalHpPgVulnerabilityBonusPercent;
+        else if (hpPercent <= LowHpPgVulnerabilityThresholdPercent)
+            bonusPercent = LowHpPgVulnerabilityBonusPercent;
+
+        if (bonusPercent <= 0)
+            return;
+
+        int before = pgDamage;
+        pgDamage = Mathf.CeilToInt(pgDamage * (100 + bonusPercent) / 100f);
+        outcome.bonusPgFromLowHpVulnerability += pgDamage - before;
+        outcome.lowHpPgVulnerabilityApplied = outcome.bonusPgFromLowHpVulnerability > 0;
+    }
+
     static void ApplySustainedDefenseBuffers(
         SrpBattleState state,
         SrpUnitRuntime defender,
@@ -320,11 +397,14 @@ public static class SrpCombatResolver
         SrpBattleState state,
         SrpUnitRuntime attacker,
         SrpUnitRuntime defender,
+        SrpBasicAttackKind attackKind,
         ref int hpDamage,
         ref int pgDamage,
         ref AttackOutcome outcome)
     {
         if (!TryGetCoverMitigation(state, attacker, defender, out int coverDef, out int coverGrd))
+            return;
+        if (attackKind != SrpBasicAttackKind.Firearm)
             return;
 
         int beforeHp = hpDamage;
@@ -405,8 +485,6 @@ public static class SrpCombatResolver
         coverGrd = 0;
         if (state == null || attacker == null || defender == null || !defender.coverActive)
             return false;
-        if (attacker.weaponClass != SrpWeaponClass.Firearm)
-            return false;
         if (state.ChebyshevAnchor(attacker, defender) <= 1)
             return false;
 
@@ -418,11 +496,11 @@ public static class SrpCombatResolver
             return true;
         }
 
-        if (state.IsCoverTile(defender.coverSourceX, defender.coverSourceY)
+        if (state.TryGetCoverObjectAt(defender.coverSourceX, defender.coverSourceY, out var coverObject)
             && state.HasAdjacentCoverSource(defender, defender.coverSourceX, defender.coverSourceY))
         {
-            coverDef = CoverDef;
-            coverGrd = CoverGrd;
+            coverDef = coverObject.coverDef > 0 ? coverObject.coverDef : CoverDef;
+            coverGrd = coverObject.coverGrd > 0 ? coverObject.coverGrd : CoverGrd;
             return true;
         }
 
@@ -441,9 +519,9 @@ public static class SrpCombatResolver
         defender.defensiveHitsTakenThisRound++;
     }
 
-    static void ApplyFirearmHpSpillover(SrpUnitRuntime attacker, int hpDamage, ref int pgDamage, ref AttackOutcome outcome)
+    static void ApplyFirearmHpSpillover(SrpBasicAttackKind attackKind, int hpDamage, ref int pgDamage, ref AttackOutcome outcome)
     {
-        if (attacker == null || attacker.weaponClass != SrpWeaponClass.Firearm || hpDamage <= 0)
+        if (attackKind != SrpBasicAttackKind.Firearm || hpDamage <= 0)
             return;
 
         int spillover = Mathf.FloorToInt(hpDamage * FirearmHpToPgSpilloverPercent / 100f);
@@ -553,7 +631,7 @@ public static class SrpCombatResolver
             return false;
         if (defender.stance != SrpStance.Aggressive || defender.reactionPoints <= 0)
             return false;
-        if (attacker.weaponClass == SrpWeaponClass.Melee)
+        if (ResolveBasicAttackKind(state, attacker, defender) == SrpBasicAttackKind.Melee)
             return false;
         return state.ChebyshevAnchor(attacker, defender) > 1;
     }
