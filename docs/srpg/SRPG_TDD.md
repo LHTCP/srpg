@@ -132,6 +132,8 @@ SrpGameController
 - 통합 테스트:
   - HUD의 상단 헤더/정보 바/좌측 콘솔 분리와 전투 상태 반영
   - 좌측 전술 콘솔의 태세/방향/오버클럭/재장전/엄폐/상호작용 직접 조작
+  - 좌측 전술 콘솔은 명령 전용 레일로 유지하고 스킬 선택은 별도 drawer에서 닫기/재클릭 닫힘을 지원
+  - 로그 패널은 기본 접힘 상태로 시작하고 필요 시 펼침/접힘으로 화면 공간을 반환
   - 하단 현재 유닛 카드와 행동 preview 카드의 숫자+게이지 및 hover 예상 정보 반영
   - 위험영역/의도/상태 문구 일관성
   - QA 프리셋이 최신 스킬·태그·오버워치 사선·상호작용·방향성 엄폐 확인 지점을 포함하는지 검증
@@ -174,6 +176,7 @@ SrpGameController
 31. 첫 전투 프로토타입 프리셋 분리: `M1QaIntegrated` QA 맵 deprecated 유지, `M1OpeningPrototype` 첫 전투 판단용 기본 맵 추가, 로비 첫 선택/프리셋 검증/PlayMode 초기화 스모크 추가
 32. 전투 UX 피드백 레이어 P1: 현재 행동/선택/hover ring, ZOC/교전 unit badge, 턴 시작/종료와 주요 행동 world-space feedback, 피해/회복/선택 flash 추가 및 PlayMode 계약 검증
 33. 첫 전투 밸런스 관찰 P2: `M1OpeningPrototype` AI policy matrix를 EditMode에 추가하고, 핵심 정책 케이스 평균 종료 라운드 6~10 범위를 확인
+34. 전술 HUD 사용성 보정: 명령 전용 좌측 콘솔, 독립 스킬 선택 drawer, 기본 접힘 로그 레일, 하단 카드 중심 설명/preview 계약 추가
 
 다음 구현 순서:
 

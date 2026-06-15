@@ -26,13 +26,13 @@ public partial class SrpGameController : MonoBehaviour
 
     [Header("HUD")]
     [Tooltip("왼쪽 컨트롤 패널 폭(캔버스 단위).")]
-    public float leftPanelWidth = 360f;
+    public float leftPanelWidth = 170f;
 
     [Tooltip("오른쪽 로그 패널 폭(캔버스 단위).")]
     public float rightPanelWidth = 520f;
 
     [Tooltip("시작 시 오른쪽 로그 패널 표시 여부.")]
-    public bool startWithLogVisible = true;
+    public bool startWithLogVisible = false;
 
     // ── 시뮬레이션 상태 ──────────────────────────────────────────────────────
 

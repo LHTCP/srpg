@@ -17,6 +17,9 @@ public partial class SrpGameController
     const int MaxLogLines = 80;
     const int QueuePreviewCount = 5;
     const float TopHudHeight = 170f;
+    const float LogCollapsedPanelWidth = 92f;
+    const float SkillSelectionDrawerWidth = 520f;
+    const float SkillSelectionDrawerHeight = 320f;
     const string OverlayLegendText = "범례: 초록=이동 | 주황=ZOC/주의 | 빨강=공격/위험 | 보라=스킬 | 청록=패링 가능 스킬 | 파랑=오버워치 | 연두=엄폐/방향엄폐 | 노랑=상호작용";
     readonly List<string> _log = new List<string>();
 
@@ -42,6 +45,7 @@ public partial class SrpGameController
     Button _btnToggleLog;
     Button _btnUseSkill;
     Button _btnCancelSkill;
+    Button _btnCloseSkillSelection;
     Button _btnDangerArea;
     Button _btnOverwatch;
     Button _btnReload;
@@ -55,8 +59,10 @@ public partial class SrpGameController
     Button _btnFacingWest;
     Button _btnOverclock;
     GameObject _skillListPanel;
+    Transform _skillListContent;
     GameObject _topStatusPanel;
     GameObject _leftConsolePanel;
+    GameObject _rightLogPanel;
     GameObject _activeUnitCardPanel;
     GameObject _actionPreviewPanel;
     readonly List<SkillListEntry> _skillListButtons = new List<SkillListEntry>();
@@ -106,6 +112,7 @@ public partial class SrpGameController
         BuildLeftPanel(canvasGo.transform);
         BuildRightPanel(canvasGo.transform);
         BuildBottomTacticalCards(canvasGo.transform);
+        BuildSkillSelectionDrawer(canvasGo.transform);
         BuildTooltip(canvasGo.transform);
         _logVisible = startWithLogVisible;
         ApplyLogVisibility();
@@ -212,20 +219,6 @@ public partial class SrpGameController
         _btnDangerArea = MakeButton(panel.transform, "위험영역 보기", OnToggleDangerAreaUi, 48, 20);
         _btnDangerArea.GetComponent<Image>().color = new Color(0.25f, 0.22f, 0.15f, 0.9f);
 
-        // 스킬 목록 패널 (숨김 시작)
-        _skillListPanel = new GameObject("SkillListPanel", typeof(RectTransform));
-        _skillListPanel.transform.SetParent(panel.transform, false);
-        _skillListPanel.AddComponent<LayoutElement>().flexibleHeight = 0.3f;
-        _skillListPanel.AddComponent<Image>().color = new Color(0.10f, 0.08f, 0.16f, 0.9f);
-        var sklVlg = _skillListPanel.AddComponent<VerticalLayoutGroup>();
-        sklVlg.padding = new RectOffset(6, 6, 4, 4);
-        sklVlg.spacing = 4f;
-        sklVlg.childControlHeight = true;
-        sklVlg.childControlWidth = true;
-        sklVlg.childForceExpandHeight = false;
-        sklVlg.childForceExpandWidth = true;
-        _skillListPanel.SetActive(false);
-
         MakeSeparator(panel.transform);
         _btnSkipAttack = MakeButton(panel.transform, "행동 종료", OnSkipAttack, 54, 22);
         _btnEndTurn = MakeButton(panel.transform, "턴 종료", OnEndTurnSoft, 54, 22);
@@ -235,9 +228,56 @@ public partial class SrpGameController
             SrpGameSettings.ReturnToLobby, 52, 22);
     }
 
+    void BuildSkillSelectionDrawer(Transform canvasRoot)
+    {
+        _skillListPanel = MakeFloatingPanel(canvasRoot, "SkillSelectionDrawerPanel",
+            new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(leftPanelWidth + 12f, -(TopHudHeight + 12f)),
+            new Vector2(SkillSelectionDrawerWidth, SkillSelectionDrawerHeight),
+            new Color(0.08f, 0.04f, 0.12f, 0.94f));
+
+        var header = MakeButtonRow(_skillListPanel.transform, 38f);
+        var headerLayout = header.GetComponent<HorizontalLayoutGroup>();
+        if (headerLayout != null)
+            headerLayout.childForceExpandWidth = false;
+        var title = MakeLabel(header.transform, "SkillSelectionTitle", 18, new Color(1f, 0.9f, 0.5f), 34f);
+        title.text = "스킬 선택";
+        title.alignment = TextAlignmentOptions.MidlineLeft;
+        title.GetComponent<LayoutElement>().flexibleWidth = 1f;
+
+        _btnCloseSkillSelection = MakeButton(header.transform, "닫기", OnCloseSkillSelectionUi, 34f, 16);
+        var closeLayout = _btnCloseSkillSelection.GetComponent<LayoutElement>();
+        closeLayout.minWidth = 72f;
+        closeLayout.preferredWidth = 72f;
+        closeLayout.flexibleWidth = 0f;
+        _btnCloseSkillSelection.GetComponent<Image>().color = new Color(0.20f, 0.18f, 0.24f, 0.92f);
+
+        var hint = MakeLabel(_skillListPanel.transform, "SkillSelectionHint", 13, new Color(0.78f, 0.88f, 1f), 34f);
+        hint.text = "사용할 액티브 스킬을 고르면 타깃 선택 모드로 전환됩니다.";
+        hint.alignment = TextAlignmentOptions.MidlineLeft;
+
+        var content = new GameObject("SkillSelectionContent", typeof(RectTransform));
+        content.transform.SetParent(_skillListPanel.transform, false);
+        _skillListContent = content.transform;
+        var contentLayout = content.AddComponent<LayoutElement>();
+        contentLayout.flexibleHeight = 1f;
+        contentLayout.minHeight = 120f;
+        content.AddComponent<Image>().color = new Color(0.12f, 0.08f, 0.18f, 0.72f);
+        var contentVlg = content.AddComponent<VerticalLayoutGroup>();
+        contentVlg.padding = new RectOffset(8, 8, 8, 8);
+        contentVlg.spacing = 6f;
+        contentVlg.childControlHeight = true;
+        contentVlg.childControlWidth = true;
+        contentVlg.childForceExpandHeight = false;
+        contentVlg.childForceExpandWidth = true;
+
+        _skillListPanel.SetActive(false);
+    }
+
     void BuildRightPanel(Transform canvasRoot)
     {
         var panel = new GameObject("RightPanel", typeof(RectTransform));
+        _rightLogPanel = panel;
         panel.transform.SetParent(canvasRoot, false);
         var rt = panel.GetComponent<RectTransform>();
         rt.anchorMin = new Vector2(1f, 0f);
@@ -520,6 +560,13 @@ public partial class SrpGameController
     void OnShowSkillList()
     {
         if (_phase != Phase.UnitActive || !_selectedId.HasValue) return;
+        if (IsSkillSelectionDrawerOpen())
+        {
+            SetSkillSelectionDrawerOpen(false);
+            UpdateHud();
+            return;
+        }
+
         var u = GetUnit(_selectedId.Value);
         if (u == null) return;
 
@@ -550,7 +597,7 @@ public partial class SrpGameController
             entry.button.onClick.AddListener(() =>
             {
                 HideTooltip();
-                _skillListPanel.SetActive(false);
+                SetSkillSelectionDrawerOpen(false);
                 BeginSkillTargeting(capturedData, capturedRuntime);
             });
 
@@ -595,20 +642,37 @@ public partial class SrpGameController
             entry.root.SetActive(true);
         }
 
-        _skillListPanel.SetActive(true);
+        SetSkillSelectionDrawerOpen(true);
         UpdateHud();
     }
 
     void OnCancelSkillUi()
     {
-        if (_skillListPanel != null && _skillListPanel.activeSelf && _phase == Phase.UnitActive)
+        if (IsSkillSelectionDrawerOpen() && _phase == Phase.UnitActive)
         {
-            HideTooltip();
-            _skillListPanel.SetActive(false);
+            SetSkillSelectionDrawerOpen(false);
             UpdateHud();
             return;
         }
         CancelSkillTargeting();
+    }
+
+    void OnCloseSkillSelectionUi()
+    {
+        SetSkillSelectionDrawerOpen(false);
+        UpdateHud();
+    }
+
+    bool IsSkillSelectionDrawerOpen()
+    {
+        return _skillListPanel != null && _skillListPanel.activeSelf;
+    }
+
+    void SetSkillSelectionDrawerOpen(bool open)
+    {
+        HideTooltip();
+        if (_skillListPanel != null)
+            _skillListPanel.SetActive(open);
     }
 
     void OnToggleDangerAreaUi()
@@ -679,7 +743,7 @@ public partial class SrpGameController
         while (_skillListButtons.Count <= index)
         {
             var btnGo = new GameObject("SkillBtn", typeof(RectTransform));
-            btnGo.transform.SetParent(_skillListPanel.transform, false);
+            btnGo.transform.SetParent(_skillListContent ?? _skillListPanel.transform, false);
             btnGo.AddComponent<LayoutElement>().minHeight = 48f;
             btnGo.AddComponent<Image>().color = new Color(0.30f, 0.18f, 0.50f, 0.9f);
             var btn = btnGo.AddComponent<Button>();
@@ -811,6 +875,40 @@ public partial class SrpGameController
         if (_logBody != null) _logBody.SetActive(_logVisible);
         if (_txtLogToggleLabel != null)
             _txtLogToggleLabel.text = _logVisible ? "로그 숨기기" : "로그 보기";
+
+        float currentWidth = GetCurrentRightPanelWidth();
+        if (_rightLogPanel != null)
+        {
+            var rt = _rightLogPanel.GetComponent<RectTransform>();
+            if (rt != null)
+                rt.sizeDelta = new Vector2(currentWidth, 0f);
+        }
+        RefreshHudSideMargins(currentWidth);
+    }
+
+    float GetCurrentRightPanelWidth()
+    {
+        return _logVisible ? rightPanelWidth : LogCollapsedPanelWidth;
+    }
+
+    void RefreshHudSideMargins(float currentRightWidth)
+    {
+        if (_topStatusPanel != null)
+        {
+            var rt = _topStatusPanel.GetComponent<RectTransform>();
+            if (rt != null)
+            {
+                rt.offsetMin = new Vector2(leftPanelWidth + 10f, -TopHudHeight);
+                rt.offsetMax = new Vector2(-(currentRightWidth + 10f), 0f);
+            }
+        }
+
+        if (_actionPreviewPanel != null)
+        {
+            var rt = _actionPreviewPanel.GetComponent<RectTransform>();
+            if (rt != null)
+                rt.anchoredPosition = new Vector2(-(currentRightWidth + 12f), 12f);
+        }
     }
 
     // ── 로그 · HUD 갱신 ──────────────────────────────────────────────────────
@@ -889,7 +987,7 @@ public partial class SrpGameController
         if (_btnCancelSkill != null)
             _btnCancelSkill.interactable = !_gameOver
                 && (_phase == Phase.SelectingSkillTarget
-                    || (_phase == Phase.UnitActive && _skillListPanel != null && _skillListPanel.activeSelf));
+                    || (_phase == Phase.UnitActive && IsSkillSelectionDrawerOpen()));
         if (_btnDangerArea != null)
         {
             _btnDangerArea.interactable = !_gameOver;
@@ -908,8 +1006,8 @@ public partial class SrpGameController
         }
         UpdateDirectControlButtons(unitActive);
 
-        if (_skillListPanel != null && _phase != Phase.UnitActive && _phase != Phase.SelectingSkillTarget)
-            _skillListPanel.SetActive(false);
+        if (IsSkillSelectionDrawerOpen() && _phase != Phase.UnitActive && _phase != Phase.SelectingSkillTarget)
+            SetSkillSelectionDrawerOpen(false);
     }
 
     void UpdateBottomTacticalCards()
@@ -1554,6 +1652,20 @@ public partial class SrpGameController
     public bool TestHasLeftConsolePanel => _leftConsolePanel != null && _leftConsolePanel.activeInHierarchy;
     public bool TestHasActiveUnitCardPanel => _activeUnitCardPanel != null && _activeUnitCardPanel.activeInHierarchy;
     public bool TestHasActionPreviewPanel => _actionPreviewPanel != null && _actionPreviewPanel.activeInHierarchy;
+    public float TestLeftConsoleWidth => GetPanelWidth(_leftConsolePanel);
+    public bool TestLogDrawerVisible => _logVisible;
+    public bool TestLogDrawerBodyCollapsed => _logBody == null || !_logBody.activeSelf;
+    public float TestLogDrawerWidth => GetPanelWidth(_rightLogPanel);
+    public bool TestSkillSelectionDrawerDetachedFromLeftConsole
+    {
+        get
+        {
+            return _skillListPanel != null
+                && _leftConsolePanel != null
+                && _skillListPanel.transform.parent != _leftConsolePanel.transform;
+        }
+    }
+    public bool TestSkillSelectionDrawerHasCloseButton => GetButtonText(_btnCloseSkillSelection).Contains("닫기");
     public string TestTurnHudText => _txtTurn != null ? _txtTurn.text : string.Empty;
     public string TestStatusHudText => _txtStatus != null ? _txtStatus.text : string.Empty;
     public string TestUnitHudText => _txtUnit != null ? _txtUnit.text : string.Empty;
@@ -1630,10 +1742,50 @@ public partial class SrpGameController
         return label != null ? label.text : string.Empty;
     }
 
+    static float GetPanelWidth(GameObject panel)
+    {
+        if (panel == null)
+            return 0f;
+        var rt = panel.GetComponent<RectTransform>();
+        return rt != null ? rt.sizeDelta.x : 0f;
+    }
+
     public bool TestShowSkillList()
     {
         OnShowSkillList();
         return _skillListPanel != null && _skillListPanel.activeSelf;
+    }
+
+    public bool TestToggleSkillListClosedFromCommandButton()
+    {
+        if (!IsSkillSelectionDrawerOpen())
+            OnShowSkillList();
+        OnShowSkillList();
+        return !IsSkillSelectionDrawerOpen();
+    }
+
+    public bool TestCloseSkillListWithCloseButton()
+    {
+        if (!IsSkillSelectionDrawerOpen())
+            OnShowSkillList();
+        OnCloseSkillSelectionUi();
+        return !IsSkillSelectionDrawerOpen();
+    }
+
+    public bool TestShowLogDrawer()
+    {
+        if (!_logVisible)
+            OnToggleLog();
+        return _logVisible && _logBody != null && _logBody.activeSelf
+            && TestLogDrawerWidth >= rightPanelWidth - 0.1f;
+    }
+
+    public bool TestHideLogDrawer()
+    {
+        if (_logVisible)
+            OnToggleLog();
+        return !_logVisible && TestLogDrawerBodyCollapsed
+            && TestLogDrawerWidth <= LogCollapsedPanelWidth + 0.1f;
     }
 
     public bool TestEndTurnSelectedUnit()
