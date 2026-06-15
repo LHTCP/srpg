@@ -385,3 +385,33 @@
 ### 후속 의사결정
 
 - 경계태세 사격 VFX/애니메이션, marker 크기/채도/펄스, 정식 초상/행동 순서 아트는 실제 에디터 플레이와 아트 에셋이 생긴 뒤 별도 튜닝한다.
+## 2026-06-15 tactical HUD drawer and cover semantics decisions
+
+- 전투 HUD 보조 조작은 고정 side panel이 아니라 tab/drawer로 연다.
+  - 기본 노출은 `CommandRailPanel`, `ActiveUnitCardPanel`, `InspectorPreviewPanel`, 접힌 `LogDrawerPanel`, `TurnOrderTracker`로 제한한다.
+  - `SecondaryActionPanel`은 기본 닫힘이며 `SecondaryActionTabStripPanel`에서 `태세/방향`, `전술 보조`, `시스템` 중 하나만 연다.
+  - 열린 drawer는 최소 320px 이상 읽기 폭을 보장한다.
+  - page별 높이는 내용량에 맞춘다: `태세/방향` 210px, `전술 보조` 124px, `시스템` 104px.
+- 점유형 엄폐물과 방향성 edge cover segment를 분리한다.
+  - `SrpCoverObjectData`: 비보행 점유형 장애물/폐허. 해당 타일은 `walkable=false`, `CanStandAt=false`이며 중앙 visual을 가진다.
+  - `SrpCoverSegmentData`: 유닛이 설 수 있는 타일의 방향성 edge 엄폐. 이동 점유를 막지 않고 edge 위 낮은 벽/판자 visual로 표현한다.
+- `M1OpeningPrototype` 중앙 비보행 폐허 타일은 현재는 엄폐 가능한 장애물로 해석한다.
+  - 중앙 비보행 칸을 빈 구멍으로 바꾸려면 후속으로 terrain semantics를 추가하고 `coverObjects`에서 제거한다.
+  - 이번 범위에서는 중앙 폐허 visual을 생성해 플레이어가 왜 엄폐가 되는지 납득할 수 있게 한다.
+## 2026-06-15 skill selection drawer decision
+
+- 스킬 선택 UI는 `CommandRailPanel`/`ContextPanel` 안에 끼워 넣지 않는다.
+  - 핵심 명령 버튼은 `CommandRailPanel`에 남기되, `스킬` 버튼은 별도 `SkillSelectionDrawer`를 여는 트리거다.
+- command-adjacent `ContextPanel`은 제거한다.
+  - 스킬 목록이 빠진 뒤에도 왼쪽 명령 rail 바로 옆에 설명 칸이 남으면 이전의 한 글자 UI 공간처럼 읽힌다.
+  - 현재 유닛/hover/preview 설명은 `ActiveUnitCardPanel`과 `InspectorPreviewPanel`로 보낸다.
+- `SkillSelectionDrawer`는 캔버스 직속 drawer로 배치한다.
+  - anchor는 `CommandRailPanel` 바로 우측으로 고정해 `CommandRailPanel -> SkillSelectionDrawer` 흐름이 한 덩어리처럼 보이게 한다.
+  - preferred width 520px, minimum readable width 420px.
+  - skill row minimum height 56px.
+  - label policy는 `NoWrap + Ellipsis`; 상세 설명은 bottom tactical cards/`InspectorPreviewPanel`로 보낸다.
+  - drawer 안에는 `닫기` 버튼을 두고, 이미 열려 있을 때 `스킬` command를 다시 누르면 닫힌다.
+- 로그 drawer는 기본 접힘 상태로 시작한다. 플레이어가 로그를 확인하려는 경우에만 우측 `로그` rail을 눌러 넓은 로그를 연다.
+- HUD 검수 캡처는 두 계층으로 둔다.
+  - camera-render 캡처는 전장/오버레이 표본용이다.
+  - ScreenCapture/GameView 캡처는 ScreenSpaceOverlay HUD 검수용이며 skill drawer, secondary drawer, log expanded/collapsed 상태를 남긴다. 캡처 직전 visible body/collapsed state assertion을 둬 파일명과 실제 UI 상태가 어긋나지 않게 한다.

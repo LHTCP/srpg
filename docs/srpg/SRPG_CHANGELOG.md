@@ -1,5 +1,63 @@
 # SRPG 변경 이력
 
+## 2026-06-15
+
+- Combat balance review correction
+  - Added HP-based PG vulnerability to the shared combat resolver path so both basic attacks and `SrpSkills` damage skills apply the same final incoming PG modifier.
+  - Tightened execution threat policy so groggy/PG 0 targets are executed only by adjacent melee threats when battle state is available.
+  - Corrected execution resolution from bonus damage to guaranteed kill so adjacent PG-broken/groggy targets cannot survive the execution hit.
+  - Updated AI simulation thresholds for the stricter state-based execution path: melee PG share floor `0.45`, first-battle player-policy observation max average rounds `13`, opening heuristic mirror match warn-only.
+  - Kept TMP/font fallback changes out of this correction; `Pretendard-Regular SDF.asset` remains untouched.
+
+- Tactical HUD skill selection follow-up (`TBD-017S`)
+  - Moved skill selection out of the narrow `ContextPanel` into a dedicated `SkillSelectionDrawer`.
+  - The drawer now opens immediately to the right of `CommandRailPanel` as an action detail drawer with preferred width 520px, minimum readable width 420px, and skill row minimum height 56px.
+  - Removed the command-adjacent `ContextPanel` column from the left console; state/hover/preview summary now routes to the bottom tactical cards and `InspectorPreviewPanel`.
+  - Skill labels use `NoWrap + Ellipsis` so long names do not collapse into one-character columns.
+  - Added a visible `닫기` control and command-button toggle close behavior for the skill drawer.
+  - Changed the battle log drawer default to collapsed while preserving explicit expand/collapse behavior.
+  - Added PlayMode coverage for drawer default-closed state, detached parent, command-rail adjacency, width, row height, close controls, default-collapsed log, and text policy.
+  - Added GameView/ScreenCapture observation captures with pre-capture assertions for skill drawer body, secondary drawer body, log expanded, and log collapsed HUD states.
+  - Extended the tactical UI research document with XCOM 2 / Into the Breach / Triangle Strategy principles mapped to concrete implementation policies.
+- Tactical HUD redesign follow-up (`TBD-017R`)
+  - Added `SRPG_TACTICAL_UI_REDESIGN_RESEARCH_2026-06-15.md` and `docs/srpg/ux/tactical_hud_redesign_wireframe_2026-06-15.svg`.
+  - Replaced the fixed-open secondary action panel behavior with a default-closed `SecondaryActionPanel` drawer opened from `SecondaryActionTabStripPanel`.
+  - Split secondary controls into `태세/방향`, `전술 보조`, and `시스템` pages, with only one drawer page open at once and compact per-page heights.
+  - Added PlayMode coverage for drawer default state, minimum 320px open width, per-page compact heights, close-space return, and primary HUD non-overlap.
+- Cover semantics/visualization review (`TBD-016R`)
+  - Added `SrpCoverObjectData` for occupying cover/obstacle tiles and kept `SrpCoverSegmentData` as directional edge cover.
+  - Interpreted `M1OpeningPrototype` central non-walkable tiles as ruin cover objects for this pass.
+  - Changed cover rendering so occupying cover objects are central ruin blocks while edge cover segments are low edge walls/boards instead of central cubes.
+  - Added EditMode/PlayMode coverage for cover object standing, start overlap, edge walkability, edge visual placement, visual/unit overlap, and move-preview ghost avoidance.
+
+## 2026-06-11
+
+- Playtest UX follow-up 3 (`TBD-017`)
+  - Split the tactical console into `CommandRailPanel`, bottom tactical cards, `InspectorPreviewPanel`, and `SecondaryActionPanel`; core actions stay fixed in the rail while stance/facing/tools leave the narrow command column.
+  - Removed the player-facing floating Tooltip object/path from battle HUD hover behavior. Hover information now routes through bottom tactical cards and `InspectorPreviewPanel`.
+  - Reframed the bottom action preview as `InspectorPreviewPanel` and reused it for action hover, skill hover, unit/target hover, and turn-order token hover.
+  - Widened the log drawer and made collapse return layout/screen space, leaving only a small reopen rail while preserving log data.
+  - Removed the player-facing `턴 종료` HUD button; `행동 종료` is the single exposed activation-ending action, with round changes handled by automatic logs.
+  - Changed tactical camera projection toggle to `C` and fixed perspective zoom to use a retained board focus point plus camera distance instead of feeding the camera position back as focus.
+  - Expanded PlayMode coverage for rail/context/secondary/inspector/log drawer contracts, no player-facing floating Tooltip object, hover preview continuity, action-end naming, turn-order hover battlefield highlight, and perspective focus-distance zoom.
+
+- Playtest UX follow-up 2 (`TBD-015` correction, `TBD-016` first pass)
+  - Replaced move-hover threat tile marker chains with world-space parabolic `LineRenderer` objects.
+  - Split basic attack and overwatch threat visuals: subdued/thin basic lines versus stronger overwatch lines with endpoint pulse markers.
+  - Added `SrpTacticalCameraController` for perspective/top orthographic view, wheel zoom, middle-drag/WASD/arrow pan, and focus.
+  - Added world-space unit facing arrows and one-tile cover cube objects, with a stronger visual tier for `blocksLineOfSight` cover.
+  - Updated PlayMode coverage for world-space line existence, tier separation, hover cleanup, tactical camera, facing arrows, and cover object visibility.
+
+## 2026-06-11
+
+- 전투 preview 문법 재정렬 (`TBD-015`)
+  - 기본 전투 화면은 현재 행동 유닛의 이동 가능 marker만 유지하고, 일반 공격/경계태세/엄폐/스킬/상호작용 범위는 버튼 hover 때만 열리도록 분리
+  - 좌측 전술 콘솔에 `일반 공격` 버튼과 hover preview를 추가
+  - 이동 가능 칸 hover 시 ghost 유닛, 목적지 기준 엄폐 marker, 일반 threat line, 경계사격 강화 threat line/endpoint marker 표시
+  - 행동 순서 token hover 시 해당 유닛 전장 highlight와 하단 preview/inspector 정보 갱신
+  - preview evaluator는 clone을 사용해 원본 battle state를 변경하지 않도록 EditMode 계약 추가
+  - 검증 통과: `git diff --check`, `scripts/validate-repo.sh`, Unity EditMode `80 passed / 0 failed` (`TestResults/EditMode-TBD-015-final.xml`), Unity PlayMode `9 passed / 0 failed` (`TestResults/PlayMode-TBD-015-final.xml`)
+
 ## 2026-06-10
 
 - 전투 UX 추가 피드백 후속 구현 (`TBD-014`, `BUG-001`, `TBD-012` 후속)
