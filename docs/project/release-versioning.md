@@ -65,16 +65,16 @@ development 빌드는 같은 `a.b.c`에서 여러 build number를 허용한다. 
 
 ## 파일명과 표시 버전
 
-Windows zip 파일명:
+현재 Windows zip 파일명:
 
 ```text
-srpg-demo-windows-<a.b.c.build>.zip
+srpg-demo-windows-<a.b.c.build>-<short-sha>.zip
 ```
 
 예시:
 
 ```text
-srpg-demo-windows-0.1.0.123.zip
+srpg-demo-windows-0.1.0.123-9861a2f.zip
 ```
 
 `BUILD_INFO.txt`에는 최소한 다음 값을 넣는다.

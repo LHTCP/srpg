@@ -14,6 +14,7 @@
 | [project/development-initiative.md](project/development-initiative.md) | 로컬 에이전트 개발 중심 운영과 PC 우선 플랫폼 기준 |
 | [project/issue-workflow.md](project/issue-workflow.md) | 이슈 트리·Parent-Child·Blocks 관계 운영 기준 |
 | [project/github-governance.md](project/github-governance.md) | GitHub 이슈·PR·브랜치 보호 운영 기준 |
+| [project/latest-play-guide.md](project/latest-play-guide.md) | 최신 Windows 데모 다운로드·실행·itch.io 확인 가이드 |
 | [project/release-checklist.md](project/release-checklist.md) | 배포 전·후 검증과 rollback/known issue 판단 기준 |
 | [project/release-versioning.md](project/release-versioning.md) | development/production 채널과 `a.b.c.<build>` 버전 운영 원칙 |
 | [project/cicd-runbook.md](project/cicd-runbook.md) | CI/CD 테스트·빌드·배포 실패 대응 Runbook |
@@ -33,6 +34,7 @@
 | [issue-workflow.md](project/issue-workflow.md) | 이슈 트리·Parent-Child·Blocks 관계 운영 기준 |
 | [local-preferences.md](project/local-preferences.md) | Git 미추적 로컬 작업 취향 설정 |
 | [github-governance.md](project/github-governance.md) | GitHub 이슈·PR 템플릿과 브랜치 보호 기준 |
+| [latest-play-guide.md](project/latest-play-guide.md) | 최신 Windows 데모 다운로드·실행·itch.io 확인 가이드 |
 | [release-checklist.md](project/release-checklist.md) | 릴리스 체크리스트와 배포 후 smoke test 기준 |
 | [release-versioning.md](project/release-versioning.md) | 릴리스 버전·채널 운영 원칙 |
 | [cicd-runbook.md](project/cicd-runbook.md) | LFS·Unity license·테스트·빌드·artifact/cache 실패 대응 Runbook |

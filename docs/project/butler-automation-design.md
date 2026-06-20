@@ -22,8 +22,8 @@ itch.io 프로젝트 URL은 <https://lhtcp.itch.io/lhtcp-srpg>다.
 
 아직 구현 전인 설계 후보:
 
-- `ITCHIO_API_KEY` secret 등록
-- `ITCHIO_USERNAME`, `ITCHIO_GAME` variable 또는 secret 등록
+- `BUTLER_API_KEY` secret 등록
+- `ITCHIO_USERNAME`, `ITCHIO_GAME` repository variable 등록
 - butler 설치/업로드 workflow
 - `release.json` 추가
 - `a.b.c.<github.run_number>` 버전 주입
@@ -41,13 +41,13 @@ itch.io 프로젝트 URL은 <https://lhtcp.itch.io/lhtcp-srpg>다.
 
 ## secret 후보
 
-| Secret | 필수 여부 | 설명 |
-| ------ | --------- | ---- |
-| `ITCHIO_API_KEY` | 필수 | butler 인증에 사용하는 itch.io API key 후보 |
-| `ITCHIO_USERNAME` | 권장 | itch.io 사용자 또는 조직 이름 |
-| `ITCHIO_GAME` | 권장 | itch.io 게임 slug |
+| 이름 | 종류 | 필수 여부 | 설명 |
+| ---- | ---- | --------- | ---- |
+| `BUTLER_API_KEY` | secret | 필수 | butler 인증에 사용하는 itch.io API key |
+| `ITCHIO_USERNAME` | variable | 권장 | itch.io 사용자 또는 조직 이름 |
+| `ITCHIO_GAME` | variable | 권장 | itch.io 게임 slug |
 
-현재 프로젝트 URL 기준 기본 후보는 `ITCHIO_USERNAME=lhtcp`, `ITCHIO_GAME=lhtcp-srpg`다. `ITCHIO_USERNAME`과 `ITCHIO_GAME`은 secret 대신 repository variable로 둘 수도 있다. 공개되어도 되는 값인지 애매하면 secret으로 시작한다.
+현재 프로젝트 URL 기준 기본 후보는 `ITCHIO_USERNAME=lhtcp`, `ITCHIO_GAME=lhtcp-srpg`다. 사용자명과 게임 slug는 공개 URL에 이미 포함되는 값이므로 repository variable로 둔다. API key는 secret으로만 둔다.
 
 secret 값은 PR 본문, issue, 로그에 직접 쓰지 않는다.
 
@@ -160,18 +160,18 @@ jobs:
 
       - name: butler 인증 정보 존재 확인
         env:
-          BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
           if [ -z "$BUTLER_API_KEY" ]; then
-            echo "ITCHIO_API_KEY secret이 비어 있습니다."
+            echo "BUTLER_API_KEY secret이 비어 있습니다."
             exit 1
           fi
 
       - name: 업로드
         env:
-          BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
-          ITCHIO_USERNAME: ${{ secrets.ITCHIO_USERNAME }}
-          ITCHIO_GAME: ${{ secrets.ITCHIO_GAME }}
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+          ITCHIO_USERNAME: ${{ vars.ITCHIO_USERNAME }}
+          ITCHIO_GAME: ${{ vars.ITCHIO_GAME }}
           CHANNEL: ${{ inputs.channel }}
           FULL_VERSION: ${{ inputs.version }}.${{ github.run_number }}
         run: |
@@ -184,7 +184,7 @@ jobs:
 
 | 증상 | 먼저 볼 위치 | 조치 |
 | ---- | ------------ | ---- |
-| 인증 실패 | `butler login` 또는 `butler push` 로그 | `ITCHIO_API_KEY` secret 존재와 권한 확인 |
+| 인증 실패 | `butler login` 또는 `butler push` 로그 | `BUTLER_API_KEY` secret 존재와 권한 확인 |
 | 게임을 찾지 못함 | push 대상 문자열 | `ITCHIO_USERNAME`, `ITCHIO_GAME`, itch.io slug 확인 |
 | 파일 없음 | artifact 다운로드 또는 path | 업로드 입력 경로와 artifact 이름 확인 |
 | 업로드는 성공했지만 페이지에 안 보임 | itch.io dashboard | 채널, 공개 범위, 파일 platform 설정 확인 |

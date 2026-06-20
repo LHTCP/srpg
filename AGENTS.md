@@ -40,6 +40,7 @@ SRPG 코드는 전투·HUD·렌더링·메이커·데이터·로비 도메인으
 | 로컬 전용 취향 설정 | [docs/project/local-preferences.md](docs/project/local-preferences.md) |
 | 문서 작성 규칙 | [docs/project/documentation-standards.md](docs/project/documentation-standards.md) |
 | GitHub 운영 기준 | [docs/project/github-governance.md](docs/project/github-governance.md) |
+| 최신 플레이 가이드 | [docs/project/latest-play-guide.md](docs/project/latest-play-guide.md) |
 | SRPG 문서 맵 | [docs/srpg/README.md](docs/srpg/README.md) |
 | SRPG 실행 가이드 | [docs/srpg/SRPG_README.md](docs/srpg/SRPG_README.md) |
 | SRPG 전투규칙 기준서(v2) | [docs/srpg/SRPG_전투규칙_기준서_v2.md](docs/srpg/SRPG_전투규칙_기준서_v2.md) |

@@ -13,16 +13,16 @@
 
 ## 현재 상태
 
-이 문서는 수동 게시를 위한 체크리스트다. 아직 Windows zip 산출물, itch.io 업로드, butler 자동화, production 릴리즈컷 자동화가 완료되었다는 뜻이 아니다.
+이 문서는 수동 게시를 위한 체크리스트다. Windows zip 산출물은 GitHub Actions `Windows PC 데모 빌드` workflow에서 생성할 수 있다. itch.io 업로드, butler 자동화, production 릴리즈컷 자동화는 별도 단계다.
 
 현재 확정된 사실:
 
 - itch.io 프로젝트 페이지는 <https://lhtcp.itch.io/lhtcp-srpg>다.
 - 첫 게시 절차는 수동 검증을 전제로 한다.
+- 게시할 파일은 GitHub Actions artifact zip 안의 내부 실제 게임 zip이다.
 
 아직 구현 전인 설계 후보:
 
-- `srpg-demo-windows-<a.b.c.build>.zip` 자동 생성
 - development/production 채널 자동 업로드
 - production patch 증가 자동 검증
 
@@ -30,7 +30,9 @@
 
 - [ ] 게시 대상 커밋 SHA를 확인한다.
 - [ ] 게시 대상 브랜치 또는 태그를 확인한다.
-- [ ] 자동화가 붙은 빌드라면 Windows zip 파일명이 `srpg-demo-windows-<a.b.c.build>.zip` 형식인지 확인한다.
+- [ ] `Windows PC 데모 빌드` workflow의 최신 성공 run에서 artifact를 다운로드한다.
+- [ ] GitHub artifact zip을 푼 뒤 내부 실제 게임 zip을 찾는다.
+- [ ] 자동화가 붙은 빌드라면 Windows zip 파일명이 `srpg-demo-windows-<a.b.c.build>-<short-sha>.zip` 형식인지 확인한다.
 - [ ] 자동화 전 임시 검증이라면 커밋 SHA 파일명을 사용했는지, production용이 아님을 기록한다.
 - [ ] zip을 풀면 최상위 폴더 하나가 나오는지 확인한다.
 - [ ] 최상위 폴더에 `.exe`, `_Data` 폴더, `UnityPlayer.dll`이 있는지 확인한다.
@@ -52,7 +54,7 @@ itch.io 대시보드에서 <https://lhtcp.itch.io/lhtcp-srpg> 프로젝트를 �
 
 ## 파일 업로드
 
-- [ ] `srpg-demo-windows-<a.b.c.build>.zip`을 업로드한다.
+- [ ] 내부 실제 게임 zip인 `srpg-demo-windows-<a.b.c.build>-<short-sha>.zip`을 업로드한다.
 - [ ] 업로드 파일의 플랫폼을 Windows로 표시한다.
 - [ ] 다운로드 이름 또는 설명에 버전, 커밋 SHA, 날짜를 적는다.
 - [ ] 기존 파일을 교체하는 경우, 이전 빌드가 필요한지 먼저 확인한다.

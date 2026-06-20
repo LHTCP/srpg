@@ -8,17 +8,17 @@
 
 ## 현재 상태
 
-이 문서는 구현 완료 보고서가 아니라 패키징 목표와 검증 기준이다. 아직 Windows zip 자동 생성, `BUILD_INFO.txt` 자동 생성, itch.io 업로드 자동화는 구현되지 않았다.
+Windows zip 생성과 `BUILD_INFO.txt` 생성은 `Windows PC 데모 빌드` workflow와 `scripts/package-windows-demo.sh` 기준으로 구현되어 있다. itch.io 수동 업로드 또는 butler 자동 업로드는 이 zip을 배포면에 게시하는 후속 단계다.
 
 현재 확정된 사실:
 
 - itch.io 프로젝트 페이지는 <https://lhtcp.itch.io/lhtcp-srpg>다.
 - 첫 delivery 구현 목표는 Windows PC zip이다.
+- GitHub Actions `Windows PC 데모 빌드` workflow가 `srpg-demo-windows-<a.b.c.build>-<short-sha>` artifact를 생성한다.
+- GitHub Actions artifact는 바깥 컨테이너 zip을 한 번 더 감쌀 수 있으므로, itch.io 게시에는 내부 실제 게임 zip을 사용한다.
 
 아직 구현 전인 설계 후보:
 
-- `a.b.c.<build>` 파일명 자동 부여
-- `BUILD_INFO.txt` 자동 생성
 - development/production 채널 업로드 자동화
 - GitHub Release와 production 업로드 연결
 
@@ -37,7 +37,7 @@ srpg-demo-windows-9861a2f.zip
 srpg-demo-windows-0.1.0.123.zip
 ```
 
-임시 커밋 SHA 파일명은 development 검증용이다. production 게시 파일명은 `srpg-demo-windows-<a.b.c.build>.zip` 형식을 사용한다.
+현재 GitHub Actions artifact와 내부 zip은 추적성을 위해 짧은 커밋 SHA를 포함한다. production 게시에서 파일명에 커밋 SHA를 유지할지, 표시 버전만 남길지는 production 릴리즈컷 workflow를 만들 때 다시 결정한다.
 
 ## zip 구조
 
@@ -140,13 +140,13 @@ PC 데모 zip을 게시하기 전에는 다음을 확인한다.
 
 ## GitHub Actions artifact 기준
 
-자동 빌드가 붙으면 artifact 이름은 zip 이름과 최대한 맞추는 것을 목표로 한다. 현재 이 문서는 artifact 생성 workflow를 추가하지 않는다.
+자동 빌드 artifact 이름은 zip 이름과 맞춘다.
 
 ```text
-srpg-demo-windows-<a.b.c.build>
+srpg-demo-windows-<a.b.c.build>-<short-sha>
 ```
 
-자동화가 붙은 뒤에는 `a.b.c.<github.run_number>`를 사용한다. 초기 retention은 7일을 권장한다. 장기 보관이 필요한 빌드는 GitHub Release asset 또는 itch.io production 업로드 결과를 기준으로 삼는다.
+현재 workflow는 Unity `bundleVersion`을 기준 버전으로 읽고 GitHub Actions run number를 붙여 `a.b.c.<github.run_number>`를 만든다. artifact retention은 7일이다. 장기 보관이 필요한 빌드는 GitHub Release asset 또는 itch.io production 업로드 결과를 기준으로 삼는다.
 
 ## 무료 운영 가드레일
 
