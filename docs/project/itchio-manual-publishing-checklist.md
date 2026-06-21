@@ -7,6 +7,7 @@
 - 초기 플랫폼은 PC/Windows다.
 - 첫 게시 대상은 Windows zip이다.
 - itch.io 프로젝트 URL은 <https://lhtcp.itch.io/lhtcp-srpg>다.
+- 외부 테스터와 비개발자에게는 GitHub Actions artifact보다 itch.io 다운로드 페이지를 우선 안내한다.
 - 모바일 배포는 이번 체크리스트의 범위가 아니다.
 - WebGL/HTML5 플레이는 즉시 플레이 경험을 위한 후속 PoC 후보이며, PC zip 게시를 막지 않는다.
 - 자동 업로드는 아직 필수가 아니며, 첫 게시와 smoke test는 수동으로 수행한다.

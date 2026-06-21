@@ -2,7 +2,7 @@
 
 이 문서는 실제 PC 배포 자동화가 완성되기 전까지, 릴리스 판단과 검증 기준을 먼저 고정하기 위한 절차 문서다.
 
-현재 최신 플레이 경로는 [latest-play-guide.md](latest-play-guide.md)를 따른다. 이번 무료 우선 스프린트에서는 PC/Windows artifact를 1차 Delivery 경로로 두고, itch.io는 같은 zip을 사람이 내려받기 쉬운 배포면으로 사용한다. WebGL/GitHub Pages는 무료 공유 링크 후보로 유지하지만 초기 플랫폼 결정의 중심축은 아니다.
+현재 최신 플레이 경로는 [latest-play-guide.md](latest-play-guide.md)를 따른다. 이번 무료 우선 스프린트에서는 PC/Windows artifact를 개발자와 내부 검증자의 1차 산출물 확인 경로로 두고, 외부 테스터와 비개발자에게는 itch.io 다운로드 페이지를 우선 안내한다. WebGL/GitHub Pages는 무료 공유 링크 후보로 유지하지만 초기 플랫폼 결정의 중심축은 아니다.
 
 - PC/Windows 빌드 아티팩트: `Windows PC 데모 빌드` workflow의 `srpg-demo-windows-<version>-<short-sha>` artifact
 - itch.io 프로젝트: <https://lhtcp.itch.io/lhtcp-srpg>

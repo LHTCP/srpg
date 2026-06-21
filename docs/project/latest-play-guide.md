@@ -1,19 +1,31 @@
 # 최신 Windows 데모 플레이 가이드
 
-이 문서는 비개발자가 최신 PC/Windows 데모를 어디서 내려받고 어떻게 실행하는지 설명한다. 현재 1차 Delivery 경로는 GitHub Actions artifact이며, itch.io는 수동 게시 또는 후속 butler 자동화를 통해 같은 zip을 노출하는 배포면으로 사용한다.
+이 문서는 최신 PC/Windows 데모를 어디서 내려받고 어떻게 실행하는지 설명한다. 현재 GitHub Actions artifact는 개발자와 내부 검증자가 빌드 산출물을 확인하는 임시 경로이고, 비개발자와 외부 테스터에게 안내할 기본 경로는 itch.io 다운로드 페이지다.
 
 ## 현재 기준
 
 - 최신 빌드 생성 workflow: GitHub Actions `Windows PC 데모 빌드`
-- 주요 산출물: `srpg-demo-windows-<a.b.c.build>-<short-sha>` artifact
+- 내부 검증 산출물: `srpg-demo-windows-<a.b.c.build>-<short-sha>` artifact
+- 외부 테스터 다운로드 경로: <https://lhtcp.itch.io/lhtcp-srpg>
 - artifact 보관 기간: 7일
-- itch.io 프로젝트: <https://lhtcp.itch.io/lhtcp-srpg>
 - 초기 플랫폼: PC/Windows
 - WebGL/모바일: 현재 최신 플레이 경로의 완료조건이 아님
 
 `Windows PC 데모 빌드` workflow는 main 기준 수동 실행으로 시작한다. main merge마다 자동 게시하지 않는 이유는 최신 빌드를 실제 공개해도 되는지, known issue 안내가 필요한지 아직 사람이 판단해야 하기 때문이다.
 
+## 권장 다운로드 경로
+
+| 대상 | 권장 경로 | 이유 |
+| ---- | --------- | ---- |
+| 외부 테스터, 비개발자 | itch.io 다운로드 | GitHub UI, Actions run, artifact 보관 기간을 몰라도 받을 수 있다. |
+| 개발자, 배포 담당자, 내부 검증자 | GitHub Actions artifact | 어떤 커밋과 workflow run에서 만들어졌는지 바로 추적할 수 있다. |
+| production 릴리즈 | itch.io production 또는 GitHub Release asset | 장기 보관과 릴리스 기록을 함께 남긴다. |
+
+GitHub 저장소는 public이지만, Actions artifact는 GitHub UI와 7일 보관 기간에 의존한다. 그래서 사용자-facing 배포면으로는 itch.io를 우선한다.
+
 ## GitHub Actions artifact로 받기
+
+이 절차는 개발자, 배포 담당자, 내부 검증자를 위한 경로다. 외부 테스터에게는 itch.io 페이지를 먼저 안내한다.
 
 1. GitHub 저장소 <https://github.com/LHTCP/srpg>를 연다.
 2. `Actions` 탭으로 이동한다.
@@ -50,7 +62,7 @@ Windows 보안 경고가 뜰 수 있다. 이 경우 `BUILD_INFO.txt`와 workflow
 
 ## itch.io에서 받기
 
-itch.io 페이지 <https://lhtcp.itch.io/lhtcp-srpg>는 사용자가 더 쉽게 접근할 수 있는 배포면이다. 다만 GitHub Actions artifact가 성공했다고 해서 itch.io에 자동으로 파일이 보이는 것은 아니다.
+itch.io 페이지 <https://lhtcp.itch.io/lhtcp-srpg>는 비개발자와 외부 테스터에게 안내할 기본 배포면이다. 다만 GitHub Actions artifact가 성공했다고 해서 itch.io에 자동으로 파일이 보이는 것은 아니다.
 
 itch.io에서 다운로드가 보이려면 다음 중 하나가 필요하다.
 
@@ -63,8 +75,8 @@ itch.io에서 다운로드가 보이려면 다음 중 하나가 필요하다.
 
 최신 development 빌드는 다음 순서로 판단한다.
 
-1. GitHub Actions `Windows PC 데모 빌드`의 최신 성공 run
-2. 같은 빌드가 수동 또는 자동으로 게시된 itch.io `development` 파일
+1. 외부 안내 기준: itch.io `development` 파일
+2. 빌드 원본 확인 기준: GitHub Actions `Windows PC 데모 빌드`의 최신 성공 run
 3. production 릴리즈가 필요할 때만 GitHub Release 또는 itch.io `production` 파일
 
 현재 production 릴리즈컷 자동화는 구현 전이다. production으로 안내할 빌드는 별도 릴리스 기록과 smoke test 결과가 있어야 한다.
