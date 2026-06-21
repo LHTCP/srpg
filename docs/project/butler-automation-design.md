@@ -24,7 +24,7 @@ butler가 유일한 게시 방법은 아니다. itch.io 웹 대시보드 수동 
 
 아직 구현 전인 설계 후보:
 
-- `BUTLER_API_KEY` secret 등록
+- `ITCHIO_API_KEY` secret 등록
 - `ITCHIO_USERNAME`, `ITCHIO_GAME` repository variable 등록
 - butler 설치/업로드 workflow
 - `release.json` 추가
