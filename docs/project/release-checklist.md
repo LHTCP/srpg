@@ -2,9 +2,10 @@
 
 이 문서는 실제 PC 배포 자동화가 완성되기 전까지, 릴리스 판단과 검증 기준을 먼저 고정하기 위한 절차 문서다.
 
-현재 최신 플레이 링크와 배포 산출물 경로는 아직 확정되지 않았다. 이번 무료 우선 스프린트에서는 PC/Windows artifact 또는 GitHub Release asset처럼 추가 유료 계정이 필요 없는 경로를 먼저 검증한다. WebGL/GitHub Pages는 무료 공유 링크 후보로 유지하지만 초기 플랫폼 결정의 중심축은 아니다.
+현재 최신 플레이 경로는 [latest-play-guide.md](latest-play-guide.md)를 따른다. 이번 무료 우선 스프린트에서는 PC/Windows artifact를 개발자와 내부 검증자의 1차 산출물 확인 경로로 두고, 외부 테스터와 비개발자에게는 itch.io 다운로드 페이지를 우선 안내한다. WebGL/GitHub Pages는 무료 공유 링크 후보로 유지하지만 초기 플랫폼 결정의 중심축은 아니다.
 
 - PC/Windows 빌드 아티팩트: `Windows PC 데모 빌드` workflow의 `srpg-demo-windows-<version>-<short-sha>` artifact
+- itch.io 프로젝트: <https://lhtcp.itch.io/lhtcp-srpg>
 - GitHub Release asset: TODO
 - WebGL 플레이 링크: 보조 후보
 - 모바일 테스트 배포 링크: 보류
@@ -19,6 +20,7 @@
 - [ ] `main` 기준 컴파일 오류가 없거나, 남아 있는 오류를 known issue로 기록했다.
 - [ ] GitHub Actions 필수 체크가 모두 통과했다.
 - [ ] `Delivery 선행 헬스체크` workflow가 통과했다.
+- [ ] itch.io 업로드를 수행할 예정이면 `itch.io Delivery 설정 헬스체크` workflow가 통과했다.
 - [ ] Unity EditMode/PlayMode 테스트 실행 결과를 확인했다.
 - [ ] LFS, Unity license, 플랫폼별 signing secret이 필요한 workflow에서 정상적으로 접근 가능한지 확인했다.
 - [ ] PC/Windows 배포 대상과 산출물 위치를 명시했다.
@@ -45,6 +47,8 @@
 ### PC/Windows
 
 - [ ] `Windows PC 데모 빌드` workflow에서 생성된 `srpg-demo-windows-<version>-<short-sha>` artifact를 다운로드할 수 있다.
+- [ ] GitHub artifact zip 안의 실제 게임 zip을 구분해 압축 해제했다.
+- [ ] itch.io 게시 대상이라면 내부 실제 게임 zip을 업로드했다.
 - [ ] 압축 해제 후 실행 파일이 시작된다.
 - [ ] Windows 보안 경고나 차단이 있으면 릴리스 기록에 남긴다.
 - [ ] 최소 1개 전투 또는 핵심 플레이 루프를 실행한다.
@@ -119,7 +123,8 @@ known issue로 처리하지 말아야 할 예시는 다음과 같다.
 - 커밋 SHA:
 - 플랫폼:
 - 빌드 workflow:
-- artifact 또는 플레이 링크: TODO
+- artifact 또는 플레이 링크:
+- itch.io 페이지:
 - smoke test 결과:
 - known issue:
 - rollback 필요 여부:

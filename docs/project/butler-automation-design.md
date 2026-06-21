@@ -10,6 +10,8 @@ butler 자동화는 처음부터 main merge 자동 배포로 두지 않는다. �
 
 itch.io 프로젝트 URL은 <https://lhtcp.itch.io/lhtcp-srpg>다.
 
+butler가 유일한 게시 방법은 아니다. itch.io 웹 대시보드 수동 업로드와 itch app의 GUI 업로드도 가능하다. 다만 GitHub Actions에서 반복 가능한 자동 딜리버리를 붙이는 경로로는 itch.io 공식 CLI인 butler가 가장 단순한 1차 후보다.
+
 ## 현재 상태
 
 이 문서는 butler 자동화 설계안이다. 아직 이 저장소에 butler workflow, `release.json`, production 릴리즈컷 검증, itch.io 자동 업로드가 구현된 것은 아니다.
@@ -22,8 +24,8 @@ itch.io 프로젝트 URL은 <https://lhtcp.itch.io/lhtcp-srpg>다.
 
 아직 구현 전인 설계 후보:
 
-- `ITCHIO_API_KEY` secret 등록
-- `ITCHIO_USERNAME`, `ITCHIO_GAME` variable 또는 secret 등록
+- `BUTLER_API_KEY` secret 등록
+- `ITCHIO_USERNAME`, `ITCHIO_GAME` repository variable 등록
 - butler 설치/업로드 workflow
 - `release.json` 추가
 - `a.b.c.<github.run_number>` 버전 주입
@@ -35,19 +37,22 @@ itch.io 프로젝트 URL은 <https://lhtcp.itch.io/lhtcp-srpg>다.
 2. Windows zip 패키징 기준과 수동 게시 체크리스트를 확정한다.
 3. butler를 로컬에서 한 번 실행해 채널명과 권한을 확인한다.
 4. GitHub Actions secret을 설정한다.
-5. `workflow_dispatch` 수동 업로드 workflow를 추가한다.
-6. 업로드 후 itch.io 페이지에서 다운로드 smoke test를 한다.
-7. main 자동 업로드 여부는 별도 decision으로 판단한다.
+5. `itch.io Delivery 설정 헬스체크` workflow를 수동 실행해 secret/variable과 API key 인증을 확인한다.
+6. `workflow_dispatch` 수동 업로드 workflow를 추가한다.
+7. 업로드 후 itch.io 페이지에서 다운로드 smoke test를 한다.
+8. main 자동 업로드 여부는 별도 decision으로 판단한다.
 
-## secret 후보
+## secret과 variable 후보
 
-| Secret | 필수 여부 | 설명 |
-| ------ | --------- | ---- |
-| `ITCHIO_API_KEY` | 필수 | butler 인증에 사용하는 itch.io API key 후보 |
-| `ITCHIO_USERNAME` | 권장 | itch.io 사용자 또는 조직 이름 |
-| `ITCHIO_GAME` | 권장 | itch.io 게임 slug |
+| 이름 | 종류 | 필수 여부 | 설명 |
+| ---- | ---- | --------- | ---- |
+| `BUTLER_API_KEY` | secret | 필수 | butler 인증에 사용하는 itch.io API key |
+| `ITCHIO_USERNAME` | variable | 권장 | itch.io 사용자 또는 조직 이름 |
+| `ITCHIO_GAME` | variable | 권장 | itch.io 게임 slug |
 
-현재 프로젝트 URL 기준 기본 후보는 `ITCHIO_USERNAME=lhtcp`, `ITCHIO_GAME=lhtcp-srpg`다. `ITCHIO_USERNAME`과 `ITCHIO_GAME`은 secret 대신 repository variable로 둘 수도 있다. 공개되어도 되는 값인지 애매하면 secret으로 시작한다.
+butler 공식 문서는 CI에서 `BUTLER_API_KEY` 환경변수를 사용하라고 안내한다. 이 저장소도 GitHub secret 이름을 `BUTLER_API_KEY`로 맞춰 별도 매핑 없이 사용한다.
+
+현재 프로젝트 URL 기준 기본 후보는 `ITCHIO_USERNAME=lhtcp`, `ITCHIO_GAME=lhtcp-srpg`다. 사용자명과 게임 slug는 공개 URL에 이미 포함되는 값이므로 repository variable로 둔다. API key는 secret으로만 둔다.
 
 secret 값은 PR 본문, issue, 로그에 직접 쓰지 않는다.
 
@@ -160,18 +165,18 @@ jobs:
 
       - name: butler 인증 정보 존재 확인
         env:
-          BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
           if [ -z "$BUTLER_API_KEY" ]; then
-            echo "ITCHIO_API_KEY secret이 비어 있습니다."
+            echo "BUTLER_API_KEY secret이 비어 있습니다."
             exit 1
           fi
 
       - name: 업로드
         env:
-          BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
-          ITCHIO_USERNAME: ${{ secrets.ITCHIO_USERNAME }}
-          ITCHIO_GAME: ${{ secrets.ITCHIO_GAME }}
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+          ITCHIO_USERNAME: ${{ vars.ITCHIO_USERNAME }}
+          ITCHIO_GAME: ${{ vars.ITCHIO_GAME }}
           CHANNEL: ${{ inputs.channel }}
           FULL_VERSION: ${{ inputs.version }}.${{ github.run_number }}
         run: |
@@ -184,10 +189,21 @@ jobs:
 
 | 증상 | 먼저 볼 위치 | 조치 |
 | ---- | ------------ | ---- |
-| 인증 실패 | `butler login` 또는 `butler push` 로그 | `ITCHIO_API_KEY` secret 존재와 권한 확인 |
+| 인증 실패 | `butler login` 또는 `butler push` 로그 | `BUTLER_API_KEY` secret 존재와 권한 확인 |
 | 게임을 찾지 못함 | push 대상 문자열 | `ITCHIO_USERNAME`, `ITCHIO_GAME`, itch.io slug 확인 |
 | 파일 없음 | artifact 다운로드 또는 path | 업로드 입력 경로와 artifact 이름 확인 |
 | 업로드는 성공했지만 페이지에 안 보임 | itch.io dashboard | 채널, 공개 범위, 파일 platform 설정 확인 |
+
+## 선행 헬스체크
+
+`itch.io Delivery 설정 헬스체크` workflow는 자동 업로드를 수행하지 않는다. 다음만 확인한다.
+
+- `BUTLER_API_KEY` repository secret 존재 여부
+- `ITCHIO_USERNAME`, `ITCHIO_GAME` repository variable 존재 여부
+- itch.io server-side API의 `credentials/info` endpoint를 통한 API key 인증 가능 여부
+- butler CLI 다운로드와 버전 출력 가능 여부
+
+이 workflow가 실패하면 butler 업로드 workflow를 추가하거나 실행하지 않는다.
 
 ## 비용 가드레일
 
@@ -217,3 +233,10 @@ butler workflow 구현 PR에서는 다음을 셀프리뷰 또는 PR 본문에 �
 - Blocked by: #71
 - Related: #32
 - Related: #70
+
+## 참고 문서
+
+- [butler manual: Logging in / authentication](https://itch.io/docs/butler/login.html)
+- [butler manual: Pushing builds](https://itch.io/docs/butler/pushing.html)
+- [butler manual: Introduction](https://itch.io/docs/butler/)
+- [itch.io creator docs: Access control](https://itch.io/docs/creators/access-control)
