@@ -201,7 +201,7 @@ jobs:
 - `BUTLER_API_KEY` repository secret 존재 여부
 - `ITCHIO_USERNAME`, `ITCHIO_GAME` repository variable 존재 여부
 - itch.io server-side API의 `credentials/info` endpoint를 통한 API key 인증 가능 여부
-- butler CLI 다운로드와 버전 출력 가능 여부
+- `remarkablegames/setup-butler@v3` 액션을 통한 butler 설치와 버전 출력 가능 여부
 
 이 workflow가 실패하면 butler 업로드 workflow를 추가하거나 실행하지 않는다.
 
@@ -239,4 +239,6 @@ butler workflow 구현 PR에서는 다음을 셀프리뷰 또는 PR 본문에 �
 - [butler manual: Logging in / authentication](https://itch.io/docs/butler/login.html)
 - [butler manual: Pushing builds](https://itch.io/docs/butler/pushing.html)
 - [butler manual: Introduction](https://itch.io/docs/butler/)
+- [itch.io butler manual: Third-party integrations](https://itch.io/docs/butler/integration.html)
+- [GitHub Marketplace: setup-butler](https://github.com/marketplace/actions/setup-butler)
 - [itch.io creator docs: Access control](https://itch.io/docs/creators/access-control)
