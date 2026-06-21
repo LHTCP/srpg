@@ -168,6 +168,7 @@ production 업로드는 이 workflow에 옵션으로 열지 않는다. productio
 - public repo standard GitHub-hosted runner 범위에서만 시작한다.
 - larger runner는 사용하지 않는다.
 - 자동 업로드가 artifact 보관 기간을 늘리는 이유가 되면 PR 본문에 근거를 남긴다.
+- Unity `Library` Actions cache는 수백 MB~1GB 단위가 될 수 있으므로 `Actions 저장소 정리` workflow로 최신 Windows cache 1개만 남기는 것을 기본 운영으로 둔다.
 - S3, CloudFront, 모바일 스토어, 유료 CDN은 이 설계의 일부가 아니다.
 - secret 권한이 커지면 workflow를 required check로 만들기 전에 별도 리뷰한다.
 
@@ -182,6 +183,7 @@ butler workflow 구현 PR에서는 다음을 셀프리뷰 또는 PR 본문에 �
 - 사용한 secret 이름과 노출 방지 방식
 - runner 종류와 유료 리소스 개입 여부
 - artifact retention 변경 여부
+- Actions cache prefix, 보관 개수, 삭제 권한 범위
 - 실패 시 어떤 로그로 원인을 확인하는지
 
 ## 관련

@@ -1,0 +1,47 @@
+name: Actions 저장소 정리
+
+on:
+  # Unity Library 캐시는 1개가 수백 MB~1GB 수준이라 수동 정리 진입점을 별도로 둔다.
+  # 자동 삭제는 의도치 않은 cache miss와 빌드 시간 증가를 만들 수 있어 초기에는 사람이 실행한다.
+  workflow_dispatch:
+    inputs:
+      cache_prefix:
+        description: "정리할 Actions cache key prefix"
+        required: true
+        default: "Library-Linux-Unity-6000.3.13f1-StandaloneWindows64-"
+      keep_count:
+        description: "prefix별 남길 최신 cache 개수"
+        required: true
+        default: "1"
+      dry_run:
+        description: "true면 삭제하지 않고 대상만 보고"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: actions-storage-maintenance
+  cancel-in-progress: false
+
+jobs:
+  cleanup-actions-caches:
+    name: Actions cache 최신본 유지
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: cache 정리 실행
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CACHE_PREFIX: ${{ inputs.cache_prefix }}
+          KEEP_COUNT: ${{ inputs.keep_count }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node scripts/cleanup-github-actions-caches.mjs

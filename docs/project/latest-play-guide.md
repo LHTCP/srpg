@@ -73,6 +73,8 @@ itch.io에서 다운로드가 보이려면 다음 중 하나가 필요하다.
 
 `itch.io Development 업로드` workflow는 Windows 빌드를 새로 만들지 않는다. 먼저 `Windows PC 데모 빌드` workflow가 성공해야 하며, 업로드 실행 시 해당 run id와 artifact 이름을 입력한다. artifact 보관 기간이 지나면 다시 Windows 빌드부터 만들어야 한다.
 
+Windows 빌드 이후 GitHub Actions cache 저장소가 커지면 `Actions 저장소 정리` workflow를 `cache_prefix=Library-Linux-Unity-6000.3.13f1-StandaloneWindows64-`, `keep_count=1`로 실행해 최신 Windows Unity Library cache만 남긴다. 처음에는 `dry_run=true`로 삭제 대상을 확인하고, 문제가 없을 때 `dry_run=false`로 다시 실행한다.
+
 수동 업로드 절차는 [itchio-manual-publishing-checklist.md](itchio-manual-publishing-checklist.md)를 따른다. butler 자동화 설계는 [butler-automation-design.md](butler-automation-design.md)를 따른다.
 
 ## 최신 버전 판단
