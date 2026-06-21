@@ -14,22 +14,21 @@ butler가 유일한 게시 방법은 아니다. itch.io 웹 대시보드 수동 
 
 ## 현재 상태
 
-이 문서는 butler 자동화 설계안이다. 아직 이 저장소에 butler workflow, `release.json`, production 릴리즈컷 검증, itch.io 자동 업로드가 구현된 것은 아니다.
+이 문서는 butler 자동화 설계와 현재 구현 상태를 함께 정리한다. 현재 저장소에는 secret/variable 헬스체크와 development 수동 업로드 workflow가 있으며, `release.json`, production 릴리즈컷 검증, production 자동 업로드는 아직 구현 전이다.
 
 현재 확정된 사실:
 
 - itch.io 프로젝트 페이지는 <https://lhtcp.itch.io/lhtcp-srpg>다.
 - butler는 itch.io 공식 CLI 업로드 도구다.
-- 첫 자동화는 main 자동 배포가 아니라 수동 실행 후보로 둔다.
+- 첫 자동화는 main 자동 배포가 아니라 수동 실행으로 둔다.
+- `itch.io Delivery 설정 헬스체크` workflow는 secret/variable과 butler 설치를 확인한다.
+- `itch.io Development 업로드` workflow는 이미 생성된 Windows artifact를 `development` 채널에 업로드한다.
 
 아직 구현 전인 설계 후보:
 
-- `BUTLER_API_KEY` secret 등록
-- `ITCHIO_USERNAME`, `ITCHIO_GAME` repository variable 등록
-- butler 설치/업로드 workflow
 - `release.json` 추가
-- `a.b.c.<github.run_number>` 버전 주입
 - production patch 증가 검증
+- production 업로드 workflow
 
 ## 권장 단계
 
@@ -38,7 +37,7 @@ butler가 유일한 게시 방법은 아니다. itch.io 웹 대시보드 수동 
 3. butler를 로컬에서 한 번 실행해 채널명과 권한을 확인한다.
 4. GitHub Actions secret을 설정한다.
 5. `itch.io Delivery 설정 헬스체크` workflow를 수동 실행해 secret/variable과 API key 인증을 확인한다.
-6. `workflow_dispatch` 수동 업로드 workflow를 추가한다.
+6. `itch.io Development 업로드` workflow로 성공한 Windows artifact를 development 채널에 업로드한다.
 7. 업로드 후 itch.io 페이지에서 다운로드 smoke test를 한다.
 8. main 자동 업로드 여부는 별도 decision으로 판단한다.
 
@@ -98,22 +97,21 @@ PC/Windows 플랫폼 표시는 itch.io 파일 metadata에서 처리하고, butle
 
 ## workflow trigger
 
-초기 trigger는 수동 실행만 허용하는 것을 목표로 한다. 아래 YAML은 설계 스케치이며 현재 저장소에 추가된 workflow가 아니다.
+초기 trigger는 수동 실행만 허용한다. 현재 구현된 `itch.io Development 업로드` workflow는 Windows 빌드를 새로 만들지 않고, 입력으로 받은 기존 `Windows PC 데모 빌드` run id와 artifact 이름을 사용한다.
 
 ```yaml
 on:
   workflow_dispatch:
     inputs:
-      build_path:
-        description: "업로드할 Windows zip 또는 폴더 경로"
+      run_id:
+        description: "Windows PC 데모 빌드 workflow run id"
+        required: true
+      artifact_name:
+        description: "업로드할 GitHub Actions artifact 이름"
         required: true
       version:
-        description: "a.b.c 기준 버전. build 번호는 GitHub run number를 사용한다."
-        required: true
-      channel:
-        description: "development 또는 production"
-        required: true
-        default: "development"
+        description: "선택: itch.io에 표시할 전체 버전(a.b.c.build)"
+        required: false
 ```
 
 권장하지 않는 초기 trigger:
@@ -132,58 +130,17 @@ butler push "${BUILD_PATH}" "${ITCHIO_USERNAME}/${ITCHIO_GAME}:${CHANNEL}" --use
 
 `BUILD_PATH`는 zip 파일 또는 빌드 폴더가 될 수 있다. 첫 자동화에서는 PC 패키징 기준과 맞춘 zip 파일을 입력으로 받는 편이 가장 명확하다. 실제 명령은 butler 설치 방식과 인증 환경변수를 dry-run으로 확인한 뒤 확정한다.
 
-## workflow 골격
+## workflow 구현
 
-아래는 설계 예시이며, 그대로 복사해 쓰는 구현안이 아니다. 실제 workflow PR에서는 butler 설치 방식, artifact 다운로드 경로, 인증 환경변수 이름을 공식 문서와 dry-run으로 다시 확인한다.
+`itch.io Development 업로드` workflow는 `.github/workflows/itchio-development-upload.yml`에 있다. 핵심 동작은 다음과 같다.
 
-```yaml
-name: itch.io 수동 업로드
+- `workflow_dispatch`로만 실행한다.
+- `run_id`와 `artifact_name`으로 기존 Windows artifact를 다운로드한다.
+- `version` 입력값이 비어 있으면 `srpg-demo-windows-<a.b.c.build>-<short-sha>` artifact 이름에서 `a.b.c.build`를 추출한다.
+- `remarkablegames/setup-butler@v3`로 butler를 설치한다.
+- `BUTLER_API_KEY` secret과 `ITCHIO_USERNAME`, `ITCHIO_GAME` variable을 사용해 `development` 채널로만 업로드한다.
 
-on:
-  workflow_dispatch:
-    inputs:
-      artifact_name:
-        description: "다운로드할 GitHub Actions artifact 이름"
-        required: true
-      version:
-        description: "a.b.c 기준 버전"
-        required: true
-      channel:
-        description: "development 또는 production"
-        required: true
-        default: "development"
-
-jobs:
-  upload:
-    runs-on: ubuntu-latest
-    steps:
-      - name: butler 설치
-        run: |
-          curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
-          unzip butler.zip -d butler
-          echo "$PWD/butler" >> "$GITHUB_PATH"
-
-      - name: butler 인증 정보 존재 확인
-        env:
-          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
-        run: |
-          if [ -z "$BUTLER_API_KEY" ]; then
-            echo "BUTLER_API_KEY secret이 비어 있습니다."
-            exit 1
-          fi
-
-      - name: 업로드
-        env:
-          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
-          ITCHIO_USERNAME: ${{ vars.ITCHIO_USERNAME }}
-          ITCHIO_GAME: ${{ vars.ITCHIO_GAME }}
-          CHANNEL: ${{ inputs.channel }}
-          FULL_VERSION: ${{ inputs.version }}.${{ github.run_number }}
-        run: |
-          butler push "./dist" "${ITCHIO_USERNAME}/${ITCHIO_GAME}:${CHANNEL}" --userversion "${FULL_VERSION}"
-```
-
-실제 구현 PR에서는 artifact 다운로드 step, zip 경로, butler 설치 공식 권장 방식, `BUTLER_API_KEY` 환경변수 동작을 다시 확인한다. 이 예시가 바뀌는 경우에는 PR 본문이나 코드 라인 셀프리뷰에 근거를 남긴다.
+production 업로드는 이 workflow에 옵션으로 열지 않는다. production 릴리즈컷은 version 검증, 릴리즈 노트, smoke test 결과, known issue 판단이 필요하므로 별도 workflow와 PR로 다룬다.
 
 ## 실패 대응
 
@@ -192,6 +149,7 @@ jobs:
 | 인증 실패 | `butler login` 또는 `butler push` 로그 | `BUTLER_API_KEY` secret 존재와 권한 확인 |
 | 게임을 찾지 못함 | push 대상 문자열 | `ITCHIO_USERNAME`, `ITCHIO_GAME`, itch.io slug 확인 |
 | 파일 없음 | artifact 다운로드 또는 path | 업로드 입력 경로와 artifact 이름 확인 |
+| artifact 다운로드 실패 | `Windows artifact 다운로드` step | run id, artifact 이름, 7일 retention 만료 여부 확인 |
 | 업로드는 성공했지만 페이지에 안 보임 | itch.io dashboard | 채널, 공개 범위, 파일 platform 설정 확인 |
 
 ## 선행 헬스체크
@@ -210,6 +168,8 @@ jobs:
 - public repo standard GitHub-hosted runner 범위에서만 시작한다.
 - larger runner는 사용하지 않는다.
 - 자동 업로드가 artifact 보관 기간을 늘리는 이유가 되면 PR 본문에 근거를 남긴다.
+- Unity `Library` Actions cache는 수백 MB~1GB 단위가 될 수 있으므로 `Actions 저장소 정리` workflow로 최신 Windows cache 1개만 남기는 것을 기본 운영으로 둔다.
+- `itch.io Development 업로드` workflow는 업로드 전에 Actions cache 여유 공간을 확인하고, 기본 10GiB 한도에서 2GiB 미만이 남으면 실패시킨다.
 - S3, CloudFront, 모바일 스토어, 유료 CDN은 이 설계의 일부가 아니다.
 - secret 권한이 커지면 workflow를 required check로 만들기 전에 별도 리뷰한다.
 
@@ -224,6 +184,8 @@ butler workflow 구현 PR에서는 다음을 셀프리뷰 또는 PR 본문에 �
 - 사용한 secret 이름과 노출 방지 방식
 - runner 종류와 유료 리소스 개입 여부
 - artifact retention 변경 여부
+- Actions cache prefix, 보관 개수, 삭제 권한 범위
+- Delivery 전에 확인하는 Actions cache 한도와 최소 여유 공간
 - 실패 시 어떤 로그로 원인을 확인하는지
 
 ## 관련

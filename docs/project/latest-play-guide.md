@@ -67,9 +67,15 @@ itch.io 페이지 <https://lhtcp.itch.io/lhtcp-srpg>는 비개발자와 외부 �
 itch.io에서 다운로드가 보이려면 다음 중 하나가 필요하다.
 
 - 지시자 또는 배포 담당자가 실제 게임 zip을 itch.io 프로젝트 파일로 수동 업로드한다.
-- 후속 workflow가 butler로 실제 게임 zip을 `lhtcp/lhtcp-srpg:development` 채널에 업로드한다.
+- `itch.io Development 업로드` workflow가 성공한 Windows artifact의 실제 게임 zip을 `lhtcp/lhtcp-srpg:development` 채널에 업로드한다.
 
-butler 자동 업로드를 구현하거나 실행하기 전에는 `itch.io Delivery 설정 헬스체크` workflow를 수동 실행해 `BUTLER_API_KEY` secret, `ITCHIO_USERNAME` variable, `ITCHIO_GAME` variable이 준비됐는지 확인한다.
+`itch.io Development 업로드` workflow를 실행하기 전에는 `itch.io Delivery 설정 헬스체크` workflow를 수동 실행해 `BUTLER_API_KEY` secret, `ITCHIO_USERNAME` variable, `ITCHIO_GAME` variable이 준비됐는지 확인한다.
+
+`itch.io Development 업로드` workflow는 Windows 빌드를 새로 만들지 않는다. 먼저 `Windows PC 데모 빌드` workflow가 성공해야 하며, 업로드 실행 시 해당 run id와 artifact 이름을 입력한다. artifact 보관 기간이 지나면 다시 Windows 빌드부터 만들어야 한다.
+
+Windows 빌드 이후 GitHub Actions cache 저장소가 커지면 `Actions 저장소 정리` workflow를 `cache_prefix=Library-Linux-Unity-6000.3.13f1-StandaloneWindows64-`, `keep_count=1`로 실행해 최신 Windows Unity Library cache만 남긴다. 처음에는 `dry_run=true`로 삭제 대상을 확인하고, 문제가 없을 때 `dry_run=false`로 다시 실행한다.
+
+`itch.io Development 업로드` workflow는 업로드 전에 Actions cache 여유 공간을 확인한다. 기본 10GiB 한도에서 여유 공간이 2GiB 미만이면 delivery를 멈추고 cache 정리를 먼저 요구한다.
 
 수동 업로드 절차는 [itchio-manual-publishing-checklist.md](itchio-manual-publishing-checklist.md)를 따른다. butler 자동화 설계는 [butler-automation-design.md](butler-automation-design.md)를 따른다.
 
@@ -86,7 +92,7 @@ butler 자동 업로드를 구현하거나 실행하기 전에는 `itch.io Deliv
 ## 현재 제한
 
 - Actions artifact 보관 기간은 7일이므로 오래된 development 빌드는 사라질 수 있다.
-- itch.io 자동 업로드는 아직 별도 구현 PR이 필요하다.
+- itch.io development 업로드는 수동 workflow로 수행한다. production 자동 업로드는 아직 별도 구현 PR이 필요하다.
 - WebGL 즉시 플레이는 후속 PoC 후보이며, 현재 최신 플레이 경로는 Windows zip 다운로드다.
 - Android/iOS 배포는 크로스플랫폼 지원 결정 전까지 보류한다.
 
