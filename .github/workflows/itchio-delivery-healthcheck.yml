@@ -81,11 +81,11 @@ jobs:
           print("scopes=" + ",".join(scopes))
           PY
 
-      - name: butler 설치 확인
-        shell: bash
+      - name: butler 설치
+        # broth.itch.ovh 직접 다운로드는 runner DNS 상태에 취약해서 setup-butler 액션을 사용한다.
+        uses: remarkablegames/setup-butler@v3
+
+      - name: butler 버전 확인
         run: |
           set -euo pipefail
-
-          curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
-          unzip -q butler.zip -d butler
-          ./butler/butler -V
+          butler -V
