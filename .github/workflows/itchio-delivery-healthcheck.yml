@@ -18,7 +18,7 @@ jobs:
     steps:
       - name: 설정 존재 확인
         env:
-          ITCHIO_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
           ITCHIO_USERNAME: ${{ vars.ITCHIO_USERNAME }}
           ITCHIO_GAME: ${{ vars.ITCHIO_GAME }}
         shell: bash
@@ -26,11 +26,11 @@ jobs:
           set -euo pipefail
 
           missing=0
-          if [ -z "${ITCHIO_API_KEY:-}" ]; then
-            echo "::error::ITCHIO_API_KEY repository secret이 필요합니다."
+          if [ -z "${BUTLER_API_KEY:-}" ]; then
+            echo "::error::BUTLER_API_KEY repository secret이 필요합니다."
             missing=1
           else
-            echo "::notice::ITCHIO_API_KEY secret이 설정되어 있습니다."
+            echo "::notice::BUTLER_API_KEY secret이 설정되어 있습니다."
           fi
 
           if [ -z "${ITCHIO_USERNAME:-}" ]; then
@@ -51,21 +51,21 @@ jobs:
             echo "## itch.io Delivery 설정"
             echo ""
             echo "- target: \`${ITCHIO_USERNAME:-<missing>}/${ITCHIO_GAME:-<missing>}:development\`"
-            echo "- secret: \`ITCHIO_API_KEY\` 존재 여부만 확인함"
+            echo "- secret: \`BUTLER_API_KEY\` 존재 여부만 확인함"
           } >> "$GITHUB_STEP_SUMMARY"
 
           exit "$missing"
 
       - name: itch.io API key 인증 확인
         env:
-          ITCHIO_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
 
           # API key 값은 로그에 출력하지 않는다. 인증 가능 여부와 scope 이름만 확인한다.
           http_status="$(curl -sS -o credential-info.json -w '%{http_code}' \
-            -H "Authorization: Bearer ${ITCHIO_API_KEY}" \
+            -H "Authorization: Bearer ${BUTLER_API_KEY}" \
             https://api.itch.io/credentials/info)"
 
           if [ "$http_status" != "200" ]; then

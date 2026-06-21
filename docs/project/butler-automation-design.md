@@ -24,7 +24,7 @@ butler가 유일한 게시 방법은 아니다. itch.io 웹 대시보드 수동 
 
 아직 구현 전인 설계 후보:
 
-- `ITCHIO_API_KEY` secret 등록
+- `BUTLER_API_KEY` secret 등록
 - `ITCHIO_USERNAME`, `ITCHIO_GAME` repository variable 등록
 - butler 설치/업로드 workflow
 - `release.json` 추가
@@ -46,11 +46,11 @@ butler가 유일한 게시 방법은 아니다. itch.io 웹 대시보드 수동 
 
 | 이름 | 종류 | 필수 여부 | 설명 |
 | ---- | ---- | --------- | ---- |
-| `ITCHIO_API_KEY` | secret | 필수 | 저장소에서 관리하는 itch.io API key 이름 |
+| `BUTLER_API_KEY` | secret | 필수 | butler 인증에 사용하는 itch.io API key |
 | `ITCHIO_USERNAME` | variable | 권장 | itch.io 사용자 또는 조직 이름 |
 | `ITCHIO_GAME` | variable | 권장 | itch.io 게임 slug |
 
-butler 공식 문서는 CI에서 `BUTLER_API_KEY` 환경변수를 사용하라고 안내한다. 저장소 secret 이름은 itch.io 계정 수준의 credential이라는 의미가 드러나도록 `ITCHIO_API_KEY`로 두고, workflow step에서 `BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY }}`로 매핑한다.
+butler 공식 문서는 CI에서 `BUTLER_API_KEY` 환경변수를 사용하라고 안내한다. 이 저장소도 GitHub secret 이름을 `BUTLER_API_KEY`로 맞춰 별도 매핑 없이 사용한다.
 
 현재 프로젝트 URL 기준 기본 후보는 `ITCHIO_USERNAME=lhtcp`, `ITCHIO_GAME=lhtcp-srpg`다. 사용자명과 게임 slug는 공개 URL에 이미 포함되는 값이므로 repository variable로 둔다. API key는 secret으로만 둔다.
 
@@ -165,16 +165,16 @@ jobs:
 
       - name: butler 인증 정보 존재 확인
         env:
-          BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
           if [ -z "$BUTLER_API_KEY" ]; then
-            echo "ITCHIO_API_KEY secret이 비어 있습니다."
+            echo "BUTLER_API_KEY secret이 비어 있습니다."
             exit 1
           fi
 
       - name: 업로드
         env:
-          BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
           ITCHIO_USERNAME: ${{ vars.ITCHIO_USERNAME }}
           ITCHIO_GAME: ${{ vars.ITCHIO_GAME }}
           CHANNEL: ${{ inputs.channel }}
@@ -189,7 +189,7 @@ jobs:
 
 | 증상 | 먼저 볼 위치 | 조치 |
 | ---- | ------------ | ---- |
-| 인증 실패 | `butler login` 또는 `butler push` 로그 | `ITCHIO_API_KEY` secret 존재와 `BUTLER_API_KEY` 환경변수 매핑 확인 |
+| 인증 실패 | `butler login` 또는 `butler push` 로그 | `BUTLER_API_KEY` secret 존재와 권한 확인 |
 | 게임을 찾지 못함 | push 대상 문자열 | `ITCHIO_USERNAME`, `ITCHIO_GAME`, itch.io slug 확인 |
 | 파일 없음 | artifact 다운로드 또는 path | 업로드 입력 경로와 artifact 이름 확인 |
 | 업로드는 성공했지만 페이지에 안 보임 | itch.io dashboard | 채널, 공개 범위, 파일 platform 설정 확인 |
@@ -198,7 +198,7 @@ jobs:
 
 `itch.io Delivery 설정 헬스체크` workflow는 자동 업로드를 수행하지 않는다. 다음만 확인한다.
 
-- `ITCHIO_API_KEY` repository secret 존재 여부
+- `BUTLER_API_KEY` repository secret 존재 여부
 - `ITCHIO_USERNAME`, `ITCHIO_GAME` repository variable 존재 여부
 - itch.io server-side API의 `credentials/info` endpoint를 통한 API key 인증 가능 여부
 - butler CLI 다운로드와 버전 출력 가능 여부

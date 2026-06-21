@@ -69,7 +69,7 @@ itch.io에서 다운로드가 보이려면 다음 중 하나가 필요하다.
 - 지시자 또는 배포 담당자가 실제 게임 zip을 itch.io 프로젝트 파일로 수동 업로드한다.
 - 후속 workflow가 butler로 실제 게임 zip을 `lhtcp/lhtcp-srpg:development` 채널에 업로드한다.
 
-butler 자동 업로드를 구현하거나 실행하기 전에는 `itch.io Delivery 설정 헬스체크` workflow를 수동 실행해 `ITCHIO_API_KEY` secret, `ITCHIO_USERNAME` variable, `ITCHIO_GAME` variable이 준비됐는지 확인한다.
+butler 자동 업로드를 구현하거나 실행하기 전에는 `itch.io Delivery 설정 헬스체크` workflow를 수동 실행해 `BUTLER_API_KEY` secret, `ITCHIO_USERNAME` variable, `ITCHIO_GAME` variable이 준비됐는지 확인한다.
 
 수동 업로드 절차는 [itchio-manual-publishing-checklist.md](itchio-manual-publishing-checklist.md)를 따른다. butler 자동화 설계는 [butler-automation-design.md](butler-automation-design.md)를 따른다.
 
