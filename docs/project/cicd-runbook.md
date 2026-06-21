@@ -291,6 +291,7 @@ Cache size is over the limit
 - Library cache가 너무 커져 저장 실패하는지 확인한다.
 - 오래된 cache가 깨진 import 상태를 재사용하고 있지 않은지 확인한다.
 - Windows Unity Library cache가 여러 개 쌓이면 `Actions 저장소 정리` workflow를 실행해 `Library-Linux-Unity-6000.3.13f1-StandaloneWindows64-` prefix의 최신 cache 1개만 남긴다.
+- Delivery workflow가 Actions cache 예산 가드에서 실패했다면 기본 10GiB 한도 중 2GiB 미만만 남았다는 의미다.
 
 ### 조치
 
@@ -298,6 +299,7 @@ Cache size is over the limit
 - 반복되는 import 오류가 cache와 관련 있어 보이면 cache key를 의도적으로 갱신한다.
 - cache 크기가 과도하면 Library 전체가 아니라 필요한 범위만 캐시할 수 있는지 검토한다.
 - cache 삭제 workflow는 먼저 `dry_run=true`로 삭제 대상을 확인하고, 의도한 prefix만 잡히면 `dry_run=false`로 실행한다.
+- Delivery 차단을 풀기 위해 cache 한도를 올리는 것은 유료 전환 리스크가 있으므로, 먼저 오래된 cache 삭제를 우선한다.
 - cache 정책을 바꾸는 PR에는 실행 시간 개선 기대와 비용/용량 리스크를 함께 적는다.
 
 ### 에스컬레이션 기준

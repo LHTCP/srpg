@@ -75,6 +75,8 @@ itch.io에서 다운로드가 보이려면 다음 중 하나가 필요하다.
 
 Windows 빌드 이후 GitHub Actions cache 저장소가 커지면 `Actions 저장소 정리` workflow를 `cache_prefix=Library-Linux-Unity-6000.3.13f1-StandaloneWindows64-`, `keep_count=1`로 실행해 최신 Windows Unity Library cache만 남긴다. 처음에는 `dry_run=true`로 삭제 대상을 확인하고, 문제가 없을 때 `dry_run=false`로 다시 실행한다.
 
+`itch.io Development 업로드` workflow는 업로드 전에 Actions cache 여유 공간을 확인한다. 기본 10GiB 한도에서 여유 공간이 2GiB 미만이면 delivery를 멈추고 cache 정리를 먼저 요구한다.
+
 수동 업로드 절차는 [itchio-manual-publishing-checklist.md](itchio-manual-publishing-checklist.md)를 따른다. butler 자동화 설계는 [butler-automation-design.md](butler-automation-design.md)를 따른다.
 
 ## 최신 버전 판단

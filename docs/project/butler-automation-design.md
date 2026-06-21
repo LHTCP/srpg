@@ -169,6 +169,7 @@ production 업로드는 이 workflow에 옵션으로 열지 않는다. productio
 - larger runner는 사용하지 않는다.
 - 자동 업로드가 artifact 보관 기간을 늘리는 이유가 되면 PR 본문에 근거를 남긴다.
 - Unity `Library` Actions cache는 수백 MB~1GB 단위가 될 수 있으므로 `Actions 저장소 정리` workflow로 최신 Windows cache 1개만 남기는 것을 기본 운영으로 둔다.
+- `itch.io Development 업로드` workflow는 업로드 전에 Actions cache 여유 공간을 확인하고, 기본 10GiB 한도에서 2GiB 미만이 남으면 실패시킨다.
 - S3, CloudFront, 모바일 스토어, 유료 CDN은 이 설계의 일부가 아니다.
 - secret 권한이 커지면 workflow를 required check로 만들기 전에 별도 리뷰한다.
 
@@ -184,6 +185,7 @@ butler workflow 구현 PR에서는 다음을 셀프리뷰 또는 PR 본문에 �
 - runner 종류와 유료 리소스 개입 여부
 - artifact retention 변경 여부
 - Actions cache prefix, 보관 개수, 삭제 권한 범위
+- Delivery 전에 확인하는 Actions cache 한도와 최소 여유 공간
 - 실패 시 어떤 로그로 원인을 확인하는지
 
 ## 관련

@@ -29,6 +29,9 @@ jobs:
     name: Windows zip을 itch.io development에 업로드
     runs-on: ubuntu-latest
     steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
       - name: 업로드 설정 확인
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
@@ -55,6 +58,15 @@ jobs:
           fi
 
           exit "$missing"
+
+      - name: Actions cache 예산 확인
+        # GitHub Actions cache는 기본 10GiB 한도 안에서 운영한다.
+        # Delivery 전에 여유 공간이 2GiB 미만이면 업로드를 막고 cache 정리를 먼저 하게 한다.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CACHE_STORAGE_LIMIT_BYTES: 10737418240
+          MIN_FREE_CACHE_BYTES: 2147483648
+        run: node scripts/check-github-actions-cache-budget.mjs
 
       - name: Windows artifact 다운로드
         # actions/download-artifact는 다른 workflow run의 artifact도 run-id와 token으로 받을 수 있다.
