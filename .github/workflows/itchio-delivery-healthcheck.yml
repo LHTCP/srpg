@@ -1,0 +1,91 @@
+name: itch.io Delivery 설정 헬스체크
+
+on:
+  # itch.io 자동 업로드를 붙이기 전에 secret/variable과 butler 인증 경로를 수동으로 확인한다.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: itchio-delivery-healthcheck
+  cancel-in-progress: true
+
+jobs:
+  itchio-settings:
+    name: itch.io secret과 variable 확인
+    runs-on: ubuntu-latest
+    steps:
+      - name: 설정 존재 확인
+        env:
+          ITCHIO_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
+          ITCHIO_USERNAME: ${{ vars.ITCHIO_USERNAME }}
+          ITCHIO_GAME: ${{ vars.ITCHIO_GAME }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing=0
+          if [ -z "${ITCHIO_API_KEY:-}" ]; then
+            echo "::error::ITCHIO_API_KEY repository secret이 필요합니다."
+            missing=1
+          else
+            echo "::notice::ITCHIO_API_KEY secret이 설정되어 있습니다."
+          fi
+
+          if [ -z "${ITCHIO_USERNAME:-}" ]; then
+            echo "::error::ITCHIO_USERNAME repository variable이 필요합니다."
+            missing=1
+          else
+            echo "::notice::ITCHIO_USERNAME variable이 설정되어 있습니다."
+          fi
+
+          if [ -z "${ITCHIO_GAME:-}" ]; then
+            echo "::error::ITCHIO_GAME repository variable이 필요합니다."
+            missing=1
+          else
+            echo "::notice::ITCHIO_GAME variable이 설정되어 있습니다."
+          fi
+
+          {
+            echo "## itch.io Delivery 설정"
+            echo ""
+            echo "- target: \`${ITCHIO_USERNAME:-<missing>}/${ITCHIO_GAME:-<missing>}:development\`"
+            echo "- secret: \`ITCHIO_API_KEY\` 존재 여부만 확인함"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit "$missing"
+
+      - name: itch.io API key 인증 확인
+        env:
+          ITCHIO_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # API key 값은 로그에 출력하지 않는다. 인증 가능 여부와 scope 이름만 확인한다.
+          http_status="$(curl -sS -o credential-info.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${ITCHIO_API_KEY}" \
+            https://api.itch.io/credentials/info)"
+
+          if [ "$http_status" != "200" ]; then
+            echo "::error::itch.io API key 인증 확인 실패. HTTP status=${http_status}"
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json
+          data = json.load(open("credential-info.json", encoding="utf-8"))
+          scopes = data.get("scopes", [])
+          print("itch.io API key 인증 확인 성공")
+          print("scopes=" + ",".join(scopes))
+          PY
+
+      - name: butler 설치 확인
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
+          unzip -q butler.zip -d butler
+          ./butler/butler -V

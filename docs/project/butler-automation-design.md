@@ -37,9 +37,10 @@ butler가 유일한 게시 방법은 아니다. itch.io 웹 대시보드 수동 
 2. Windows zip 패키징 기준과 수동 게시 체크리스트를 확정한다.
 3. butler를 로컬에서 한 번 실행해 채널명과 권한을 확인한다.
 4. GitHub Actions secret을 설정한다.
-5. `workflow_dispatch` 수동 업로드 workflow를 추가한다.
-6. 업로드 후 itch.io 페이지에서 다운로드 smoke test를 한다.
-7. main 자동 업로드 여부는 별도 decision으로 판단한다.
+5. `itch.io Delivery 설정 헬스체크` workflow를 수동 실행해 secret/variable과 API key 인증을 확인한다.
+6. `workflow_dispatch` 수동 업로드 workflow를 추가한다.
+7. 업로드 후 itch.io 페이지에서 다운로드 smoke test를 한다.
+8. main 자동 업로드 여부는 별도 decision으로 판단한다.
 
 ## secret과 variable 후보
 
@@ -192,6 +193,17 @@ jobs:
 | 게임을 찾지 못함 | push 대상 문자열 | `ITCHIO_USERNAME`, `ITCHIO_GAME`, itch.io slug 확인 |
 | 파일 없음 | artifact 다운로드 또는 path | 업로드 입력 경로와 artifact 이름 확인 |
 | 업로드는 성공했지만 페이지에 안 보임 | itch.io dashboard | 채널, 공개 범위, 파일 platform 설정 확인 |
+
+## 선행 헬스체크
+
+`itch.io Delivery 설정 헬스체크` workflow는 자동 업로드를 수행하지 않는다. 다음만 확인한다.
+
+- `ITCHIO_API_KEY` repository secret 존재 여부
+- `ITCHIO_USERNAME`, `ITCHIO_GAME` repository variable 존재 여부
+- itch.io server-side API의 `credentials/info` endpoint를 통한 API key 인증 가능 여부
+- butler CLI 다운로드와 버전 출력 가능 여부
+
+이 workflow가 실패하면 butler 업로드 workflow를 추가하거나 실행하지 않는다.
 
 ## 비용 가드레일
 
