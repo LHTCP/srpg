@@ -1008,11 +1008,7 @@ public class SrpMapMakerController : MonoBehaviour
 
     static void ApplyColor(Renderer r, Color c)
     {
-        if (r == null) return;
-        if (r.material.HasProperty("_BaseColor"))
-            r.material.SetColor("_BaseColor", c);
-        else
-            r.material.color = c;
+        SrpRuntimeMaterial.ApplyColor(r, c);
     }
 
     static void FillRect(RectTransform rt, float padding)

@@ -702,22 +702,13 @@ public partial class SrpGameController
 
     static void ApplyColor(Renderer r, Color c)
     {
-        if (r == null) return;
-        if (r.material.HasProperty("_BaseColor"))
-            r.material.SetColor("_BaseColor", c);
-        else
-            r.material.color = c;
+        SrpRuntimeMaterial.ApplyColor(r, c);
     }
 
     static Material CreateFeedbackMaterial(Color color)
     {
-        var shader = Shader.Find("Universal Render Pipeline/Unlit")
-            ?? Shader.Find("Unlit/Color")
-            ?? Shader.Find("Standard");
-        var material = new Material(shader);
+        var material = SrpRuntimeMaterial.CreateUnlit(color);
         material.name = "SrpFeedbackUnlit";
-        material.renderQueue = 3100;
-        SetMaterialColor(material, color);
         return material;
     }
 
@@ -727,17 +718,7 @@ public partial class SrpGameController
             return;
         if (r.sharedMaterial == null)
             r.sharedMaterial = CreateFeedbackMaterial(color);
-        SetMaterialColor(r.material, color);
-    }
-
-    static void SetMaterialColor(Material material, Color color)
-    {
-        if (material == null)
-            return;
-        if (material.HasProperty("_BaseColor"))
-            material.SetColor("_BaseColor", color);
-        if (material.HasProperty("_Color"))
-            material.SetColor("_Color", color);
+        SrpRuntimeMaterial.ApplyColor(r, color);
     }
 
     // ── 유닛 뷰 ─────────────────────────────────────────────────────────────
