@@ -89,6 +89,7 @@ public partial class SrpGameController
     GameObject _commandRailPanel;
     GameObject _contextPanel;
     GameObject _secondaryActionPanel;
+    bool _gameOverDrawerShown;
     GameObject _secondaryActionTabStripPanel;
     GameObject _secondaryStancePage;
     GameObject _secondaryTacticalPage;
@@ -1217,9 +1218,25 @@ public partial class SrpGameController
     void UpdateHud()
     {
         if (_txtTurn == null) return;
-        if (_secondaryActionPanel != null && (_gameOver
-            || (_phase != Phase.UnitActive && _phase != Phase.SelectingSkillTarget)))
-            SetSecondaryDrawerOpen(false, _secondaryDrawerTab);
+        if (_secondaryActionPanel != null)
+        {
+            if (_gameOver)
+            {
+                // 전투가 끝나면 되감기/로비가 있는 시스템 탭을 한 번 열어 나갈 길을 보여 준다.
+                // 그 뒤에는 강제로 닫지 않아 플레이어가 탭을 직접 여닫을 수 있다.
+                if (!_gameOverDrawerShown)
+                {
+                    _gameOverDrawerShown = true;
+                    SetSecondaryDrawerOpen(true, SecondaryActionDrawerTab.System);
+                }
+            }
+            else
+            {
+                _gameOverDrawerShown = false;
+                if (_phase != Phase.UnitActive && _phase != Phase.SelectingSkillTarget)
+                    SetSecondaryDrawerOpen(false, _secondaryDrawerTab);
+            }
+        }
         if (_state == null)
         {
             _txtTurn.text = "초기화 중...";
@@ -1854,6 +1871,8 @@ public partial class SrpGameController
     {
         if (_state == null)
             return "전투 상태를 준비 중입니다.";
+        if (_gameOver)
+            return $"{BuildGameOverText()}\n시스템 탭에서 로비로 돌아가거나, 되감기가 남아 있으면 마지막 행동을 되돌릴 수 있습니다.";
         if (_phase == Phase.Idle)
         {
             if (_postUndoHint)
@@ -1878,7 +1897,7 @@ public partial class SrpGameController
         }
 
         string moveInfo = _remainingMove > 0 ? $"이동력 {_remainingMove}" : "이동력 없음";
-        string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능 (공격 후 행동 종료)";
+        string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능 (활성화당 1회, AP가 남으면 계속 행동)";
         string dangerInfo = IsDangerAreaVisible ? "위험영역 ON" : "위험영역 OFF";
         string undoInfo = _undo.Count > 0 ? "되감기 가능" : "되감기 없음(행동 확정 후 생성)";
         return $"행동 단계: {moveInfo} | {atkInfo} | {dangerInfo} | {undoInfo}\n{OverlayLegendText}";

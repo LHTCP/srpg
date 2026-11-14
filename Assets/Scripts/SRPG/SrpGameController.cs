@@ -491,7 +491,8 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
     bool AfterSkill(SrpUnitRuntime u, SrpSkillData data, SrpSkillUseResult result)
     {
         RefreshUnitViews();
-        if (result.casterDied || data.endsActivation)
+        // 스킬로 승패가 났으면 남은 AP와 무관하게 바로 종료 흐름으로 넘어간다.
+        if (result.casterDied || data.endsActivation || IsBattleDecided())
         {
             FinishActivation();
             return true;
@@ -586,9 +587,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
             if (!IsEnemyAiActivationCurrent(unitId, token))
                 yield break;
 
-            var unit = GetUnit(unitId);
-            var action = SrpEnemyAi.Decide(_state, unit, _remainingMove, _hasAttackedThisTurn);
-            if (!ExecuteEnemyAiAction(unit, action))
+            if (!TryRunEnemyAiStep(unitId))
                 break;
             if (!IsEnemyAiActivationCurrent(unitId, token))
                 yield break;
@@ -600,6 +599,27 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
             yield break;
         LogLine($"유닛 완료 — {GetUnit(unitId)?.displayName}({unitId})");
         FinishActivation();
+    }
+
+    /// <summary>
+    /// 적 AI 행동 하나를 고르고 실행한다. 더 할 행동이 없으면 false.
+    /// 판단/실행 중 예외가 나면 적 차례가 "적 행동 중"에 멈춰 플레이어가 아무것도 못 하게 되므로,
+    /// 오류를 남기고 false를 돌려 그 유닛의 활성화를 끝낸다.
+    /// </summary>
+    bool TryRunEnemyAiStep(int unitId)
+    {
+        try
+        {
+            var unit = GetUnit(unitId);
+            var action = SrpEnemyAi.Decide(_state, unit, _remainingMove, _hasAttackedThisTurn);
+            return ExecuteEnemyAiAction(unit, action);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogException(e);
+            LogLine($"적 AI 오류: 유닛 {unitId}의 남은 행동을 건너뜁니다. ({e.GetType().Name})");
+            return false;
+        }
     }
 
     bool IsEnemyAiActivationCurrent(int unitId, int token)

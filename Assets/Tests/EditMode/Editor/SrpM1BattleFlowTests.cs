@@ -255,6 +255,30 @@ public class SrpM1BattleFlowTests
         Assert.That(state.OwnerHasAliveUnits(1), Is.True, "전멸이 아니라 지휘관 처치로 끝나야 합니다.");
     }
 
+    [TestCase(TestName = "스킬로 마지막 적을 쓰러뜨리면 그 행동 직후 승패가 결정된다")]
+    public void UseSkill_KillingLastEnemyDecidesBattleImmediately()
+    {
+        var state = CreateOpenState();
+        var caster = AddUnit(state, id: 1, owner: 1, x: 1, y: 1, hp: 30);
+        caster.skillIds.Add("cleave");
+        caster.skillRuntimes.Add(new SrpSkillRuntime("cleave"));
+        var target = AddUnit(state, id: 2, owner: 0, x: 2, y: 1, hp: 5);
+        SrpBattleFlow.StartRound(state);
+        target.reactionPoints = 0;
+        int remainingMove = SrpBattleFlow.BeginActivation(state, caster, null);
+
+        var step = SrpBattleFlow.ExecuteAiAction(
+            state, caster, SrpEnemyAiAction.UseSkill("cleave", target), ref remainingMove, null);
+
+        Assert.That(step.executed, Is.True);
+        Assert.That(step.skill.targetHpDamage, Is.GreaterThan(0));
+        Assert.That(target.eliminated, Is.True);
+        Assert.That(caster.hasUsedSkillThisActivation, Is.True);
+        var victory = SrpVictory.Evaluate(state);
+        Assert.That(victory.decided, Is.True, "스킬 처치 뒤에도 전투가 미결입니다.");
+        Assert.That(victory.winnerOwner, Is.EqualTo(1));
+    }
+
     sealed class RecordingObserver : ISrpBattleFlowObserver
     {
         public readonly List<string> events = new List<string>();

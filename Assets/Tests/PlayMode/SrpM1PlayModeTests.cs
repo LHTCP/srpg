@@ -123,7 +123,7 @@ public class SrpM1PlayModeTests
         Assert.GreaterOrEqual(controller.TestTurnOrderPreviewLineCount, 3, "다음 행동 순서 preview가 부족합니다.");
         Assert.LessOrEqual(controller.TestTurnOrderPreviewLineCount, 5, "다음 행동 순서 preview가 너무 깁니다.");
         StringAssert.Contains("행동 단계", statusHud);
-        StringAssert.Contains("공격 후 행동 종료", statusHud);
+        StringAssert.Contains("활성화당 1회", statusHud);
         StringAssert.Contains("범례:", statusHud);
         StringAssert.Contains("초록=이동", statusHud);
         StringAssert.Contains("청록=패링 가능 스킬", statusHud);
