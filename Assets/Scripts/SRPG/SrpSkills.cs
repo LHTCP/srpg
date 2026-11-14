@@ -271,7 +271,7 @@ public static class SrpSkills
                     int hpDmg = dmg;
                     var reaction = SrpCombatResolver.ApplySkillReaction(state, caster, target, data, ref hpDmg, ref pgDmg);
                     if (reaction.sustainedDefenseBufferApplied)
-                        log?.Invoke($"수비 완충: {target.displayName} | HP-{reaction.reducedHpBySustainedDefense} PG-{reaction.reducedPgBySustainedDefense}");
+                        log?.Invoke($"수비 완충: {target.displayName} | PG-{reaction.reducedPgBySustainedDefense}");
                     if (reaction.tankMultiEngagementBufferApplied)
                         log?.Invoke($"탱커 대응: {target.displayName} | HP-{reaction.reducedHpByTank} PG-{reaction.reducedPgByTank}");
                     if (reaction.combatTagBonusApplied)

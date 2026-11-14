@@ -2045,7 +2045,7 @@ public partial class SrpGameController
         if (!SrpCombatResolver.HasAmmoForBasicAttack(attackKind, active))
             return ($"공격 Preview: {target.displayName}", "탄약 없음. 재장전 후 공격할 수 있습니다.");
 
-        var clone = _state.Clone();
+        var clone = _state.CloneForPreview();
         var cloneActive = clone.FindUnitById(active.id);
         var cloneTarget = clone.FindUnitById(target.id);
         if (cloneActive == null || cloneTarget == null)
@@ -2069,8 +2069,8 @@ public partial class SrpGameController
             parts.Add("처단 공격 예상");
         if (outcome.becameGroggy)
             parts.Add("PG 붕괴 예상");
-        if (outcome.wasDodged)
-            parts.Add("대상 회피 성공 가능성 반영");
+        if (outcome.reactionKind == SrpReactionKind.Dodge)
+            parts.Add($"대상 회피 시도: 성공률 {SrpCombatResolver.DodgeChancePercent}%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)");
         if (outcome.wasParried)
             parts.Add("대상 패링 가능성 반영");
         if (outcome.coverBufferApplied)
@@ -2102,7 +2102,7 @@ public partial class SrpGameController
         if (_hoverTileX < 0 || _hoverTileY < 0 || !_skillTargetTiles.Contains(new Vector2Int(_hoverTileX, _hoverTileY)))
             return "현재 타일은 선택 가능한 스킬 대상이 아닙니다.";
 
-        var clone = _state.Clone();
+        var clone = _state.CloneForPreview();
         var cloneCaster = clone.FindUnitById(active.id);
         if (cloneCaster == null)
             return string.Empty;

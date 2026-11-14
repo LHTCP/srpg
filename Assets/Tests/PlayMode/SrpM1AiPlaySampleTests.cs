@@ -12,12 +12,15 @@ public class SrpM1AiPlaySampleTests
     public void DisableEnemyAi()
     {
         SrpGameSettings.EnemyAiEnabled = false;
+        // 회피 판정이 실행마다 달라지지 않게 전투 난수 시드를 고정한다.
+        SrpGameSettings.BattleRandomSeed = 1;
     }
 
     [TearDown]
     public void RestoreEnemyAi()
     {
         SrpGameSettings.EnemyAiEnabled = true;
+        SrpGameSettings.BattleRandomSeed = null;
     }
 
     [UnityTest]

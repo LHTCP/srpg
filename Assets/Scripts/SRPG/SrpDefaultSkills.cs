@@ -146,7 +146,7 @@ public static class SrpDefaultSkills
             {
                 id = "cleave",
                 displayName = "강타",
-                description = "사거리 1 내 적 하나에게 27 고정 피해. 사용 후 활성화 종료.",
+                description = "사거리 1 내 적 하나에게 HP 18 / PG 9 기준 피해(중대 HP 피해). 사용 후 활성화 종료.",
                 skillType = SrpSkillType.Active,
                 trigger = SrpSkillTrigger.OnActivate,
                 targetType = SrpTargetType.SingleEnemy,
@@ -165,7 +165,7 @@ public static class SrpDefaultSkills
                     {
                         type = SrpEffectType.Damage,
                         stat = "",
-                        value = 27,
+                        value = 18,
                         duration = 0,
                     },
                 },

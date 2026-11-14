@@ -80,7 +80,8 @@ public class SrpM1RuleSpecTests
         var reduced = SrpCombatResolver.ApplyAttack(attacker, defensiveTarget);
         var baseline = SrpCombatResolver.ApplyAttack(attacker, nonDefensiveTarget);
 
-        Assert.Less(reduced.damageToHp, baseline.damageToHp, "수비 태세 HP 피해 감소 미적용");
+        // 수비 태세의 상시 감쇠는 PG 전용이다(계획 문서 Q5). HP 보호는 Guard 반응·특성·엄폐가 맡는다.
+        Assert.AreEqual(baseline.damageToHp, reduced.damageToHp, "수비 태세가 반응 없이 HP 피해를 줄였습니다.");
         Assert.Less(reduced.damageToPg, baseline.damageToPg, "수비 태세 PG 피해 감소 미적용");
     }
 
@@ -323,6 +324,19 @@ public class SrpM1RuleSpecTests
         Assert.AreEqual(9, defender.pg, "전투 태그 PG 보너스가 실제 피해에 반영되지 않았습니다.");
     }
 
+    /// <summary>다음 회피 판정이 원하는 결과가 되도록 전투 난수 시드를 고른다.</summary>
+    static void SeedNextDodge(SrpBattleState state, bool success)
+    {
+        for (int seed = 1; seed <= 1000; seed++)
+        {
+            state.SeedRandom(seed);
+            bool next = state.Clone().NextRandomPercent() < SrpCombatResolver.DodgeChancePercent;
+            if (next == success)
+                return;
+        }
+        Assert.Fail("원하는 회피 결과를 내는 시드를 찾지 못했습니다.");
+    }
+
     [Test]
     public void DodgeReaction_ConsumesRpAndResolvesByChance_ForAggressiveDefender()
     {
@@ -338,6 +352,7 @@ public class SrpM1RuleSpecTests
         defender.reactionPoints = 1;
         int beforeHp = defender.hp;
         int beforePg = defender.pg;
+        SeedNextDodge(state, success: true);
 
         var outcome = SrpCombatResolver.ApplyAttack(state, attacker, defender);
 
@@ -355,7 +370,7 @@ public class SrpM1RuleSpecTests
         var state = SrpBattleState.FromMap(CreateZocTestMap());
         var attacker = FindUnit(state, owner: 1, templateId: "enemy");
         var defender = FindUnit(state, owner: 0, templateId: "mover");
-        attacker.anchorX = 40;
+        attacker.anchorX = 2;
         attacker.anchorY = 4;
         attacker.weaponClass = SrpWeaponClass.Firearm;
         defender.anchorX = 2;
@@ -364,6 +379,7 @@ public class SrpM1RuleSpecTests
         defender.reactionPoints = 1;
         int beforeHp = defender.hp;
         int beforePg = defender.pg;
+        SeedNextDodge(state, success: false);
 
         var outcome = SrpCombatResolver.ApplyAttack(state, attacker, defender);
 
@@ -736,7 +752,7 @@ public class SrpM1RuleSpecTests
 
         Assert.IsFalse(first.sustainedDefenseBufferApplied, "첫 피격에 후속 수비 완충이 적용되었습니다.");
         Assert.IsTrue(second.sustainedDefenseBufferApplied, "후속 피격에 수비 완충이 적용되지 않았습니다.");
-        Assert.Greater(second.reducedHpBySustainedDefense + second.reducedPgBySustainedDefense, 0, "후속 수비 완충 감쇠량이 기록되지 않았습니다.");
+        Assert.Greater(second.reducedPgBySustainedDefense, 0, "후속 수비 완충 감쇠량이 기록되지 않았습니다.");
         Assert.AreEqual(2, defender.defensiveHitsTakenThisRound, "수비 피격 누적이 라운드 내에서 증가하지 않았습니다.");
     }
 

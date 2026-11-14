@@ -26,7 +26,49 @@ public class SrpBattleState
     /// <summary>맵별 승리 조건. 판정은 SrpVictory.Evaluate가 한다.</summary>
     public SrpVictoryRuleData VictoryRule { get; private set; } = new SrpVictoryRuleData();
 
+    const uint DefaultRandomState = 0x9E3779B9u;
+
+    /// <summary>
+    /// 확률 판정(회피)용 난수 상태. 전투 상태에 들어 있어 Clone과 함께 복사되므로,
+    /// 되감기 후 같은 행동을 다시 해도 같은 결과가 나온다.
+    /// </summary>
+    uint _randomState = DefaultRandomState;
+
+    /// <summary>예상 결과 계산용 복제본이면 true. 확률 판정을 굴리지 않고 실패로 가정한다.</summary>
+    public bool IsPreview { get; private set; }
+
     int _nextUnitId = 1;
+
+    /// <summary>난수 시드를 정한다. 런타임은 전투 시작 시, 테스트·시뮬레이션은 고정 값으로 호출한다.</summary>
+    public void SeedRandom(int seed)
+    {
+        uint s = (uint)seed * 2654435761u + DefaultRandomState;
+        _randomState = s != 0u ? s : DefaultRandomState;
+        // 인접한 시드끼리 첫 결과가 비슷하지 않도록 몇 번 섞는다.
+        for (int i = 0; i < 4; i++)
+            NextRandomPercent();
+    }
+
+    /// <summary>0~99 난수를 하나 뽑고 난수 상태를 전진시킨다(xorshift32).</summary>
+    public int NextRandomPercent()
+    {
+        uint x = _randomState;
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        _randomState = x != 0u ? x : DefaultRandomState;
+        return (int)((_randomState >> 8) % 100u);
+    }
+
+    /// <summary>
+    /// 예상 피해 표시용 복제본. 실제 난수를 미리 굴려 결과를 노출하지 않도록 확률 판정을 실패로 가정한다.
+    /// </summary>
+    public SrpBattleState CloneForPreview()
+    {
+        var s = Clone();
+        s.IsPreview = true;
+        return s;
+    }
 
     public SrpBattleState Clone()
     {
@@ -42,6 +84,8 @@ public class SrpBattleState
             RoundQueue = new List<int>(RoundQueue),
             Engagements = CloneEngagements(Engagements),
             _nextUnitId = _nextUnitId,
+            _randomState = _randomState,
+            IsPreview = IsPreview,
             TemplateLookup = new Dictionary<string, SrpUnitTemplateData>(TemplateLookup),
             SkillLookup = new Dictionary<string, SrpSkillData>(SkillLookup),
             InteractionPoints = CloneInteractionPoints(InteractionPoints),
