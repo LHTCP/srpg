@@ -467,8 +467,13 @@ public static class SrpSkills
                 {
                     if (target == null) break;
                     int delta = eff.type == SrpEffectType.BuffStat ? eff.value : -eff.value;
+                    // 오버클럭 강화("다음 사용 피해/회복 +N")는 HP/PG를 회복하는 강화 효과에도 붙는다.
+                    int baseDelta = delta;
+                    if (IsRecoveryStatEffect(eff))
+                        delta = ApplyOverclockPowerBonus(data, runtime, delta);
                     ApplyStatDelta(target, eff.stat, delta);
-                    log?.Invoke($"스탯 변화: {target.displayName} | {eff.stat} {(delta >= 0 ? "+" : "")}{delta}");
+                    string statOverclockText = delta != baseDelta ? $" | 오버클럭 +{data.overclockPowerBonus}" : string.Empty;
+                    log?.Invoke($"스탯 변화: {target.displayName} | {eff.stat} {(delta >= 0 ? "+" : "")}{delta}{statOverclockText}");
                     break;
                 }
                 case SrpEffectType.ApplyCombatTag:
@@ -487,6 +492,14 @@ public static class SrpSkills
                 }
             }
         }
+    }
+
+    /// <summary>HP 또는 PG를 올리는 강화 효과(회복)인가. 오버클럭 강화와 적 AI의 회복 스킬 판단이 쓴다.</summary>
+    public static bool IsRecoveryStatEffect(SrpSkillEffect eff)
+    {
+        if (eff == null || eff.type != SrpEffectType.BuffStat || eff.value <= 0)
+            return false;
+        return eff.stat == "hp" || eff.stat == "pg" || eff.stat == "posture";
     }
 
     static void LogSkillReaction(

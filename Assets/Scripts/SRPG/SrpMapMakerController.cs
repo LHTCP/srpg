@@ -949,21 +949,12 @@ public class SrpMapMakerController : MonoBehaviour
 
     SrpMapFileV1 BuildMapFile()
     {
-        var templates = new Dictionary<string, SrpUnitTemplateData>();
-        foreach (var u in _allUnits)
-            templates[u.id] = u;
-
-        var usedTemplates = new List<SrpUnitTemplateData>();
-        var usedIds = new HashSet<string>();
+        var placedTemplateIds = new List<string>();
         var placements = new List<SrpPlacementData>();
 
         foreach (var p in _placements)
         {
-            if (!usedIds.Contains(p.templateId) && templates.ContainsKey(p.templateId))
-            {
-                usedTemplates.Add(templates[p.templateId]);
-                usedIds.Add(p.templateId);
-            }
+            placedTemplateIds.Add(p.templateId);
             int fw = Mathf.Max(1, p.footprintW);
             int fh = Mathf.Max(1, p.footprintH);
             var offsets = new List<SrpOffset>();
@@ -993,7 +984,8 @@ public class SrpMapMakerController : MonoBehaviour
             height = _mapHeight,
             walkable = (bool[])_walkable.Clone(),
             playerOrder = new[] { 0, 1 },
-            templates = usedTemplates.ToArray(),
+            // 유닛 DB에 없는 템플릿(프리셋 전용 유닛 등)은 불러온 맵에서 가져와 유지한다.
+            templates = _carryOver.ResolveTemplates(placedTemplateIds, _allUnits),
             placements = placements.ToArray(),
         };
         _carryOver.ApplyTo(map);

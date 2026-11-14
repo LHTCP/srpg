@@ -38,6 +38,13 @@ public class SrpUnitTemplateData
     public int tags;
     public int footprintWidth = 1;
     public int footprintHeight = 1;
+
+    public SrpUnitTemplateData Clone()
+    {
+        var copy = (SrpUnitTemplateData)MemberwiseClone();
+        copy.skillIds = skillIds != null ? (string[])skillIds.Clone() : Array.Empty<string>();
+        return copy;
+    }
 }
 
 [Serializable]
@@ -201,8 +208,9 @@ public class SrpMapFileV1
 /// <summary>
 /// 맵 메이커가 편집하지 않는 맵 데이터를 불러오기에서 저장까지 그대로 들고 가는 묶음.
 /// 메이커는 저장할 때 맵 객체를 새로 만들기 때문에, 이 묶음에 담지 않은 값은 저장 시 기본값으로 돌아간다.
-/// 대상: 승리 조건(victory), 상호작용 포인트(승리 목표 효과 포함), 허용 스킬 목록(allowedSkillIds).
+/// 대상: 승리 조건(victory), 상호작용 포인트(승리 목표 효과 포함), 허용 스킬 목록(allowedSkillIds), 유닛 템플릿(templates).
 /// 승리 조건과 상호작용 포인트는 메이커가 이 묶음 안에서 직접 고친다(SrpMapObjectiveEdit). 허용 스킬 목록은 보존만 한다.
+/// 유닛 템플릿은 유닛 DB에 없는 템플릿을 쓰는 배치가 저장에서 빠지지 않게 하는 데만 쓴다(ResolveTemplates).
 /// 배치의 지휘관 표시는 메이커가 배치별로 들고 있고, 엄폐물과 엄폐 segment는 메이커가 따로 편집한다.
 /// </summary>
 public class SrpMapCarryOver
@@ -210,6 +218,8 @@ public class SrpMapCarryOver
     public SrpVictoryRuleData victory = new SrpVictoryRuleData();
     public SrpInteractionPointData[] interactionPoints = Array.Empty<SrpInteractionPointData>();
     public string[] allowedSkillIds = Array.Empty<string>();
+    /// <summary>불러온 맵에 들어 있던 유닛 템플릿. 프리셋 전용 유닛처럼 유닛 DB에 없는 템플릿을 되살리는 데 쓴다.</summary>
+    public SrpUnitTemplateData[] templates = Array.Empty<SrpUnitTemplateData>();
 
     public static SrpMapCarryOver Capture(SrpMapFileV1 map)
     {
@@ -231,7 +241,67 @@ public class SrpMapCarryOver
             }
             carry.interactionPoints = points.ToArray();
         }
+        if (map.templates != null)
+        {
+            var templates = new System.Collections.Generic.List<SrpUnitTemplateData>();
+            foreach (var template in map.templates)
+            {
+                if (template != null && !string.IsNullOrEmpty(template.id))
+                    templates.Add(template.Clone());
+            }
+            carry.templates = templates.ToArray();
+        }
         return carry;
+    }
+
+    /// <summary>
+    /// 저장할 맵에 넣을 템플릿 목록. 배치에 쓰인 템플릿만, 처음 쓰인 순서대로 담는다.
+    /// 유닛 DB에 있는 템플릿은 DB 값을 쓰고(메이커의 기존 동작), DB에 없으면 불러온 맵에 들어 있던 템플릿을 쓴다.
+    /// 어느 쪽에도 없는 id는 건너뛴다.
+    /// </summary>
+    public SrpUnitTemplateData[] ResolveTemplates(
+        System.Collections.Generic.IEnumerable<string> placedTemplateIds,
+        SrpUnitTemplateData[] unitDb)
+    {
+        var fromDb = new System.Collections.Generic.Dictionary<string, SrpUnitTemplateData>();
+        if (unitDb != null)
+        {
+            foreach (var unit in unitDb)
+            {
+                if (unit != null && !string.IsNullOrEmpty(unit.id))
+                    fromDb[unit.id] = unit;
+            }
+        }
+
+        var used = new System.Collections.Generic.List<SrpUnitTemplateData>();
+        var usedIds = new System.Collections.Generic.HashSet<string>();
+        if (placedTemplateIds == null)
+            return used.ToArray();
+
+        foreach (string id in placedTemplateIds)
+        {
+            if (string.IsNullOrEmpty(id) || usedIds.Contains(id))
+                continue;
+            if (!fromDb.TryGetValue(id, out var template))
+                template = FindCarriedTemplate(id);
+            if (template == null)
+                continue;
+            used.Add(template);
+            usedIds.Add(id);
+        }
+        return used.ToArray();
+    }
+
+    SrpUnitTemplateData FindCarriedTemplate(string id)
+    {
+        if (templates == null)
+            return null;
+        foreach (var template in templates)
+        {
+            if (template != null && template.id == id)
+                return template.Clone();
+        }
+        return null;
     }
 
     /// <summary>보존한 값을 저장할 맵에 되돌려 넣는다. 맵 크기를 벗어난 상호작용 포인트는 뺀다.</summary>
