@@ -1613,6 +1613,8 @@ public partial class SrpGameController
 
         var parts = new List<string>();
         parts.Add($"반응: {BuildReactionReadinessText(unit)}");
+        if (unit.isCommander && _state != null && _state.VictoryRule != null && _state.VictoryRule.commanderKill)
+            parts.Add("지휘관");
         if (unit.frozenHeart > 0)
             parts.Add($"안정도(FH) {unit.frozenHeart}");
         if (unit.IsPgBroken)
@@ -1783,7 +1785,7 @@ public partial class SrpGameController
             return "초기화 중...";
         string mapName = initialMap != null ? initialMap.name : "?";
         return _gameOver
-            ? "게임 종료"
+            ? BuildGameOverText()
             : $"라운드 {_state.RoundNumber} | 상태: {BuildHudPhaseLabel()} | 위험영역 {(IsDangerAreaVisible ? "ON" : "OFF")} | 맵: {mapName}";
     }
 
@@ -2120,8 +2122,12 @@ public partial class SrpGameController
         string ownerText = point.requiredOwner < 0 ? "누구나 가능" : $"P{point.requiredOwner} 전용";
         string stateText = point.activated ? "활성화됨" : "미활성";
         string result = canInteract ? "실행 가능: AP-1, 포인트 활성화" : "현재 유닛으로 실행 불가";
+        string effectText = point.effect == SrpInteractionEffect.VictoryObjective
+            && _state.VictoryRule != null && _state.VictoryRule.interactionObjective
+            ? "\n효과: 승리 목표 (대상 목표를 모두 확보하면 승리)"
+            : string.Empty;
         return ($"상호작용 Preview: {GetInteractionLabel(point)}",
-            $"위치 ({point.x},{point.y}) | {stateText}\n조건: {ownerText} | singleUse:{point.singleUse}\n{result}");
+            $"위치 ({point.x},{point.y}) | {stateText}\n조건: {ownerText} | singleUse:{point.singleUse}\n{result}{effectText}");
     }
 
     string BuildTargetInfoText(SrpUnitRuntime target)
@@ -2132,6 +2138,8 @@ public partial class SrpGameController
             $"HP {target.hp}/{target.maxHp} | PG {target.pg}/{target.maxPg}",
             $"반응: {BuildReactionReadinessText(target)}",
         };
+        if (target.isCommander && _state.VictoryRule != null && _state.VictoryRule.commanderKill)
+            parts.Add("지휘관 (쓰러지면 해당 진영 패배)");
         if (target.UsesAmmo)
             parts.Add($"탄약 {target.ammo}/{target.maxAmmo}");
         if (target.coverActive)

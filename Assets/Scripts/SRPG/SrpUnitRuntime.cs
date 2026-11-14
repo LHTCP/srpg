@@ -160,6 +160,9 @@ public class SrpUnitRuntime
     public bool pgBreakGuard;
     public bool eliminated;
 
+    /// <summary>지휘관 표시(맵 배치 데이터). 지휘관 처치 승리 조건을 켠 맵에서만 승패에 쓰인다.</summary>
+    public bool isCommander;
+
     public bool hasMovedThisActivation;
     public bool hasAttackedThisActivation;
     public bool hasUsedSkillThisActivation;
@@ -213,6 +216,7 @@ public class SrpUnitRuntime
             groggy = groggy,
             pgBreakGuard = pgBreakGuard,
             eliminated = eliminated,
+            isCommander = isCommander,
             hasMovedThisActivation = hasMovedThisActivation,
             hasAttackedThisActivation = hasAttackedThisActivation,
             hasUsedSkillThisActivation = hasUsedSkillThisActivation,

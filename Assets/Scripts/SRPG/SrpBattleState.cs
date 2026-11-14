@@ -23,6 +23,9 @@ public class SrpBattleState
     public List<SrpCoverObjectData> CoverObjects { get; private set; } = new List<SrpCoverObjectData>();
     public List<SrpCoverSegmentData> CoverSegments { get; private set; } = new List<SrpCoverSegmentData>();
 
+    /// <summary>맵별 승리 조건. 판정은 SrpVictory.Evaluate가 한다.</summary>
+    public SrpVictoryRuleData VictoryRule { get; private set; } = new SrpVictoryRuleData();
+
     int _nextUnitId = 1;
 
     public SrpBattleState Clone()
@@ -44,6 +47,7 @@ public class SrpBattleState
             InteractionPoints = CloneInteractionPoints(InteractionPoints),
             CoverObjects = CloneCoverObjects(CoverObjects),
             CoverSegments = CloneCoverSegments(CoverSegments),
+            VictoryRule = VictoryRule != null ? VictoryRule.Clone() : new SrpVictoryRuleData(),
         };
         foreach (var u in Units)
             s.Units.Add(u.Clone());
@@ -63,6 +67,7 @@ public class SrpBattleState
             CurrentPlayerIndex = 0,
             RoundNumber = 1,
             CurrentUnitId = -1,
+            VictoryRule = map.victory != null ? map.victory.Clone() : new SrpVictoryRuleData(),
         };
         if (map.templates != null)
         {
@@ -242,6 +247,7 @@ public class SrpBattleState
                 p.footprint ?? System.Array.Empty<SrpOffset>(),
                 allowedSkillIds,
                 BuildSkillFilter(p.disabledSkillIds));
+            u.isCommander = p.isCommander;
             Units.Add(u);
         }
     }

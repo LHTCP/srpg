@@ -364,24 +364,11 @@ public static class SrpBattleSimRunner
         return null;
     }
 
+    /// <summary>런타임과 같은 승패 판정(SrpVictory). 미결이거나 무승부면 -1.</summary>
     static int GetWinnerOwner(SrpBattleState state)
     {
-        int aliveOwner = -1;
-        foreach (var unit in state.Units)
-        {
-            if (unit.eliminated)
-                continue;
-
-            if (aliveOwner == -1)
-            {
-                aliveOwner = unit.owner;
-                continue;
-            }
-
-            if (aliveOwner != unit.owner)
-                return -1;
-        }
-        return aliveOwner;
+        var result = SrpVictory.Evaluate(state);
+        return result.decided ? result.winnerOwner : -1;
     }
 
     static void Accumulate(ref SrpSimMetrics metrics, SrpSingleBattleResult result)

@@ -13,6 +13,8 @@ public static class SrpDefaultMaps
                 return CreateM1OpeningPrototype();
             case SrpMapPreset.M1EngagementLab:
                 return CreateM1EngagementLab();
+            case SrpMapPreset.M1ObjectiveLab:
+                return CreateM1ObjectiveLab();
             case SrpMapPreset.M1QaIntegrated:
             default:
                 return CreateM1QaIntegrated();
@@ -636,6 +638,145 @@ public static class SrpDefaultMaps
             playerOrder = new[] { 0, 1 },
             templates = templates,
             placements = placements,
+        };
+    }
+
+    /// <summary>
+    /// 승리 조건 QA 프리셋.
+    /// - 적 전멸 외에 지휘관 처치와 상호작용 목표(신호 장치) 승리를 고정 조건에서 확인한다.
+    /// - 양 진영에 지휘관이 한 명씩 있고, 신호 장치는 owner 0만 쓸 수 있다.
+    /// - 수치는 판정 확인용 임시값이며 첫 전투(M1OpeningPrototype) 승리 조건은 바꾸지 않는다.
+    /// </summary>
+    public static SrpMapFileV1 CreateM1ObjectiveLab()
+    {
+        int w = 9, h = 5;
+        int n = w * h;
+        var walk = new bool[n];
+        for (int i = 0; i < n; i++)
+            walk[i] = true;
+
+        // 중앙 기둥으로 정면 통로와 남쪽 신호 장치 루트를 나눈다.
+        walk[4 + 1 * w] = false;
+        walk[4 + 3 * w] = false;
+
+        var templates = new[]
+        {
+            new SrpUnitTemplateData
+            {
+                id = "objective_leader",
+                displayName = "아군 지휘관",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 9,
+                maxHp = 36,
+                maxPg = 22,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 11,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.East,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = (int)SrpUnitTags.ParryUser,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "objective_rifle",
+                displayName = "아군 사격수",
+                moveRange = 3,
+                attackRange = 4,
+                attackPower = 8,
+                maxHp = 28,
+                maxPg = 16,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 9,
+                weaponClass = SrpWeaponClass.Firearm,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.East,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "objective_enemy_officer",
+                displayName = "적 지휘관",
+                moveRange = 3,
+                attackRange = 1,
+                attackPower = 7,
+                maxHp = 30,
+                maxPg = 18,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 8,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Defensive,
+                facing = SrpFacing.West,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "objective_enemy_guard",
+                displayName = "적 호위병",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 8,
+                maxHp = 34,
+                maxPg = 20,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 10,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.West,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+        };
+
+        var placements = new[]
+        {
+            new SrpPlacementData { templateId = "objective_leader", owner = 0, x = 1, y = 2, footprint = new SrpOffset[0], isCommander = true },
+            new SrpPlacementData { templateId = "objective_rifle", owner = 0, x = 0, y = 1, footprint = new SrpOffset[0] },
+
+            new SrpPlacementData { templateId = "objective_enemy_officer", owner = 1, x = 8, y = 2, footprint = new SrpOffset[0], isCommander = true },
+            new SrpPlacementData { templateId = "objective_enemy_guard", owner = 1, x = 6, y = 2, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "objective_enemy_guard", owner = 1, x = 7, y = 1, footprint = new SrpOffset[0] },
+        };
+
+        var interactionPoints = new[]
+        {
+            new SrpInteractionPointData
+            {
+                id = "objective_signal",
+                displayName = "신호 장치",
+                x = 7,
+                y = 4,
+                owner = -1,
+                requiredOwner = 0,
+                singleUse = true,
+                activated = false,
+                effect = SrpInteractionEffect.VictoryObjective,
+            },
+        };
+
+        return new SrpMapFileV1
+        {
+            version = 2,
+            name = "m1_objective_lab",
+            width = w,
+            height = h,
+            walkable = walk,
+            playerOrder = new[] { 0, 1 },
+            templates = templates,
+            placements = placements,
+            interactionPoints = interactionPoints,
+            victory = new SrpVictoryRuleData { commanderKill = true, interactionObjective = true },
         };
     }
 }

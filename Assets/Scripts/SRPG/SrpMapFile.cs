@@ -49,6 +49,40 @@ public class SrpPlacementData
     public int y;
     public SrpOffset[] footprint = Array.Empty<SrpOffset>();
     public string[] disabledSkillIds = Array.Empty<string>();
+
+    /// <summary>지휘관 표시. 맵의 victory.commanderKill이 켜져 있을 때만 승패에 쓰인다.</summary>
+    public bool isCommander;
+}
+
+/// <summary>상호작용 포인트를 활성화했을 때의 효과. 기존 맵(값 없음)은 None이다.</summary>
+public enum SrpInteractionEffect
+{
+    None = 0,
+    /// <summary>승리 목표. 맵의 victory.interactionObjective가 켜져 있을 때만 승패에 쓰인다.</summary>
+    VictoryObjective = 1,
+}
+
+/// <summary>
+/// 맵별 승리 조건. 적 전멸은 항상 적용되고, 아래 조건은 켠 맵에서만 추가로 적용된다.
+/// 기존 맵(값 없음)은 모두 꺼져 있어 전멸 규칙만 쓴다.
+/// </summary>
+[Serializable]
+public class SrpVictoryRuleData
+{
+    /// <summary>지휘관(isCommander)이 있던 진영은 지휘관이 모두 쓰러지면 패배한다.</summary>
+    public bool commanderKill;
+
+    /// <summary>자기 진영이 쓸 수 있는 승리 목표 포인트를 모두 활성화해 보유한 진영이 승리한다.</summary>
+    public bool interactionObjective;
+
+    public SrpVictoryRuleData Clone()
+    {
+        return new SrpVictoryRuleData
+        {
+            commanderKill = commanderKill,
+            interactionObjective = interactionObjective,
+        };
+    }
 }
 
 [Serializable]
@@ -62,6 +96,7 @@ public class SrpInteractionPointData
     public int requiredOwner = -1;
     public bool singleUse = true;
     public bool activated;
+    public SrpInteractionEffect effect = SrpInteractionEffect.None;
 
     public SrpInteractionPointData Clone()
     {
@@ -75,6 +110,7 @@ public class SrpInteractionPointData
             requiredOwner = requiredOwner,
             singleUse = singleUse,
             activated = activated,
+            effect = effect,
         };
     }
 }
@@ -159,4 +195,5 @@ public class SrpMapFileV1
     public SrpCoverObjectData[] coverObjects = Array.Empty<SrpCoverObjectData>();
     public SrpCoverSegmentData[] coverSegments = Array.Empty<SrpCoverSegmentData>();
     public string[] allowedSkillIds = Array.Empty<string>();
+    public SrpVictoryRuleData victory = new SrpVictoryRuleData();
 }

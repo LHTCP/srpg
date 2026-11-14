@@ -82,6 +82,7 @@ public partial class SrpGameController : MonoBehaviour
     SrpTacticalCameraController _tacticalCamera;
 
     bool _gameOver;
+    SrpVictoryResult _victoryResult = SrpVictoryResult.Undecided();
 
     // ── 생명주기 ─────────────────────────────────────────────────────────────
 
@@ -121,6 +122,7 @@ public partial class SrpGameController : MonoBehaviour
         BuildHud();
         RefreshUnitViews();
         LogLine("SRPG 프로토타입 — 속도 기반 라운드 턴 시작.");
+        LogVictoryRule();
         StartRound();
         UpdateHud();
     }
@@ -555,17 +557,7 @@ public partial class SrpGameController : MonoBehaviour
 
     bool IsBattleDecided()
     {
-        int aliveOwner = -1;
-        foreach (var unit in _state.Units)
-        {
-            if (unit.eliminated)
-                continue;
-            if (aliveOwner == -1)
-                aliveOwner = unit.owner;
-            else if (aliveOwner != unit.owner)
-                return false;
-        }
-        return true;
+        return SrpVictory.Evaluate(_state).decided;
     }
 
     // ── 적 AI ────────────────────────────────────────────────────────────────
@@ -888,6 +880,7 @@ public partial class SrpGameController : MonoBehaviour
         LogLine("— 되감기 —");
         _postUndoHint = true;
         _gameOver = false;
+        _victoryResult = SrpVictoryResult.Undecided();
         UpdateHud();
     }
 
@@ -1153,9 +1146,7 @@ public partial class SrpGameController : MonoBehaviour
 
     void AdvanceToNextActivation()
     {
-        if (_gameOver)
-            return;
-
+        // 반응 사격 등으로 이미 승패가 난 채 들어와도 종료 상태를 화면에 반영한다.
         CheckWin();
         if (_gameOver)
         {
@@ -1213,6 +1204,7 @@ public partial class SrpGameController : MonoBehaviour
         _selectedId = null;
         _phase = Phase.Idle;
         _gameOver = false;
+        _victoryResult = SrpVictoryResult.Undecided();
         _enemyAiToken++;
 
         _state = SrpBattleState.FromMap(map);
@@ -1221,24 +1213,47 @@ public partial class SrpGameController : MonoBehaviour
         RefreshUnitViews();
         StartRound();
         LogLine("맵 적용: " + map.name);
+        LogVictoryRule();
         UpdateHud();
     }
 
+    /// <summary>승패를 판정한다(SrpVictory). 결판이 났으면 _gameOver를 세우고 결과를 한 번만 기록한다.</summary>
     void CheckWin()
     {
-        var alive = new HashSet<int>();
-        foreach (var u in _state.Units)
-            if (!u.eliminated) alive.Add(u.owner);
+        if (_gameOver)
+            return;
+        var result = SrpVictory.Evaluate(_state);
+        if (!result.decided)
+            return;
 
-        if (alive.Count > 1) return;
         _gameOver = true;
-        if (alive.Count == 1)
-        {
-            foreach (var a in alive)
-                LogLine($"게임 종료: 플레이어 {a} 승리.");
-        }
+        _victoryResult = result;
+        if (result.winnerOwner >= 0)
+            LogLine($"게임 종료: 플레이어 {result.winnerOwner} 승리. ({SrpVictory.DescribeReason(result.reason)})");
         else
             LogLine("게임 종료: 무승부(전멸).");
+    }
+
+    void LogVictoryRule()
+    {
+        LogLine($"승리 조건: {SrpVictory.DescribeRule(_state)}");
+        var rule = _state.VictoryRule;
+        if (rule == null || !rule.commanderKill)
+            return;
+        foreach (var unit in _state.Units)
+        {
+            if (unit != null && unit.isCommander && !unit.eliminated)
+                LogLine($"지휘관: P{unit.owner} {unit.displayName}({unit.id})");
+        }
+    }
+
+    string BuildGameOverText()
+    {
+        if (!_victoryResult.decided)
+            return "게임 종료";
+        return _victoryResult.winnerOwner >= 0
+            ? $"게임 종료 | 플레이어 {_victoryResult.winnerOwner} 승리 ({SrpVictory.DescribeReason(_victoryResult.reason)})"
+            : "게임 종료 | 무승부";
     }
 
     SrpUnitRuntime GetUnit(int id)
@@ -1445,6 +1460,14 @@ public partial class SrpGameController : MonoBehaviour
         SpawnWorldFeedback(unit, "\uC0C1\uD638\uC791\uC6A9", new Color(1f, 0.86f, 0.25f));
         FlashUnit(unit, new Color(1f, 0.86f, 0.25f));
         LogLine($"상호작용: {unit.displayName} → {label}({point.x},{point.y}) | AP-1");
+        if (point.effect == SrpInteractionEffect.VictoryObjective)
+            LogLine($"승리 목표 확보: P{unit.owner} → {label}");
+        // 목표 확보로 승패가 났으면 활성화를 끝내고 종료 상태로 넘어간다.
+        if (IsBattleDecided())
+        {
+            FinishActivation();
+            return true;
+        }
         RefreshActiveHighlights(unit);
         UpdateHud();
         return true;
