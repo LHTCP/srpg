@@ -2,6 +2,19 @@
 
 ## 2026-11-15
 
+- 7차: 적 AI 확장과 6차 결함 수정
+  - 적 AI(`SrpEnemyAi`): 범위 피해, 적에게 붙이는 태그, 반응 약화, HP/PG 회복 스킬을 같은 척도로 견줘 쓴다. AP가 2면 태그를 먼저 붙이고 같은 대상을 공격한다. 활성화를 끝내는 스킬은 공격 뒤로 미룬다
+  - 적 AI 엄폐: 사격 뒤나 더 할 행동이 없을 때, 사격해 올 적에게 실제로 효과가 있는 엄폐에만 AP를 쓴다
+  - 적 AI 승리 조건(맵이 켠 경우만): 승리 목표 옆으로 가 상호작용하고, 적 지휘관과 목표에 닿으려는 적을 먼저 공격하며, 지휘관은 아군이 남아 있는 동안 앞으로 나서지 않는다
+  - `SrpBattleFlow`에 엄폐(`CanTakeCover`, `TakeCover`)와 AI 행동 `TakeCover`/`Interact`를 넣었다. 플레이어의 엄폐도 같은 함수를 쓴다. AI 스킬 행동은 칸을 대상으로 받는다(`SrpSkills.CanTargetTile`)
+  - 시뮬레이션 리포트에 판당 엄폐/상호작용 횟수와 종료 방식 비율(전멸/지휘관 처치/목표 확보)을 추가
+  - 수정: 맵 메이커가 유닛 DB에 없는 템플릿(프리셋 전용 유닛 등)을 저장에서 빠뜨리던 문제(`SrpMapCarryOver.templates`, `ResolveTemplates`)
+  - 수정: `전장 장막`의 오버클럭 강화가 소모만 되고 PG 회복에 적용되지 않던 문제. HP/PG를 회복하는 `BuffStat`에도 강화가 붙는다
+  - 테스트: `SrpM1Phase7Tests` 20건 추가
+  - 시뮬레이션 수치 변화(평균 라운드): `M1OpeningPrototype` H vs R 6.28 → 6.15, R vs H 6.13 → 6.13. `M1QaIntegrated` H vs R 4.95 → 5.16, H vs H 6.91 → 7.24. `M1BarricadeAssault` H vs H 6.46 → 6.53(플레이어 진영 승률 0.705 → 0.580). 임계치는 바꾸지 않았고 모두 통과한다
+  - 남은 기획 질문 9건(Q4, Q6, Q7, Q10~Q15)의 선택지·권장안·측정값을 계획 문서 6.1절에 정리했다. 결정 대기
+  - 검증: Unity 미실행(라이선스 미활성). .NET 로직 테스트 194개 통과, Unity DLL 참조 컴파일 오류 0·경고 0, `scripts/validate-repo.sh` 통과. 적 AI의 엄폐·상호작용 연출과 사람 상대 난이도는 화면으로 확인하지 못했다. 확인 항목은 계획 문서 14절
+
 - 6차: 검증 기반·콘텐츠·메이커 마무리
   - 검증: Unity 없이 도는 전투 로직 테스트를 저장소에 넣고 PR CI에 붙였다(`tools/logic-tests`, `scripts/run-logic-tests.sh`, `docs/project/logic-tests.md`). 컨트롤러·화면 코드는 대상이 아니다
   - 데이터: 로컬 `skills.json`/`units.json`에 기본 데이터 버전을 저장하고, 버전이 낮으면 내장 id의 항목을 최신 값으로 갱신한다. 사용자 항목은 유지하고 이전 파일은 백업한다(`SrpDataIO`, `SrpDefaultDataMerge`)
