@@ -15,6 +15,8 @@ public static class SrpDefaultMaps
                 return CreateM1EngagementLab();
             case SrpMapPreset.M1ObjectiveLab:
                 return CreateM1ObjectiveLab();
+            case SrpMapPreset.M1BarricadeAssault:
+                return CreateM1BarricadeAssault();
             case SrpMapPreset.M1QaIntegrated:
             default:
                 return CreateM1QaIntegrated();
@@ -777,6 +779,166 @@ public static class SrpDefaultMaps
             placements = placements,
             interactionPoints = interactionPoints,
             victory = new SrpVictoryRuleData { commanderKill = true, interactionObjective = true },
+        };
+    }
+
+    /// <summary>
+    /// 방벽선 돌파 프리셋(6차 추가).
+    /// - 5인 파티(주인공, 탱커, 사격수, 마도사, 투사)가 낮은 방벽선 뒤의 적 6명을 상대한다.
+    /// - 방벽은 넘을 수 없고 남쪽·북쪽 틈으로만 넘어갈 수 있다. 가운데 높은 벽은 시야를 막고,
+    ///   양 끝의 낮은 방벽은 시야와 사선이 통해 사격로가 된다.
+    /// - 승리 조건: 전멸, 적 지휘관(방벽 대장) 처치, 봉화대 점화(플레이어만).
+    /// - 범위 스킬(제압 사격, 충격장, 전열 재정비)과 투사의 균열 베기를 쓰는 맵이다.
+    /// </summary>
+    public static SrpMapFileV1 CreateM1BarricadeAssault()
+    {
+        int w = 14, h = 9;
+        int n = w * h;
+        var walk = new bool[n];
+        for (int i = 0; i < n; i++)
+            walk[i] = true;
+
+        var coverObjects = new System.Collections.Generic.List<SrpCoverObjectData>();
+
+        // x=7의 방벽선. y=2(남쪽 틈), y=6(북쪽 틈)만 열려 있다.
+        // 가운데(y=3~5)는 시야를 막는 높은 벽, 양 끝은 시야가 통하는 낮은 방벽이다.
+        for (int y = 0; y < h; y++)
+        {
+            if (y == 2 || y == 6)
+                continue;
+            walk[7 + y * w] = false;
+            bool high = y >= 3 && y <= 5;
+            coverObjects.Add(new SrpCoverObjectData { x = 7, y = y, coverDef = high ? 3 : 2, coverGrd = 1, blocksLineOfSight = high, visualKey = high ? "barricade_wall" : "barricade_low" });
+        }
+
+        // 시야를 막는 폐허. 서쪽은 접근 엄폐, 동쪽은 지휘관 앞 차폐.
+        int[,] ruins = { { 4, 4 }, { 4, 5 }, { 10, 3 } };
+        for (int i = 0; i < ruins.GetLength(0); i++)
+        {
+            int rx = ruins[i, 0];
+            int ry = ruins[i, 1];
+            walk[rx + ry * w] = false;
+            coverObjects.Add(new SrpCoverObjectData { x = rx, y = ry, coverDef = 3, coverGrd = 1, blocksLineOfSight = true, visualKey = "barricade_ruin" });
+        }
+
+        var templates = new[]
+        {
+            BarricadeTemplate("breaker", "주인공", SrpWeaponClass.Melee, SrpStance.Aggressive, SrpFacing.East,
+                move: 5, range: 1, attack: 11, hp: 34, pg: 22, speed: 10, ammo: 0, tags: (int)SrpUnitTags.ParryUser,
+                skills: new[] { "hero_adaptive_heart", "cleave" }),
+            BarricadeTemplate("vanguard", "전열 탱커", SrpWeaponClass.Melee, SrpStance.Defensive, SrpFacing.East,
+                move: 4, range: 1, attack: 9, hp: 42, pg: 28, speed: 8, ammo: 0, tags: (int)SrpUnitTags.Tank,
+                skills: new[] { "tank_line_anchor", "cleave", "rally_line" }),
+            BarricadeTemplate("rifleman", "사격수", SrpWeaponClass.Firearm, SrpStance.Aggressive, SrpFacing.East,
+                move: 4, range: 5, attack: 8, hp: 28, pg: 16, speed: 12, ammo: 1, tags: 0,
+                skills: new[] { "rifle_exposed_punisher", "kill_order", "suppressing_fire" }),
+            BarricadeTemplate("mage", "마도사", SrpWeaponClass.Magic, SrpStance.Aggressive, SrpFacing.East,
+                move: 4, range: 3, attack: 7, hp: 26, pg: 15, speed: 9, ammo: 0, tags: 0,
+                skills: new[] { "mage_field_theory", "tactical_mark", "shock_field", "arcane_screen" }),
+            BarricadeTemplate("duelist", "투사", SrpWeaponClass.Melee, SrpStance.Aggressive, SrpFacing.East,
+                move: 5, range: 1, attack: 10, hp: 28, pg: 18, speed: 12, ammo: 0, tags: 0,
+                skills: new[] { "duelist_second_wind", "rending_strike" }),
+
+            BarricadeTemplate("barricade_marksman", "방벽 사격병", SrpWeaponClass.Firearm, SrpStance.Aggressive, SrpFacing.West,
+                move: 3, range: 5, attack: 7, hp: 24, pg: 14, speed: 11, ammo: 1, tags: 0,
+                skills: new string[0]),
+            BarricadeTemplate("barricade_sniper", "저격병", SrpWeaponClass.Firearm, SrpStance.Aggressive, SrpFacing.West,
+                move: 3, range: 6, attack: 9, hp: 20, pg: 12, speed: 9, ammo: 1, tags: 0,
+                skills: new string[0]),
+            BarricadeTemplate("barricade_bulwark", "틈새 방패병", SrpWeaponClass.Melee, SrpStance.Defensive, SrpFacing.West,
+                move: 3, range: 1, attack: 8, hp: 38, pg: 28, speed: 7, ammo: 0, tags: (int)SrpUnitTags.Tank,
+                skills: new[] { "cleave" }),
+            BarricadeTemplate("barricade_raider", "돌입병", SrpWeaponClass.Melee, SrpStance.Aggressive, SrpFacing.West,
+                move: 5, range: 1, attack: 8, hp: 28, pg: 18, speed: 11, ammo: 0, tags: 0,
+                skills: new string[0]),
+            BarricadeTemplate("barricade_captain", "방벽 대장", SrpWeaponClass.Melee, SrpStance.Defensive, SrpFacing.West,
+                move: 4, range: 1, attack: 9, hp: 40, pg: 26, speed: 9, ammo: 0, tags: 0,
+                skills: new[] { "rending_strike" }),
+        };
+
+        var placements = new[]
+        {
+            // Owner 0: 5인 파티. 지휘관을 두지 않는다(앞에 서는 주인공이 지휘관이면 집중 사격에 바로 끝난다).
+            new SrpPlacementData { templateId = "breaker", owner = 0, x = 1, y = 4, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "vanguard", owner = 0, x = 2, y = 5, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "rifleman", owner = 0, x = 1, y = 2, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "mage", owner = 0, x = 1, y = 6, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "duelist", owner = 0, x = 2, y = 3, footprint = new SrpOffset[0] },
+
+            // Owner 1: 방벽 수비대. 방벽 대장이 지휘관이다.
+            new SrpPlacementData { templateId = "barricade_marksman", owner = 1, x = 8, y = 1, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "barricade_marksman", owner = 1, x = 8, y = 7, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "barricade_bulwark", owner = 1, x = 8, y = 2, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "barricade_raider", owner = 1, x = 9, y = 6, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "barricade_sniper", owner = 1, x = 11, y = 1, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "barricade_captain", owner = 1, x = 11, y = 4, footprint = new SrpOffset[0], isCommander = true },
+        };
+
+        var interactionPoints = new[]
+        {
+            new SrpInteractionPointData
+            {
+                id = "barricade_beacon",
+                displayName = "봉화대",
+                x = 12,
+                y = 4,
+                owner = -1,
+                requiredOwner = 0,
+                singleUse = true,
+                activated = false,
+                effect = SrpInteractionEffect.VictoryObjective,
+            },
+        };
+
+        var coverSegments = new[]
+        {
+            // 틈 앞의 접근 엄폐(서쪽)와 틈 뒤의 수비 엄폐(동쪽).
+            new SrpCoverSegmentData { x = 5, y = 2, edge = SrpCoverEdge.East, shape = SrpCoverShape.Linear, coverDef = 3, coverGrd = 1, blocksLineOfSight = false },
+            new SrpCoverSegmentData { x = 5, y = 6, edge = SrpCoverEdge.East, shape = SrpCoverShape.Linear, coverDef = 3, coverGrd = 1, blocksLineOfSight = false },
+            new SrpCoverSegmentData { x = 9, y = 2, edge = SrpCoverEdge.West, shape = SrpCoverShape.Linear, coverDef = 3, coverGrd = 2, blocksLineOfSight = false },
+            new SrpCoverSegmentData { x = 9, y = 6, edge = SrpCoverEdge.West, shape = SrpCoverShape.Linear, coverDef = 3, coverGrd = 2, blocksLineOfSight = false },
+        };
+
+        return new SrpMapFileV1
+        {
+            version = 2,
+            name = "m1_barricade_assault",
+            width = w,
+            height = h,
+            walkable = walk,
+            playerOrder = new[] { 0, 1 },
+            templates = templates,
+            placements = placements,
+            interactionPoints = interactionPoints,
+            coverObjects = coverObjects.ToArray(),
+            coverSegments = coverSegments,
+            victory = new SrpVictoryRuleData { commanderKill = true, interactionObjective = true },
+        };
+    }
+
+    static SrpUnitTemplateData BarricadeTemplate(
+        string id, string displayName, SrpWeaponClass weaponClass, SrpStance stance, SrpFacing facing,
+        int move, int range, int attack, int hp, int pg, int speed, int ammo, int tags, string[] skills)
+    {
+        return new SrpUnitTemplateData
+        {
+            id = id,
+            displayName = displayName,
+            moveRange = move,
+            attackRange = range,
+            attackPower = attack,
+            maxAmmo = ammo,
+            maxHp = hp,
+            maxPg = pg,
+            maxActionPoints = 2,
+            maxReactionPoints = 1,
+            speed = speed,
+            weaponClass = weaponClass,
+            stance = stance,
+            facing = facing,
+            skillIds = skills,
+            maxSkills = 4,
+            tags = tags,
         };
     }
 }

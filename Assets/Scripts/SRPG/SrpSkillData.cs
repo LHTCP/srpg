@@ -96,11 +96,15 @@ public class SrpSkillRuntime
 [Serializable]
 public class SrpSkillDatabase
 {
+    /// <summary>저장 시점의 내장 기본 스킬 버전(SrpDefaultSkills.Version). 값이 없는 예전 파일은 0으로 읽힌다.</summary>
+    public int defaultsVersion;
     public SrpSkillData[] skills = Array.Empty<SrpSkillData>();
 }
 
 [Serializable]
 public class SrpUnitDatabase
 {
+    /// <summary>저장 시점의 내장 기본 유닛 버전(SrpDefaultUnits.Version). 값이 없는 예전 파일은 0으로 읽힌다.</summary>
+    public int defaultsVersion;
     public SrpUnitTemplateData[] units = Array.Empty<SrpUnitTemplateData>();
 }

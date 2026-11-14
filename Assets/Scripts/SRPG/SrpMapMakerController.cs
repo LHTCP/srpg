@@ -14,12 +14,12 @@ public class SrpMapMakerController : MonoBehaviour
     string _mapName = "new_map";
     bool[] _walkable;
     List<PlacedUnit> _placements = new List<PlacedUnit>();
-    // 메이커가 편집하지 않는 맵 데이터(승리 조건, 상호작용 포인트). 불러온 값을 저장 때 그대로 되돌려 넣는다.
+    // 승리 조건, 상호작용 포인트, 허용 스킬 목록. 앞의 둘은 메이커에서 고치고, 허용 스킬 목록은 불러온 값을 그대로 저장한다.
     SrpMapCarryOver _carryOver = new SrpMapCarryOver();
     SrpUnitTemplateData[] _allUnits = Array.Empty<SrpUnitTemplateData>();
     SrpSkillData[] _allSkills = Array.Empty<SrpSkillData>();
 
-    enum EditMode { Terrain, PlaceUnit, RemoveUnit, CoverObject, CoverSegment }
+    enum EditMode { Terrain, PlaceUnit, RemoveUnit, CoverObject, CoverSegment, InteractionPoint, Commander }
     EditMode _editMode = EditMode.Terrain;
 
     // 엄폐 편집 데이터. 규칙은 SrpMapCoverEdit(순수 로직)에 있다.
@@ -27,6 +27,9 @@ public class SrpMapMakerController : MonoBehaviour
     readonly List<SrpCoverSegmentData> _coverSegments = new List<SrpCoverSegmentData>();
     readonly List<GameObject> _coverMarkers = new List<GameObject>();
     bool _coverBlocksLineOfSight = true;
+    SrpMapCoverEdit.Strength _coverStrength = SrpMapCoverEdit.Strength.Default;
+    // 새로 놓는 상호작용 포인트를 승리 목표로 만들지 여부.
+    bool _pointIsVictoryObjective = true;
     int _selectedUnitIndex = -1;
     int _placementOwner;
 
@@ -37,7 +40,7 @@ public class SrpMapMakerController : MonoBehaviour
         public int x, y;
         public int footprintW, footprintH;
         public List<string> disabledSkillIds;
-        // 메이커에서 편집하지 않지만 불러온 맵의 지휘관 표시를 저장 때 유지한다.
+        // 지휘관 표시. "지휘관" 편집 모드에서 유닛을 클릭해 켜고 끈다.
         public bool isCommander;
     }
 
@@ -64,6 +67,12 @@ public class SrpMapMakerController : MonoBehaviour
     Button _btnModeCoverObject;
     Button _btnModeCoverSegment;
     Button _btnCoverLineOfSight;
+    Button _btnCoverStrength;
+    Button _btnPointObjective;
+    Button _btnModeInteraction;
+    Button _btnModeCommander;
+    Button _btnVictoryCommander;
+    Button _btnVictoryObjective;
     int _selectedPlacementIndex = -1;
     GameObject _unitSkillPanel;
     readonly List<(GameObject go, Toggle toggle, string skillId)> _unitSkillToggles
@@ -84,6 +93,9 @@ public class SrpMapMakerController : MonoBehaviour
     static readonly Color BlockColor = new Color(0.35f, 0.3f, 0.28f);
     static readonly Color CoverSightBlockColor = new Color(0.16f, 0.17f, 0.22f);
     static readonly Color CoverLowColor = new Color(0.85f, 0.70f, 0.38f);
+    static readonly Color ObjectivePointColor = new Color(1f, 0.85f, 0.2f);
+    static readonly Color PlainPointColor = new Color(0.75f, 0.78f, 0.85f);
+    static readonly Color CommanderColor = new Color(1f, 0.9f, 0.3f);
 
     // ── 생명주기 ──────────────────────────────────────────────────────────────
 
@@ -145,6 +157,7 @@ public class SrpMapMakerController : MonoBehaviour
         _coverSegments.Clear();
         // 그리드를 새로 만들면 새 맵이므로 이전에 불러온 맵의 승리 조건/상호작용 포인트도 비운다.
         _carryOver = new SrpMapCarryOver();
+        RefreshObjectiveButtons();
     }
 
     // ── 그리드 ────────────────────────────────────────────────────────────────
@@ -225,6 +238,24 @@ public class SrpMapMakerController : MonoBehaviour
             ApplyColor(wall.GetComponent<Renderer>(), segment.blocksLineOfSight ? CoverSightBlockColor : CoverLowColor);
             _coverMarkers.Add(wall);
         }
+
+        // 상호작용 포인트: 칸 위의 작은 구. 노란색은 승리 목표다.
+        if (_carryOver.interactionPoints != null)
+        {
+            foreach (var point in _carryOver.interactionPoints)
+            {
+                if (point == null || point.x < 0 || point.y < 0 || point.x >= _mapWidth || point.y >= _mapHeight)
+                    continue;
+                var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                sphere.name = $"interactionPoint_{point.x}_{point.y}";
+                Destroy(sphere.GetComponent<Collider>());
+                sphere.transform.position = new Vector3(point.x * _cellSize, 0.45f, point.y * _cellSize);
+                sphere.transform.localScale = Vector3.one * (_cellSize * 0.35f);
+                bool objective = point.effect == SrpInteractionEffect.VictoryObjective;
+                ApplyColor(sphere.GetComponent<Renderer>(), objective ? ObjectivePointColor : PlainPointColor);
+                _coverMarkers.Add(sphere);
+            }
+        }
     }
 
     void RefreshAllTileColors()
@@ -262,6 +293,17 @@ public class SrpMapMakerController : MonoBehaviour
                 : new Color(1f, 0.3f, 0.25f);
             ApplyColor(cyl.GetComponent<Renderer>(), col);
             _unitMarkers[i] = cyl;
+            if (p.isCommander)
+            {
+                // 지휘관: 유닛 표시 위에 작은 노란 상자. 유닛 표시의 자식으로 두어 함께 지워진다.
+                var crown = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                crown.name = "commander";
+                Destroy(crown.GetComponent<Collider>());
+                crown.transform.position = new Vector3(cx, 0.32f, cz);
+                crown.transform.localScale = Vector3.one * (_cellSize * 0.28f);
+                crown.transform.SetParent(cyl.transform, true);
+                ApplyColor(crown.GetComponent<Renderer>(), CommanderColor);
+            }
         }
     }
 
@@ -351,7 +393,7 @@ public class SrpMapMakerController : MonoBehaviour
 
             case EditMode.CoverObject:
             {
-                bool added = SrpMapCoverEdit.ToggleCoverObject(_coverObjects, x, y, _coverBlocksLineOfSight);
+                bool added = SrpMapCoverEdit.ToggleCoverObject(_coverObjects, x, y, _coverBlocksLineOfSight, _coverStrength);
                 if (added)
                 {
                     // 기본 맵과 같이 엄폐물이 놓인 칸은 이동 불가로 둔다. 지울 때는 지형을 그대로 둔다.
@@ -366,9 +408,38 @@ public class SrpMapMakerController : MonoBehaviour
             case EditMode.CoverSegment:
             {
                 var edge = SrpMapCoverEdit.ResolveEdge(hit.x / _cellSize - x, hit.z / _cellSize - y);
-                bool added = SrpMapCoverEdit.ToggleCoverSegment(_coverSegments, x, y, edge, _coverBlocksLineOfSight);
+                bool added = SrpMapCoverEdit.ToggleCoverSegment(_coverSegments, x, y, edge, _coverBlocksLineOfSight, _coverStrength);
                 RefreshCoverMarkers();
                 SetStatus(added ? $"엄폐 벽 배치 ({x},{y}) {edge}" : $"엄폐 벽 제거 ({x},{y}) {edge}");
+                break;
+            }
+
+            case EditMode.InteractionPoint:
+            {
+                // 쓸 수 있는 진영은 "소유자" 드롭다운의 값을 따른다.
+                bool added = SrpMapObjectiveEdit.ToggleInteractionPoint(_carryOver, x, y, _placementOwner, _pointIsVictoryObjective);
+                RefreshCoverMarkers();
+                string kind = _pointIsVictoryObjective ? "승리 목표" : "상호작용 지점";
+                SetStatus(added ? $"{kind} 배치 ({x},{y}) | 플레이어 {_placementOwner} 전용" : $"상호작용 포인트 제거 ({x},{y})");
+                break;
+            }
+
+            case EditMode.Commander:
+            {
+                int commanderIdx = -1;
+                for (int i = 0; i < _placements.Count; i++)
+                    if (IsFootprintOverlap(_placements[i], x, y)) { commanderIdx = i; break; }
+                if (commanderIdx < 0)
+                {
+                    SetStatus("지휘관으로 지정할 유닛을 클릭하세요.", false);
+                    break;
+                }
+                var unit = _placements[commanderIdx];
+                unit.isCommander = !unit.isCommander;
+                _placements[commanderIdx] = unit;
+                RefreshUnitMarkers();
+                RefreshPlacementList();
+                SetStatus(unit.isCommander ? $"지휘관 지정: {unit.templateId} ({unit.x},{unit.y})" : $"지휘관 해제: {unit.templateId} ({unit.x},{unit.y})");
                 break;
             }
         }
@@ -466,6 +537,22 @@ public class SrpMapMakerController : MonoBehaviour
         _btnModeCoverSegment = MakeButtonInParent(coverRow.transform, "엄폐 벽", () => SetMode(EditMode.CoverSegment), BtnNormal, 1f);
         _btnCoverLineOfSight = MakeButtonInParent(coverRow.transform, "시야 차단: 켬", OnToggleCoverLineOfSight, BtnNormal, 1f);
         MakeLabelInLayout(form, "엄폐물: 칸 클릭 / 엄폐 벽: 칸의 가장자리 쪽 클릭 / 다시 클릭하면 제거", 16, new Color(0.7f, 0.8f, 0.9f), 22);
+        var coverOptionRow = MakeHRow(form, 44);
+        _btnCoverStrength = MakeButtonInParent(coverOptionRow.transform, "엄폐 강도: 기본", OnCycleCoverStrength, BtnNormal, 1f);
+
+        MakeSep(form);
+
+        // 승리 조건: 상호작용 포인트(칸 클릭), 지휘관(배치된 유닛 클릭), 맵의 승리 규칙 켜기/끄기.
+        MakeLabelInLayout(form, "승리 조건", 22, new Color(0.8f, 0.9f, 1f), 28);
+        var objectiveRow = MakeHRow(form, 48);
+        _btnModeInteraction = MakeButtonInParent(objectiveRow.transform, "상호작용", () => SetMode(EditMode.InteractionPoint), BtnNormal, 1f);
+        _btnModeCommander   = MakeButtonInParent(objectiveRow.transform, "지휘관", () => SetMode(EditMode.Commander), BtnNormal, 1f);
+        _btnPointObjective  = MakeButtonInParent(objectiveRow.transform, "승리 목표: 켬", OnTogglePointObjective, BtnNormal, 1f);
+        var victoryRow = MakeHRow(form, 44);
+        _btnVictoryCommander = MakeButtonInParent(victoryRow.transform, "지휘관 처치 승리: 끔", OnToggleVictoryCommander, BtnNormal, 1f);
+        _btnVictoryObjective = MakeButtonInParent(victoryRow.transform, "목표 확보 승리: 끔", OnToggleVictoryObjective, BtnNormal, 1f);
+        MakeLabelInLayout(form, "상호작용: 칸 클릭(소유자 드롭다운의 진영 전용) / 지휘관: 배치된 유닛 클릭", 16, new Color(0.7f, 0.8f, 0.9f), 22);
+        RefreshObjectiveButtons();
 
         MakeSep(form);
 
@@ -554,7 +641,8 @@ public class SrpMapMakerController : MonoBehaviour
             string marker = i == _selectedPlacementIndex ? ">" : " ";
             int disCount = p.disabledSkillIds != null ? p.disabledSkillIds.Count : 0;
             string disTag = disCount > 0 ? $" [-{disCount}스킬]" : "";
-            sb.AppendLine($"{marker} P{p.owner} {p.templateId} ({p.x},{p.y}){disTag}");
+            string commanderTag = p.isCommander ? " [지휘관]" : "";
+            sb.AppendLine($"{marker} P{p.owner} {p.templateId} ({p.x},{p.y}){commanderTag}{disTag}");
         }
         _txtPlacementList.text = sb.ToString();
     }
@@ -693,6 +781,53 @@ public class SrpMapMakerController : MonoBehaviour
         SetBtnColor(_btnModeRemove,  _editMode == EditMode.RemoveUnit ? BtnActive : BtnNormal);
         SetBtnColor(_btnModeCoverObject,  _editMode == EditMode.CoverObject ? BtnActive : BtnNormal);
         SetBtnColor(_btnModeCoverSegment, _editMode == EditMode.CoverSegment ? BtnActive : BtnNormal);
+        SetBtnColor(_btnModeInteraction, _editMode == EditMode.InteractionPoint ? BtnActive : BtnNormal);
+        SetBtnColor(_btnModeCommander, _editMode == EditMode.Commander ? BtnActive : BtnNormal);
+    }
+
+    static void SetBtnLabel(Button btn, string text)
+    {
+        if (btn == null) return;
+        var label = btn.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null) label.text = text;
+    }
+
+    /// <summary>새로 놓는 엄폐의 감쇠 강도를 기본 → 약 → 강 순으로 바꾼다. 이미 놓인 엄폐는 바뀌지 않는다.</summary>
+    void OnCycleCoverStrength()
+    {
+        _coverStrength = SrpMapCoverEdit.NextStrength(_coverStrength);
+        SetBtnLabel(_btnCoverStrength, "엄폐 강도: " + SrpMapCoverEdit.GetStrengthLabel(_coverStrength));
+    }
+
+    /// <summary>새로 놓는 상호작용 포인트를 승리 목표로 만들지 전환한다. 이미 놓인 포인트는 바뀌지 않는다.</summary>
+    void OnTogglePointObjective()
+    {
+        _pointIsVictoryObjective = !_pointIsVictoryObjective;
+        RefreshObjectiveButtons();
+    }
+
+    void OnToggleVictoryCommander()
+    {
+        _carryOver.victory.commanderKill = !_carryOver.victory.commanderKill;
+        RefreshObjectiveButtons();
+    }
+
+    void OnToggleVictoryObjective()
+    {
+        _carryOver.victory.interactionObjective = !_carryOver.victory.interactionObjective;
+        RefreshObjectiveButtons();
+    }
+
+    /// <summary>승리 조건 버튼의 글자와 색을 현재 맵 값에 맞춘다. 맵을 불러오거나 새로 만들 때도 부른다.</summary>
+    void RefreshObjectiveButtons()
+    {
+        if (_carryOver.victory == null)
+            _carryOver.victory = new SrpVictoryRuleData();
+        SetBtnLabel(_btnPointObjective, _pointIsVictoryObjective ? "승리 목표: 켬" : "승리 목표: 끔");
+        SetBtnLabel(_btnVictoryCommander, _carryOver.victory.commanderKill ? "지휘관 처치 승리: 켬" : "지휘관 처치 승리: 끔");
+        SetBtnLabel(_btnVictoryObjective, _carryOver.victory.interactionObjective ? "목표 확보 승리: 켬" : "목표 확보 승리: 끔");
+        SetBtnColor(_btnVictoryCommander, _carryOver.victory.commanderKill ? BtnActive : BtnNormal);
+        SetBtnColor(_btnVictoryObjective, _carryOver.victory.interactionObjective ? BtnActive : BtnNormal);
     }
 
     /// <summary>새로 놓는 엄폐가 시야(LOS)를 막는지 전환한다. 이미 놓인 엄폐는 바뀌지 않는다.</summary>
@@ -809,6 +944,7 @@ public class SrpMapMakerController : MonoBehaviour
         BuildGrid();
         FrameCamera();
         RefreshPlacementList();
+        RefreshObjectiveButtons();
     }
 
     SrpMapFileV1 BuildMapFile()

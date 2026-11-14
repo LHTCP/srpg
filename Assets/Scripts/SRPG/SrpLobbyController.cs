@@ -32,6 +32,7 @@ public class SrpLobbyController : MonoBehaviour
         SrpMapPreset.M1QaIntegrated,
         SrpMapPreset.M1EngagementLab,
         SrpMapPreset.M1ObjectiveLab,
+        SrpMapPreset.M1BarricadeAssault,
     };
     static readonly string[] PresetLabels =
     {
@@ -39,6 +40,7 @@ public class SrpLobbyController : MonoBehaviour
         "M1 QA\n통합 검증",
         "교전/포위\n검증 랩",
         "승리 조건\n검증 랩",
+        "방벽선\n돌파",
     };
 
     // ── 생명주기 ──────────────────────────────────────────────────────────────

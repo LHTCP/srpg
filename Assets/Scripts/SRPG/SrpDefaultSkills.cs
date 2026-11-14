@@ -1,5 +1,11 @@
 public static class SrpDefaultSkills
 {
+    /// <summary>
+    /// 내장 기본 스킬 데이터의 버전. 기본 스킬을 추가하거나 값을 바꾸면 1 올린다.
+    /// 로컬 skills.json이 더 낮은 버전으로 저장돼 있으면 내장 id의 스킬을 최신 값으로 갱신한다(SrpDataIO).
+    /// </summary>
+    public const int Version = 1;
+
     public static SrpSkillData[] Create()
     {
         return new[]
@@ -296,6 +302,157 @@ public static class SrpDefaultSkills
                         stat = "pg",
                         value = 4,
                         duration = 0,
+                    },
+                },
+            },
+
+            // ── 6차 추가(2026-11-15). 역할군(GDD §10)에 맞춘 프로토타입 브릿지 수치다. ──
+            new SrpSkillData
+            {
+                id = "duelist_second_wind",
+                displayName = "투지",
+                description = "투사 고유 패시브. 턴 시작 시 PG +2를 회복해 근접전에서 버틴다.",
+                skillType = SrpSkillType.Passive,
+                trigger = SrpSkillTrigger.OnTurnStart,
+                targetType = SrpTargetType.None,
+                range = 0,
+                areaSize = 0,
+                endsActivation = false,
+                cooldown = 0,
+                effects = new[]
+                {
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.BuffStat,
+                        stat = "pg",
+                        value = 2,
+                        duration = 0,
+                    },
+                },
+            },
+            new SrpSkillData
+            {
+                id = "rending_strike",
+                displayName = "균열 베기",
+                description = "사거리 1 내 적 하나에게 HP 8 / PG 4 기준 피해를 주고 균형 붕괴를 부여한다. 이어지는 공격의 PG 피해가 크게 오른다.",
+                skillType = SrpSkillType.Active,
+                trigger = SrpSkillTrigger.OnActivate,
+                targetType = SrpTargetType.SingleEnemy,
+                range = 1,
+                areaSize = 0,
+                endsActivation = false,
+                cooldown = 2,
+                overclockFrozenHeartCost = 5,
+                overclockCooldownReduction = 1,
+                isParryable = true,
+                requiresParryTelegraph = true,
+                effects = new[]
+                {
+                    // 피해를 먼저 준 뒤 태그를 붙인다. 순서를 바꾸면 이 스킬이 자기 태그를 바로 소모한다.
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.Damage,
+                        stat = "",
+                        value = 8,
+                        duration = 0,
+                    },
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.ApplyCombatTag,
+                        stat = "balanceBroken",
+                        value = 0,
+                        duration = 1,
+                    },
+                },
+            },
+            new SrpSkillData
+            {
+                id = "suppressing_fire",
+                displayName = "제압 사격",
+                description = "사거리 4 내 사선이 통하는 칸을 중심으로 3x3 범위의 적에게 HP 6 / PG 3 기준 피해를 주고 RP를 1 깎는다. 사용 후 활성화 종료.",
+                skillType = SrpSkillType.Active,
+                trigger = SrpSkillTrigger.OnActivate,
+                targetType = SrpTargetType.AreaEnemy,
+                range = 4,
+                areaSize = 1,
+                endsActivation = true,
+                cooldown = 3,
+                overclockFrozenHeartCost = 5,
+                overclockCooldownReduction = 1,
+                sightRule = SrpSightRule.TerrainAndUnits,
+                effects = new[]
+                {
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.Damage,
+                        stat = "",
+                        value = 6,
+                        duration = 0,
+                    },
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.DebuffStat,
+                        stat = "rp",
+                        value = 1,
+                        duration = 0,
+                    },
+                },
+            },
+            new SrpSkillData
+            {
+                id = "rally_line",
+                displayName = "전열 재정비",
+                description = "자신과 주변 1칸 안의 아군 PG를 4 회복한다. 무너지기 직전의 전열을 다시 세운다.",
+                skillType = SrpSkillType.Active,
+                trigger = SrpSkillTrigger.OnActivate,
+                targetType = SrpTargetType.AreaAlly,
+                range = 0,
+                areaSize = 1,
+                endsActivation = false,
+                cooldown = 3,
+                overclockFrozenHeartCost = 5,
+                overclockCooldownReduction = 1,
+                effects = new[]
+                {
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.BuffStat,
+                        stat = "pg",
+                        value = 4,
+                        duration = 0,
+                    },
+                },
+            },
+            new SrpSkillData
+            {
+                id = "shock_field",
+                displayName = "충격장",
+                description = "사거리 3 내 시야가 닿는 칸을 중심으로 3x3 범위의 적에게 HP 5 / PG 2 기준 피해를 주고 표식을 부여한다.",
+                skillType = SrpSkillType.Active,
+                trigger = SrpSkillTrigger.OnActivate,
+                targetType = SrpTargetType.AreaEnemy,
+                range = 3,
+                areaSize = 1,
+                endsActivation = false,
+                cooldown = 3,
+                overclockFrozenHeartCost = 5,
+                overclockCooldownReduction = 1,
+                sightRule = SrpSightRule.Terrain,
+                effects = new[]
+                {
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.Damage,
+                        stat = "",
+                        value = 5,
+                        duration = 0,
+                    },
+                    new SrpSkillEffect
+                    {
+                        type = SrpEffectType.ApplyCombatTag,
+                        stat = "marked",
+                        value = 0,
+                        duration = 1,
                     },
                 },
             },
