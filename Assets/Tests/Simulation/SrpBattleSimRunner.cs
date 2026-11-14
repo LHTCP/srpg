@@ -195,6 +195,7 @@ public static class SrpBattleSimRunner
 
         actor.anchorX = targetX;
         actor.anchorY = targetY;
+        state.RebuildEngagements();
         moveCost = cost;
         return true;
     }
@@ -218,7 +219,11 @@ public static class SrpBattleSimRunner
         if (actor.stance == SrpStance.Aggressive) result.aggressiveAttackCount++;
         if (actor.stance == SrpStance.Defensive) result.defensiveAttackCount++;
         if (outcome.wasExecution) result.executionCount++;
-        if (outcome.defenderDied) state.RemoveUnit(target);
+        if (outcome.defenderDied)
+        {
+            state.RemoveUnit(target);
+            state.RebuildEngagements();
+        }
         return true;
     }
 
