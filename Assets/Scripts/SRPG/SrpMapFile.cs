@@ -197,3 +197,55 @@ public class SrpMapFileV1
     public string[] allowedSkillIds = Array.Empty<string>();
     public SrpVictoryRuleData victory = new SrpVictoryRuleData();
 }
+
+/// <summary>
+/// 맵 메이커가 편집하지 않는 맵 데이터를 불러오기에서 저장까지 그대로 들고 가는 묶음.
+/// 메이커는 저장할 때 맵 객체를 새로 만들기 때문에, 이 묶음에 담지 않은 값은 저장 시 기본값으로 돌아간다.
+/// 대상: 승리 조건(victory)과 상호작용 포인트(승리 목표 효과 포함). 배치의 지휘관 표시는 메이커가 배치별로 따로 보존한다.
+/// </summary>
+public class SrpMapCarryOver
+{
+    public SrpVictoryRuleData victory = new SrpVictoryRuleData();
+    public SrpInteractionPointData[] interactionPoints = Array.Empty<SrpInteractionPointData>();
+
+    public static SrpMapCarryOver Capture(SrpMapFileV1 map)
+    {
+        var carry = new SrpMapCarryOver();
+        if (map == null)
+            return carry;
+
+        if (map.victory != null)
+            carry.victory = map.victory.Clone();
+        if (map.interactionPoints != null)
+        {
+            var points = new System.Collections.Generic.List<SrpInteractionPointData>();
+            foreach (var point in map.interactionPoints)
+            {
+                if (point != null)
+                    points.Add(point.Clone());
+            }
+            carry.interactionPoints = points.ToArray();
+        }
+        return carry;
+    }
+
+    /// <summary>보존한 값을 저장할 맵에 되돌려 넣는다. 맵 크기를 벗어난 상호작용 포인트는 뺀다.</summary>
+    public void ApplyTo(SrpMapFileV1 map)
+    {
+        if (map == null)
+            return;
+
+        map.victory = victory != null ? victory.Clone() : new SrpVictoryRuleData();
+        var points = new System.Collections.Generic.List<SrpInteractionPointData>();
+        if (interactionPoints != null)
+        {
+            foreach (var point in interactionPoints)
+            {
+                if (point == null || point.x < 0 || point.y < 0 || point.x >= map.width || point.y >= map.height)
+                    continue;
+                points.Add(point.Clone());
+            }
+        }
+        map.interactionPoints = points.ToArray();
+    }
+}

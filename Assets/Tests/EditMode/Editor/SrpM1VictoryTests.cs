@@ -210,6 +210,40 @@ public class SrpM1VictoryTests
         Assert.That(SrpVictory.Evaluate(state).decided, Is.False);
     }
 
+    [TestCase(TestName = "맵 메이커용 보존 묶음은 승리 조건과 상호작용 포인트를 저장할 맵에 되돌려 넣는다")]
+    public void MapCarryOver_PreservesVictoryAndInteractionPoints()
+    {
+        var loaded = SrpDefaultMaps.CreateM1ObjectiveLab();
+        var carry = SrpMapCarryOver.Capture(loaded);
+
+        // 메이커 저장처럼 맵 객체를 새로 만든다.
+        var rebuilt = new SrpMapFileV1 { width = loaded.width, height = loaded.height };
+        carry.ApplyTo(rebuilt);
+
+        Assert.That(rebuilt.victory.commanderKill, Is.True);
+        Assert.That(rebuilt.victory.interactionObjective, Is.True);
+        Assert.That(rebuilt.victory, Is.Not.SameAs(loaded.victory));
+        Assert.That(rebuilt.interactionPoints.Length, Is.EqualTo(1));
+        Assert.That(rebuilt.interactionPoints[0].id, Is.EqualTo("objective_signal"));
+        Assert.That(rebuilt.interactionPoints[0].effect, Is.EqualTo(SrpInteractionEffect.VictoryObjective));
+        Assert.That(rebuilt.interactionPoints[0].requiredOwner, Is.EqualTo(0));
+        Assert.That(rebuilt.interactionPoints[0], Is.Not.SameAs(loaded.interactionPoints[0]));
+
+        // 맵을 줄여 포인트가 밖으로 나가면 그 포인트는 저장하지 않는다.
+        var shrunk = new SrpMapFileV1 { width = 4, height = 4 };
+        carry.ApplyTo(shrunk);
+        Assert.That(shrunk.interactionPoints.Length, Is.EqualTo(0));
+        Assert.That(shrunk.victory.commanderKill, Is.True);
+
+        // 새 맵(불러온 것이 없음)은 전멸 규칙과 빈 포인트 목록이다.
+        var blank = new SrpMapFileV1 { width = 8, height = 8 };
+        new SrpMapCarryOver().ApplyTo(blank);
+        Assert.That(blank.victory.commanderKill, Is.False);
+        Assert.That(blank.victory.interactionObjective, Is.False);
+        Assert.That(blank.interactionPoints.Length, Is.EqualTo(0));
+        Assert.That(SrpMapCarryOver.Capture(null).interactionPoints.Length, Is.EqualTo(0));
+    }
+
     static SrpUnitRuntime FindUnit(SrpBattleState state, string templateId)
     {
         foreach (var unit in state.Units)

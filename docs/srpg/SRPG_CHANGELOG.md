@@ -2,6 +2,14 @@
 
 ## 2026-11-14
 
+- 맵 메이커 저장 시 승리 조건 유실 수정 (PR #100 리뷰 반영)
+  - 승리 조건을 켠 맵을 맵 메이커에서 불러와 다시 저장하면 `victory`와 배치의 `isCommander`가 기본값으로 돌아갔다. 메이커가 저장할 때 맵 객체를 새로 만들기 때문이다
+  - `SrpMapCarryOver`(`SrpMapFile.cs`) 추가: 메이커가 편집하지 않는 `victory`와 상호작용 포인트(승리 목표 효과 포함)를 불러오기에서 저장까지 보존한다. 맵 크기를 벗어난 포인트는 저장하지 않는다. `SrpMapMakerController`는 배치별 `isCommander`도 유지한다
+  - 상호작용 포인트는 이전에도 메이커 저장 시 사라졌다. 승리 목표가 포인트에 붙으므로 같이 보존했다. 엄폐물/엄폐 segment/허용 스킬 목록은 여전히 메이커 저장 시 사라진다(5차 메이커 범위)
+  - 메이커에서 "그리드 재생성"을 하면 새 맵으로 보고 보존한 값을 비운다. 메이커에서 승리 조건을 편집하는 UI는 없다
+  - `SrpM1VictoryTests.MapCarryOver_PreservesVictoryAndInteractionPoints` 추가
+  - 검증: Unity 미실행. .NET 하네스 128개 중 125개 통과(실패 3개는 이전과 같음), Unity DLL 참조 컴파일 오류 0. 메이커 화면에서의 불러오기/저장은 확인하지 못했다
+
 - 3차 나머지: 승리 조건, 전투 진행 로직 공유, 플레이 루프 보완
   - 승리 조건(`SrpVictory`, 순수 로직): 전멸 > 지휘관 처치 > 상호작용 목표 순으로 판정. 맵 스키마에 `victory`(`commanderKill`, `interactionObjective`), 배치 `isCommander`, 상호작용 포인트 `effect`(`VictoryObjective`) 추가. 값이 없는 기존 맵과 `M1OpeningPrototype`/`M1QaIntegrated`/`M1EngagementLab`은 전멸 규칙 그대로다
   - 확인용 내장 프리셋 `M1ObjectiveLab` 추가(로비 "승리 조건 검증 랩"). 양 진영 지휘관 1명, owner 0 전용 승리 목표 `신호 장치` 1개

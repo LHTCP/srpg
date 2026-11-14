@@ -248,3 +248,4 @@
 - [ ] "첫 전투 프로토타입"에서 신호 장치를 활성화해도, 전술 장교를 쓰러뜨려도 전투가 끝나지 않는가(전멸 규칙 유지).
 - [ ] 씬·프리팹·인스펙터: 이번에 추가한 인스펙터 필드는 없다. `SrpMapPreset`에 `M1ObjectiveLab = 3`이 추가돼 `SrpGameController.startPreset` 드롭다운에 항목이 하나 늘었다. 기존 값(0~2)의 의미는 그대로다.
 - [ ] 로컬에 저장해 둔 맵 JSON(`persistentDataPath/SrpMaps`)이 있으면 그대로 불러와지는가. 새 필드(`victory`, `isCommander`, `effect`)가 없는 파일은 전멸 규칙으로 읽힌다.
+- [ ] 맵 메이커(PR #100 리뷰 반영): 승리 조건과 상호작용 포인트가 있는 맵 JSON을 메이커에서 불러와 그대로 저장한 뒤, 저장된 파일에 `victory`, 배치의 `isCommander`, `interactionPoints`가 남아 있는가. "그리드 재생성" 후 저장하면 이 값들이 비워지는가. 엄폐물/엄폐 segment는 여전히 메이커 저장 시 사라진다(기존 동작, 5차 범위).
