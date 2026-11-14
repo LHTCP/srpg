@@ -14,6 +14,7 @@
 | `SrpPathfinder.cs` | 이동 탐색 |
 | `SrpTurnOrder.cs` | 속도 기반 라운드 턴 |
 | `SrpOverwatch.cs` | 명시형 ReactionShot/오버워치 예약·발동 처리 |
+| `SrpEnemyAi.cs` | 적 진영 기본 AI 판단(순수 로직). 런타임과 AI 시뮬레이션이 공유 |
 
 ### 2) HUD (`srpg-hud`)
 
