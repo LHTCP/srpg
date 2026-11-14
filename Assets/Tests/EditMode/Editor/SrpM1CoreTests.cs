@@ -786,6 +786,8 @@ public class SrpM1CoreTests
     }
 
     [Test]
+    // Unity 타입(Quaternion, 컨트롤러)에 의존해 .NET 로직 테스트(tools/logic-tests)에서는 뺀다.
+    [Category("RequiresUnity")]
     public void UnitViewFacingRotation_MapsFacingToWedgeForwardDirection()
     {
         AssertFacingForward(SrpFacing.North, Vector3.forward);

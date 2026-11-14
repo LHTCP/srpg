@@ -166,7 +166,7 @@
 ### 공통. 검증 기반
 
 - Unity 라이선스 활성화 후 EditMode/PlayMode를 로컬에서 다시 돌린다.
-- CI에서 Unity 테스트가 돌지 않는다. 이번에 쓴 방식(순수 로직과 EditMode 테스트를 .NET SDK로 컴파일·실행)을 저장소 스크립트로 넣으면 PR에서 전투 규칙 회귀를 Unity 없이 잡을 수 있다. 도입 여부는 별도 결정.
+- (도입 2026-11-15) 순수 로직과 EditMode 테스트를 .NET SDK로 컴파일·실행하는 방식을 저장소에 넣었다. `bash ./scripts/run-logic-tests.sh`, PR CI의 `전투 로직 테스트 (.NET)` job. 컨트롤러·화면 코드는 대상이 아니라 Unity 확인이 여전히 필요하다(`docs/project/logic-tests.md`).
 
 ## 6. 기획 질문 목록
 

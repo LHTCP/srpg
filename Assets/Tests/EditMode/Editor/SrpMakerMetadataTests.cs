@@ -97,6 +97,8 @@ public class SrpMakerMetadataTests
     }
 
     [Test]
+    // 컨트롤러(MonoBehaviour)에 의존해 .NET 로직 테스트(tools/logic-tests)에서는 뺀다.
+    [Category("RequiresUnity")]
     public void UnitMaker_SyncV2LegacyStats_StoresApAndPgCompatibilityFields()
     {
         var unit = new SrpUnitTemplateData

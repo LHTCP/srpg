@@ -97,6 +97,7 @@ Implement speed-based round order for SRPG v1
 
 - Pull Request에는 최소한의 빠른 검증 워크플로를 붙인다.
 - 이 빠른 체크는 Unity 전체 빌드 전 단계에서 문서 드리프트, 기본 구조 누락, 핵심 설정 이상을 먼저 잡는 역할을 한다.
+- 같은 워크플로의 `전투 로직 테스트 (.NET)` job은 Unity 없이 순수 전투 로직과 EditMode 테스트를 돌린다. 컨트롤러·화면 코드는 대상이 아니다([logic-tests.md](logic-tests.md)).
 - 무거운 플랫폼 빌드나 Unity 테스트는 별도 워크플로로 분리한다.
 - GitHub Actions는 public 저장소의 standard GitHub-hosted runner 사용이 무료지만, larger runner와 artifact/cache/storage는 과금 또는 플랜 한도 영향을 받을 수 있다.
 - CI 워크플로의 runner 종류, 캐시, 아티팩트 업로드, 보관 기간을 바꿀 때는 비용 리스크를 주요 리뷰 포인트로 확인한다.
