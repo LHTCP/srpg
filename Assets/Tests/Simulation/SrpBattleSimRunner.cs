@@ -86,6 +86,8 @@ public static class SrpBattleSimRunner
     public static SrpSingleBattleResult RunSingle(SrpBattleState state, SrpBattleSimConfig config, int seed)
     {
         var rng = new System.Random(seed);
+        // 회피 등 전투 규칙의 확률 판정도 판마다 같은 시드로 재현되게 한다.
+        state.SeedRandom(seed);
         var result = new SrpSingleBattleResult
         {
             winnerOwner = -1,

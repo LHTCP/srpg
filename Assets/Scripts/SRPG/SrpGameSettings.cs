@@ -16,6 +16,12 @@ public static class SrpGameSettings
     /// <summary>true면 전투에서 플레이어(owner 0)가 아닌 진영을 적 AI가 자동으로 조작한다.</summary>
     public static bool EnemyAiEnabled = true;
 
+    /// <summary>
+    /// 전투 난수(회피 판정) 시드. null이면 전투를 시작할 때마다 시각 기반 시드를 쓴다.
+    /// 테스트처럼 결과를 재현해야 할 때만 값을 넣는다.
+    /// </summary>
+    public static int? BattleRandomSeed = null;
+
     public const string LobbyScene      = "SrpgLobby";
     public const string BattleScene     = "SrpgBattle";
     public const string SkillMakerScene = "SrpgSkillMaker";

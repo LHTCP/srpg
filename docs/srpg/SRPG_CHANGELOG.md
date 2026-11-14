@@ -2,6 +2,23 @@
 
 ## 2026-11-14
 
+- 스킬 예상 피해의 회피 전제 표시 (PR #101 리뷰 반영)
+  - 예상 계산은 회피를 굴리지 않고 실패로 가정하는데, 기본 공격 예상 창만 이를 알리고 스킬 예상 창은 수치만 보여 줬다. 회피 가능한 피해 스킬(비인접, 대상이 공격 태세이고 RP 있음)의 예상 창에도 "대상 회피 시도: 성공률 50%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)"을 표시한다
+  - `SrpSkills.CanTargetDodgeSkillDamage` 추가(순수 로직), `SrpCombatResolverTests.CanTargetDodgeSkillDamage_MatchesSkillDodgeCondition` 추가
+  - 검증: Unity 미실행. .NET 하네스 137개 중 135개 통과(실패 2개는 컨트롤러 의존), Unity DLL 참조 컴파일 오류 0. 기본 스킬 중 비인접 피해 스킬이 없어 화면 확인은 스킬 메이커로 만든 스킬이 필요하다
+
+- 4차: 방어·피해 수치 확정 (기획 결정 Q5, Q8, Q9 반영)
+  - Q5: 수비 태세와 수비 지속 완충의 HP 감쇠를 없애고 PG 감쇠를 1 → 2로 올렸다. Guard 반응(HP-2/PG-2)과 탱커 다중 교전(HP-1/PG-1)은 유지. 쓰이지 않은 상시 PG 감쇠는 총기 파급 PG를 줄인다(`SrpCombatResolver`)
+  - Q8: 스킬 피해는 전부 중대 HP 피해로 확정. `강타` HP 피해 기준값 27 → 18(`SrpDefaultSkills`)
+  - Q9: 회피를 전투 상태의 시드 난수(성공률 50%)로 판정. `SrpBattleState.SeedRandom`/`NextRandomPercent`/`CloneForPreview`, `SrpGameSettings.BattleRandomSeed` 추가. 되감기로 다시 굴릴 수 없고, 예상 피해 창은 회피 실패 기준 수치와 성공률을 표시한다
+  - 수치 조정: 근접 PG 피해 공격력+4 → 공격력, 총기 HP 피해 공격력×2+6 → ×2+4, 총기 HP-PG 파급 50% → 33%
+  - 그로기 회복 비율 35%는 유지(20~100% 사이에서 시뮬레이션 결과가 변하지 않음)
+  - 전투 로그의 "수비 완충"은 PG 감쇠만 표시한다. `AttackOutcome.reducedHpBySustainedDefense` 제거
+  - 테스트: `SrpCombatResolverTests` 8건 추가, 수치에 묶인 기존 기대값 갱신. PlayMode 테스트는 `[SetUp]`에서 전투 난수 시드를 고정
+  - 시뮬레이션 수치 변화(케이스당 300판 평균 라운드): `M1OpeningPrototype` H vs R 5.42 → 6.28, R vs H 6.56 → 6.13, H vs H 5.00 → 4.92. `M1QaIntegrated` H vs R 4.61 → 4.94, R vs H 5.75 → 5.43, H vs H 6.00 → 6.91. 오프닝 하한 6을 바꾸지 않고 통과한다
+  - 주의: 로컬 `persistentDataPath/SrpData/skills.json`이 이미 있으면 `강타`가 예전 값으로 남는다
+  - 검증: Unity 미실행(라이선스 미활성). 저장소 밖 .NET 하네스 136개 중 134개 통과(실패 2개는 컨트롤러 의존으로 이전과 같음), Unity DLL 참조 컴파일 오류 0, `scripts/validate-repo.sh` 통과. 확인 항목은 계획 문서 11절
+
 - 맵 메이커 저장 시 승리 조건 유실 수정 (PR #100 리뷰 반영)
   - 승리 조건을 켠 맵을 맵 메이커에서 불러와 다시 저장하면 `victory`와 배치의 `isCommander`가 기본값으로 돌아갔다. 메이커가 저장할 때 맵 객체를 새로 만들기 때문이다
   - `SrpMapCarryOver`(`SrpMapFile.cs`) 추가: 메이커가 편집하지 않는 `victory`와 상호작용 포인트(승리 목표 효과 포함)를 불러오기에서 저장까지 보존한다. 맵 크기를 벗어난 포인트는 저장하지 않는다. `SrpMapMakerController`는 배치별 `isCommander`도 유지한다

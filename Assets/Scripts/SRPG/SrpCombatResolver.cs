@@ -6,12 +6,14 @@ using UnityEngine;
 public static class SrpCombatResolver
 {
     const int ExecutionBonusDamage = 6;
-    const int DefensiveStanceDef = 1;
-    const int DefensiveStanceGrd = 1;
+    // 총기 HP 피해 = 공격력 x 2 + 4. 근접은 HP 공격력/4(최소 1), PG 공격력(공격 태세 +1).
+    const int FirearmHpFlatBonus = 4;
+    // 상시 감쇠(수비 태세, 수비 지속 완충)는 PG 전용이다. HP 감쇠는 RP를 쓰는 Guard,
+    // 탱커 특성(다중 교전, 완벽한 수비), 엄폐에만 둔다(RQ-004, 계획 문서 Q5).
+    const int DefensiveStanceGrd = 2;
     const int GuardReactionDef = 2;
     const int GuardReactionGrd = 2;
-    const int SustainedDefenseDef = 1;
-    const int SustainedDefenseGrd = 1;
+    const int SustainedDefenseGrd = 2;
     const int TankMultiEngagementDef = 1;
     const int TankMultiEngagementGrd = 1;
     const int CoverDef = 2;
@@ -22,7 +24,7 @@ public static class SrpCombatResolver
     const int BackAttackHpBonus = 2;
     const int BackAttackPgBonus = 2;
     const float DirectionalArcDotThreshold = 0.7071067f;
-    const int FirearmHpToPgSpilloverPercent = 50;
+    const int FirearmHpToPgSpilloverPercent = 33;
     const int LowHpPgVulnerabilityThresholdPercent = 50;
     const int CriticalHpPgVulnerabilityThresholdPercent = 25;
     const int LowHpPgVulnerabilityBonusPercent = 25;
@@ -44,8 +46,9 @@ public static class SrpCombatResolver
         public int damageToHp;
         public int reducedHpByDef;
         public int reducedPgByGrd;
-        public int reducedHpBySustainedDefense;
         public int reducedPgBySustainedDefense;
+        /// <summary>수비 태세·지속 완충의 PG 감쇠 중 아직 쓰이지 않은 몫. 총기 파급 PG를 줄이는 데 쓴다.</summary>
+        public int stanceGrdRemaining;
         public int reducedHpByTank;
         public int reducedPgByTank;
         public int reducedHpByCover;
@@ -207,7 +210,7 @@ public static class SrpCombatResolver
             rawDamageToPg = pgDamage,
         };
         ApplyDirectionalVulnerability(attacker, defender, ref hpDamage, ref pgDamage);
-        ApplyConstantMitigation(defender, ref hpDamage, ref pgDamage, ref outcome);
+        ApplyStanceGrd(defender, ref pgDamage, ref outcome);
         ApplySustainedDefenseBuffers(state, defender, ref hpDamage, ref pgDamage, ref outcome);
         var skillCoverKind = attacker != null && attacker.weaponClass == SrpWeaponClass.Firearm
             ? SrpBasicAttackKind.Firearm
@@ -246,13 +249,13 @@ public static class SrpCombatResolver
             switch (attackKind)
             {
                 case SrpBasicAttackKind.Firearm:
-                    hpDamage = raw * 2 + 6;
+                    hpDamage = raw * 2 + FirearmHpFlatBonus;
                     pgDamage = 0;
                     break;
                 case SrpBasicAttackKind.Melee:
                 default:
                     hpDamage = Mathf.Max(1, raw / 4);
-                    pgDamage = raw + 4;
+                    pgDamage = raw;
                     break;
             }
 
@@ -261,7 +264,7 @@ public static class SrpCombatResolver
             o.rawDamageToHp = hpDamage;
             o.rawDamageToPg = pgDamage;
             ApplyDirectionalVulnerability(attacker, defender, ref hpDamage, ref pgDamage);
-            ApplyConstantMitigation(defender, ref hpDamage, ref pgDamage, ref o);
+            ApplyStanceGrd(defender, ref pgDamage, ref o);
             ApplySustainedDefenseBuffers(state, defender, ref hpDamage, ref pgDamage, ref o);
             ApplyCoverBuffer(state, attacker, defender, attackKind, ref hpDamage, ref pgDamage, ref o);
             if (!isOpportunityAttack)
@@ -308,17 +311,15 @@ public static class SrpCombatResolver
             outcome.defenderDied = true;
     }
 
-    static void ApplyConstantMitigation(SrpUnitRuntime defender, ref int hpDamage, ref int pgDamage, ref AttackOutcome outcome)
+    /// <summary>수비 태세의 상시 감쇠. PG 피해만 줄인다.</summary>
+    static void ApplyStanceGrd(SrpUnitRuntime defender, ref int pgDamage, ref AttackOutcome outcome)
     {
-        int def = GetDef(defender);
         int grd = GetGrd(defender);
-        int beforeHp = hpDamage;
         int beforePg = pgDamage;
 
-        hpDamage = Mathf.Max(0, hpDamage - def);
         pgDamage = Mathf.Max(0, pgDamage - grd);
-        outcome.reducedHpByDef += beforeHp - hpDamage;
         outcome.reducedPgByGrd += beforePg - pgDamage;
+        outcome.stanceGrdRemaining += grd - (beforePg - pgDamage);
     }
 
     static bool IsMeleeExecutionThreat(SrpBattleState state, SrpUnitRuntime attacker, SrpUnitRuntime defender)
@@ -363,22 +364,20 @@ public static class SrpCombatResolver
         bool hasPriorDefensiveHit = defender.defensiveHitsRound == state.RoundNumber
             && defender.defensiveHitsTakenThisRound > 0;
         if (isEngaged && hasPriorDefensiveHit)
-            ApplySustainedDefenseBuffer(ref hpDamage, ref pgDamage, ref outcome);
+            ApplySustainedDefenseBuffer(ref pgDamage, ref outcome);
 
         if (defender.HasTag(SrpUnitTags.Tank) && state.CountEngagingEnemies(defender) >= 2)
             ApplyTankMultiEngagementBuffer(ref hpDamage, ref pgDamage, ref outcome);
     }
 
-    static void ApplySustainedDefenseBuffer(ref int hpDamage, ref int pgDamage, ref AttackOutcome outcome)
+    /// <summary>수비 지속 완충. PG 피해만 줄인다.</summary>
+    static void ApplySustainedDefenseBuffer(ref int pgDamage, ref AttackOutcome outcome)
     {
-        int beforeHp = hpDamage;
         int beforePg = pgDamage;
-        hpDamage = Mathf.Max(0, hpDamage - SustainedDefenseDef);
         pgDamage = Mathf.Max(0, pgDamage - SustainedDefenseGrd);
-        outcome.reducedHpBySustainedDefense += beforeHp - hpDamage;
         outcome.reducedPgBySustainedDefense += beforePg - pgDamage;
-        outcome.sustainedDefenseBufferApplied = outcome.reducedHpBySustainedDefense > 0
-            || outcome.reducedPgBySustainedDefense > 0;
+        outcome.stanceGrdRemaining += SustainedDefenseGrd - (beforePg - pgDamage);
+        outcome.sustainedDefenseBufferApplied = outcome.reducedPgBySustainedDefense > 0;
     }
 
     static void ApplyTankMultiEngagementBuffer(ref int hpDamage, ref int pgDamage, ref AttackOutcome outcome)
@@ -533,6 +532,14 @@ public static class SrpCombatResolver
             outcome.reducedPgByCover += reducedByCover;
             outcome.coverBufferApplied = true;
         }
+        // 총기는 직접 PG 피해가 거의 없어 상시 PG 감쇠가 남는다. 남은 몫으로 파급 PG를 줄인다.
+        if (outcome.stanceGrdRemaining > 0 && spillover > 0)
+        {
+            int reducedByStance = Mathf.Min(spillover, outcome.stanceGrdRemaining);
+            spillover -= reducedByStance;
+            outcome.stanceGrdRemaining -= reducedByStance;
+            outcome.reducedPgByGrd += reducedByStance;
+        }
         pgDamage += spillover;
     }
 
@@ -630,20 +637,18 @@ public static class SrpCombatResolver
         return state.ChebyshevAnchor(attacker, defender) > 1;
     }
 
+    /// <summary>회피 성공률(%). HUD 예상 표시에 쓴다.</summary>
+    public static int DodgeChancePercent => DodgeSuccessChancePercent;
+
     static bool DoesDodgeSucceed(SrpBattleState state, SrpUnitRuntime attacker, SrpUnitRuntime defender)
     {
         if (state == null || attacker == null || defender == null)
             return false;
+        // 예상 계산에서는 난수를 굴리지 않고 회피 실패(피해 그대로)로 가정한다.
+        if (state.IsPreview)
+            return false;
 
-        int seed = state.RoundNumber
-            + attacker.id
-            + defender.id
-            + attacker.anchorX
-            + attacker.anchorY
-            + defender.anchorX
-            + defender.anchorY;
-        int roll = Mathf.Abs(seed) % 100;
-        return roll < DodgeSuccessChancePercent;
+        return state.NextRandomPercent() < DodgeSuccessChancePercent;
     }
 
     static void ApplyDirectionalVulnerability(
@@ -696,11 +701,6 @@ public static class SrpCombatResolver
             default:
                 return Vector2.zero;
         }
-    }
-
-    static int GetDef(SrpUnitRuntime defender)
-    {
-        return defender != null && defender.stance == SrpStance.Defensive ? DefensiveStanceDef : 0;
     }
 
     static int GetGrd(SrpUnitRuntime defender)

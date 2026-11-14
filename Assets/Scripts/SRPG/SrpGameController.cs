@@ -113,6 +113,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
             initialMap = SrpDefaultMaps.GetPreset(startPreset);
 
         _state = SrpBattleState.FromMap(initialMap);
+        SeedBattleRandom();
         _undo.Clear();
         _enemyAiEnabled = SrpGameSettings.EnemyAiEnabled;
 
@@ -875,6 +876,11 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
 
     // ── 게임 흐름 ────────────────────────────────────────────────────────────
 
+    void SeedBattleRandom()
+    {
+        _state.SeedRandom(SrpGameSettings.BattleRandomSeed ?? System.Environment.TickCount);
+    }
+
     void PushUndo()
     {
         // 적 AI 행동은 되감기 대상이 아니다.
@@ -1016,7 +1022,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         if (outcome.perfectDefenseApplied)
             LogLine($"완벽한 수비: {defender.displayName} 경미 HP 피해 무효 HP-{outcome.reducedHpByPerfectDefense}");
         if (outcome.sustainedDefenseBufferApplied)
-            LogLine($"수비 완충: {defender.displayName} 후속 공격 감쇠 HP-{outcome.reducedHpBySustainedDefense} PG-{outcome.reducedPgBySustainedDefense}");
+            LogLine($"수비 완충: {defender.displayName} 후속 공격 감쇠 PG-{outcome.reducedPgBySustainedDefense}");
         if (outcome.tankMultiEngagementBufferApplied)
             LogLine($"탱커 대응: {defender.displayName} 다중 교전 감쇠 HP-{outcome.reducedHpByTank} PG-{outcome.reducedPgByTank}");
         if (outcome.combatTagBonusApplied)
@@ -1147,6 +1153,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         _enemyAiToken++;
 
         _state = SrpBattleState.FromMap(map);
+        SeedBattleRandom();
         BuildGrid();
         if (frameCameraOnStart) FrameBoardCamera();
         RefreshUnitViews();

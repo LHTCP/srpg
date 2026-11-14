@@ -3,18 +3,18 @@ using NUnit.Framework;
 [Category("SrpM1All")]
 public class SrpCombatResolverTests
 {
-    [TestCase(TestName = "총기 피해는 실제 HP 피해의 50%를 PG로 파급한다")]
-    public void ApplyAttack_FirearmSpillsHalfFinalHpDamageToPg()
+    [TestCase(TestName = "총기 피해는 실제 HP 피해의 33%를 PG로 파급한다")]
+    public void ApplyAttack_FirearmSpillsThirdOfFinalHpDamageToPg()
     {
         var attacker = Unit(attackPower: 8, weaponClass: SrpWeaponClass.Firearm, stance: SrpStance.Defensive);
         var defender = Unit(hp: 30, pg: 20, maxPg: 20);
 
         var outcome = SrpCombatResolver.ApplyAttack(attacker, defender);
 
-        Assert.That(outcome.damageToHp, Is.EqualTo(22));
-        Assert.That(outcome.damageToPg, Is.EqualTo(11));
-        Assert.That(defender.hp, Is.EqualTo(8));
-        Assert.That(defender.pg, Is.EqualTo(9));
+        Assert.That(outcome.damageToHp, Is.EqualTo(20), "총기 HP 피해 = 공격력 x 2 + 4");
+        Assert.That(outcome.damageToPg, Is.EqualTo(6), "파급 PG = HP 피해 20의 33%(내림)");
+        Assert.That(defender.hp, Is.EqualTo(10));
+        Assert.That(defender.pg, Is.EqualTo(14));
     }
 
     [TestCase(TestName = "근접 공격은 HP보다 PG 붕괴를 우선한다")]
@@ -26,7 +26,7 @@ public class SrpCombatResolverTests
         var outcome = SrpCombatResolver.ApplyAttack(attacker, defender);
 
         Assert.That(outcome.damageToHp, Is.EqualTo(1));
-        Assert.That(outcome.damageToPg, Is.EqualTo(11));
+        Assert.That(outcome.damageToPg, Is.EqualTo(7), "근접 PG 피해 = 공격력 6 + 공격 태세 1");
         Assert.That(outcome.becameGroggy, Is.True);
         Assert.That(defender.groggy, Is.True);
         Assert.That(defender.pg, Is.EqualTo(0));
@@ -202,11 +202,11 @@ public class SrpCombatResolverTests
         var half = SrpCombatResolver.ApplyAttack(attacker, halfHp);
         var quarter = SrpCombatResolver.ApplyAttack(attacker, quarterHp);
 
-        Assert.That(half.damageToPg, Is.EqualTo(14));
-        Assert.That(half.bonusPgFromLowHpVulnerability, Is.EqualTo(3));
+        Assert.That(half.damageToPg, Is.EqualTo(9));
+        Assert.That(half.bonusPgFromLowHpVulnerability, Is.EqualTo(2));
         Assert.That(half.lowHpPgVulnerabilityApplied, Is.True);
-        Assert.That(quarter.damageToPg, Is.EqualTo(17));
-        Assert.That(quarter.bonusPgFromLowHpVulnerability, Is.EqualTo(6));
+        Assert.That(quarter.damageToPg, Is.EqualTo(11));
+        Assert.That(quarter.bonusPgFromLowHpVulnerability, Is.EqualTo(4));
     }
 
     [TestCase(TestName = "HP 취약도는 스킬 피해 경로에도 적용된다")]
@@ -556,6 +556,218 @@ public class SrpCombatResolverTests
         Assert.That(approachMove.type, Is.EqualTo(SrpEnemyAiActionType.Move));
         Assert.That((approachMove.x, approachMove.y), Is.EqualTo((3, 0)));
         Assert.That((actor.anchorX, actor.anchorY), Is.EqualTo((0, 0)), "판단 과정에서 유닛 위치가 바뀌었습니다.");
+    }
+
+    [TestCase(TestName = "수비 태세의 상시 감쇠는 PG만 줄이고 HP는 줄이지 않는다")]
+    public void ApplyAttack_DefensiveStanceReducesPgOnly()
+    {
+        var attacker = Unit(attackPower: 8, weaponClass: SrpWeaponClass.Melee, stance: SrpStance.Defensive);
+        var defender = Unit(hp: 30, pg: 30, maxPg: 30, stance: SrpStance.Defensive);
+
+        var outcome = SrpCombatResolver.ApplyAttack(attacker, defender);
+
+        Assert.That(outcome.damageToHp, Is.EqualTo(2), "수비 태세가 반응 없이 근접 HP 피해(공격력/4)를 줄였습니다.");
+        Assert.That(outcome.damageToPg, Is.EqualTo(6), "수비 태세 PG 감쇠 2가 적용되지 않았습니다(근접 PG = 공격력 8).");
+        Assert.That(outcome.reducedHpByDef, Is.EqualTo(0));
+        Assert.That(outcome.reducedPgByGrd, Is.EqualTo(2));
+    }
+
+    [TestCase(TestName = "Guard 반응은 RP를 쓰고 HP와 PG를 함께 줄인다")]
+    public void ApplyAttack_GuardReactionReducesHpAndPg()
+    {
+        var state = CreateState();
+        var attacker = Unit(id: 1, owner: 0, x: 1, y: 1, attackPower: 8, weaponClass: SrpWeaponClass.Melee, stance: SrpStance.Defensive);
+        var defender = Unit(id: 2, owner: 1, x: 2, y: 1, hp: 30, pg: 30, maxPg: 30, stance: SrpStance.Defensive);
+        defender.facing = SrpFacing.West;
+        defender.reactionPoints = 1;
+        state.Units.Add(attacker);
+        state.Units.Add(defender);
+
+        var outcome = SrpCombatResolver.ApplyAttack(state, attacker, defender);
+
+        Assert.That(outcome.reactionKind, Is.EqualTo(SrpReactionKind.Guard));
+        Assert.That(outcome.reducedHpByDef, Is.EqualTo(2), "Guard의 HP 감쇠 2가 적용되지 않았습니다.");
+        Assert.That(outcome.damageToHp, Is.EqualTo(0));
+        Assert.That(outcome.damageToPg, Is.EqualTo(4), "수비 태세 PG-2와 Guard PG-2가 함께 적용되지 않았습니다.");
+    }
+
+    [TestCase(TestName = "수비 지속 완충은 후속 피격의 PG만 줄인다")]
+    public void ApplyAttack_SustainedDefenseBufferReducesPgOnly()
+    {
+        var state = CreateState();
+        var attacker = Unit(id: 1, owner: 0, x: 1, y: 1, attackPower: 8, weaponClass: SrpWeaponClass.Melee, stance: SrpStance.Defensive);
+        var defender = Unit(id: 2, owner: 1, x: 2, y: 1, hp: 30, pg: 30, maxPg: 30, stance: SrpStance.Defensive);
+        defender.facing = SrpFacing.West;
+        defender.reactionPoints = 0;
+        state.Units.Add(attacker);
+        state.Units.Add(defender);
+        state.RebuildEngagements();
+
+        var first = SrpCombatResolver.ApplyAttack(state, attacker, defender);
+        var second = SrpCombatResolver.ApplyAttack(state, attacker, defender);
+
+        Assert.That(first.sustainedDefenseBufferApplied, Is.False);
+        Assert.That(second.sustainedDefenseBufferApplied, Is.True);
+        Assert.That(second.damageToHp, Is.EqualTo(first.damageToHp), "수비 지속 완충이 HP 피해를 줄였습니다.");
+        Assert.That(second.damageToPg, Is.EqualTo(first.damageToPg - 2), "수비 지속 완충 PG 감쇠 2가 적용되지 않았습니다.");
+    }
+
+    [TestCase(TestName = "쓰이지 않은 수비 태세 PG 감쇠는 총기 파급 PG를 줄인다")]
+    public void ApplyAttack_UnusedStanceGrdReducesFirearmSpillover()
+    {
+        var attacker = Unit(attackPower: 8, weaponClass: SrpWeaponClass.Firearm, stance: SrpStance.Defensive);
+        var defensive = Unit(hp: 30, pg: 20, maxPg: 20, stance: SrpStance.Defensive);
+        var aggressive = Unit(hp: 30, pg: 20, maxPg: 20, stance: SrpStance.Aggressive);
+
+        var reduced = SrpCombatResolver.ApplyAttack(attacker, defensive);
+        var baseline = SrpCombatResolver.ApplyAttack(attacker, aggressive);
+
+        Assert.That(baseline.damageToHp, Is.EqualTo(20));
+        Assert.That(baseline.damageToPg, Is.EqualTo(6));
+        Assert.That(reduced.damageToHp, Is.EqualTo(20), "수비 태세가 총격 HP 피해를 줄였습니다.");
+        Assert.That(reduced.damageToPg, Is.EqualTo(4), "수비 태세 PG 감쇠 2가 총기 파급 PG에 적용되지 않았습니다.");
+    }
+
+    [TestCase(TestName = "강타는 중대 HP 피해라 완벽한 수비를 뚫는다")]
+    public void DefaultCleave_IsMajorHpDamageAndPiercesPerfectDefense()
+    {
+        SrpSkillData cleave = null;
+        foreach (var skill in SrpDefaultSkills.Create())
+        {
+            if (skill.id == "cleave")
+                cleave = skill;
+        }
+        Assert.That(cleave, Is.Not.Null);
+        Assert.That(cleave.effects[0].type, Is.EqualTo(SrpEffectType.Damage));
+        Assert.That(cleave.effects[0].value, Is.EqualTo(18), "강타 HP 피해 기준값이 수치표(18)와 다릅니다.");
+
+        var state = CreateState();
+        var caster = Unit(id: 1, owner: 0, x: 1, y: 1, attackPower: 8);
+        var tank = Unit(id: 2, owner: 1, x: 2, y: 1, hp: 40, pg: 30, maxPg: 30, stance: SrpStance.Defensive);
+        tank.tags = (int)SrpUnitTags.Tank;
+        tank.facing = SrpFacing.West;
+        tank.reactionPoints = 0;
+        state.Units.Add(caster);
+        state.Units.Add(tank);
+
+        // 같은 조건에서 기본 근접 공격(경미 HP 피해)은 완벽한 수비에 막힌다.
+        var basic = SrpCombatResolver.ApplyAttack(state, caster, tank);
+        Assert.That(basic.perfectDefenseApplied, Is.True, "테스트 전제: 완벽한 수비 조건 구성 실패");
+        Assert.That(basic.damageToHp, Is.EqualTo(0));
+        int hpBeforeSkill = tank.hp;
+
+        SrpSkills.ResolveActiveSkill(cleave, new SrpSkillRuntime(cleave.id), caster, tank.anchorX, tank.anchorY, state, null);
+
+        Assert.That(tank.hp, Is.EqualTo(hpBeforeSkill - 18), "강타 HP 피해가 완벽한 수비 또는 수비 태세에 줄었습니다.");
+    }
+
+    [TestCase(TestName = "전투 난수는 시드와 복제본에서 같은 순서를 낸다")]
+    public void BattleRandom_SameSeedAndCloneProduceSameSequence()
+    {
+        var a = CreateState();
+        var b = CreateState();
+        a.SeedRandom(20261114);
+        b.SeedRandom(20261114);
+        var clone = a.Clone();
+
+        for (int i = 0; i < 20; i++)
+        {
+            int value = a.NextRandomPercent();
+            Assert.That(value, Is.InRange(0, 99));
+            Assert.That(b.NextRandomPercent(), Is.EqualTo(value), "같은 시드가 다른 난수를 냈습니다.");
+            Assert.That(clone.NextRandomPercent(), Is.EqualTo(value), "복제본(되감기 스냅샷)이 다른 난수를 냈습니다.");
+        }
+    }
+
+    [TestCase(TestName = "회피 성공률은 설정 확률(50%)에 가깝다")]
+    public void BattleRandom_DodgeRateIsCloseToConfiguredChance()
+    {
+        var state = CreateState();
+        state.SeedRandom(1);
+        int success = 0;
+        const int rolls = 4000;
+        for (int i = 0; i < rolls; i++)
+        {
+            if (state.NextRandomPercent() < SrpCombatResolver.DodgeChancePercent)
+                success++;
+        }
+
+        Assert.That(SrpCombatResolver.DodgeChancePercent, Is.EqualTo(50));
+        Assert.That(success, Is.InRange(rolls * 45 / 100, rolls * 55 / 100), "회피 성공 빈도가 설정 확률에서 벗어났습니다.");
+    }
+
+    [TestCase(TestName = "예상 계산용 복제본은 회피 난수를 굴리지 않고 결과도 노출하지 않는다")]
+    public void PreviewClone_DoesNotRollOrRevealDodge()
+    {
+        var state = CreateState();
+        var attacker = Unit(id: 1, owner: 0, x: 0, y: 2, attackPower: 8, attackRange: 4, weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
+        var defender = Unit(id: 2, owner: 1, x: 2, y: 2, hp: 30, pg: 20, maxPg: 20, stance: SrpStance.Aggressive);
+        defender.reactionPoints = 1;
+        state.Units.Add(attacker);
+        state.Units.Add(defender);
+        SeedNextDodge(state, success: true);
+
+        var preview = state.CloneForPreview();
+        var previewOutcome = SrpCombatResolver.ApplyAttack(preview, preview.FindUnitById(1), preview.FindUnitById(2));
+
+        Assert.That(previewOutcome.reactionKind, Is.EqualTo(SrpReactionKind.Dodge), "예상 계산이 회피 시도를 표시하지 않았습니다.");
+        Assert.That(previewOutcome.wasDodged, Is.False, "예상 계산이 실제 회피 결과를 미리 노출했습니다.");
+        Assert.That(previewOutcome.damageToHp, Is.GreaterThan(0), "예상 피해는 회피 실패 기준이어야 합니다.");
+
+        var outcome = SrpCombatResolver.ApplyAttack(state, attacker, defender);
+
+        Assert.That(outcome.wasDodged, Is.True, "예상 계산이 실제 전투의 난수 순서를 바꿨습니다.");
+        Assert.That(defender.hp, Is.EqualTo(30));
+    }
+
+    [TestCase(TestName = "스킬 예상 피해는 대상이 회피할 수 있는 경우를 알 수 있다")]
+    public void CanTargetDodgeSkillDamage_MatchesSkillDodgeCondition()
+    {
+        var state = CreateState();
+        var caster = Unit(id: 1, owner: 0, x: 0, y: 2, attackPower: 8);
+        var target = Unit(id: 2, owner: 1, x: 2, y: 2, hp: 30, pg: 20, maxPg: 20, stance: SrpStance.Aggressive);
+        target.reactionPoints = 1;
+        state.Units.Add(caster);
+        state.Units.Add(target);
+        var damage = DamageSkill(6);
+        var tagOnly = new SrpSkillData
+        {
+            id = "test_tag_only",
+            effects = new[] { new SrpSkillEffect { type = SrpEffectType.ApplyCombatTag, stat = "marked" } },
+        };
+
+        Assert.That(SrpSkills.CanTargetDodgeSkillDamage(damage, caster, target, state), Is.True,
+            "공격 태세 대상이 비인접 피해 스킬을 회피할 수 있는데 안내 대상에서 빠졌습니다.");
+        Assert.That(SrpSkills.CanTargetDodgeSkillDamage(tagOnly, caster, target, state), Is.False, "피해가 없는 스킬은 회피 안내 대상이 아닙니다.");
+
+        // 예상 계산용 복제본에서는 회피를 굴리지 않아 피해가 그대로 들어간다(안내 문구의 전제).
+        var preview = state.CloneForPreview();
+        var previewTarget = preview.FindUnitById(2);
+        SrpSkills.ResolveActiveSkill(damage, new SrpSkillRuntime(damage.id), preview.FindUnitById(1), previewTarget.anchorX, previewTarget.anchorY, preview, null);
+        Assert.That(previewTarget.hp, Is.LessThan(30));
+        Assert.That(target.hp, Is.EqualTo(30), "예상 계산이 원본 상태를 바꿨습니다.");
+
+        target.reactionPoints = 0;
+        Assert.That(SrpSkills.CanTargetDodgeSkillDamage(damage, caster, target, state), Is.False, "RP가 없으면 회피할 수 없습니다.");
+        target.reactionPoints = 1;
+        target.stance = SrpStance.Defensive;
+        Assert.That(SrpSkills.CanTargetDodgeSkillDamage(damage, caster, target, state), Is.False, "수비 태세는 회피하지 않습니다.");
+        target.stance = SrpStance.Aggressive;
+        target.anchorX = 1;
+        Assert.That(SrpSkills.CanTargetDodgeSkillDamage(damage, caster, target, state), Is.False, "인접 공격은 회피 대상이 아닙니다.");
+    }
+
+    /// <summary>다음 회피 판정이 원하는 결과가 되도록 전투 난수 시드를 고른다.</summary>
+    static void SeedNextDodge(SrpBattleState state, bool success)
+    {
+        for (int seed = 1; seed <= 1000; seed++)
+        {
+            state.SeedRandom(seed);
+            bool next = state.Clone().NextRandomPercent() < SrpCombatResolver.DodgeChancePercent;
+            if (next == success)
+                return;
+        }
+        Assert.Fail("원하는 회피 결과를 내는 시드를 찾지 못했습니다.");
     }
 
     /// <summary>(x, y) 쌍으로 넘긴 칸을 이동 불가로 만든다.</summary>

@@ -2045,7 +2045,7 @@ public partial class SrpGameController
         if (!SrpCombatResolver.HasAmmoForBasicAttack(attackKind, active))
             return ($"공격 Preview: {target.displayName}", "탄약 없음. 재장전 후 공격할 수 있습니다.");
 
-        var clone = _state.Clone();
+        var clone = _state.CloneForPreview();
         var cloneActive = clone.FindUnitById(active.id);
         var cloneTarget = clone.FindUnitById(target.id);
         if (cloneActive == null || cloneTarget == null)
@@ -2069,8 +2069,8 @@ public partial class SrpGameController
             parts.Add("처단 공격 예상");
         if (outcome.becameGroggy)
             parts.Add("PG 붕괴 예상");
-        if (outcome.wasDodged)
-            parts.Add("대상 회피 성공 가능성 반영");
+        if (outcome.reactionKind == SrpReactionKind.Dodge)
+            parts.Add($"대상 회피 시도: 성공률 {SrpCombatResolver.DodgeChancePercent}%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)");
         if (outcome.wasParried)
             parts.Add("대상 패링 가능성 반영");
         if (outcome.coverBufferApplied)
@@ -2102,7 +2102,7 @@ public partial class SrpGameController
         if (_hoverTileX < 0 || _hoverTileY < 0 || !_skillTargetTiles.Contains(new Vector2Int(_hoverTileX, _hoverTileY)))
             return "현재 타일은 선택 가능한 스킬 대상이 아닙니다.";
 
-        var clone = _state.Clone();
+        var clone = _state.CloneForPreview();
         var cloneCaster = clone.FindUnitById(active.id);
         if (cloneCaster == null)
             return string.Empty;
@@ -2122,13 +2122,20 @@ public partial class SrpGameController
         var beforeTarget = target != null ? target : active;
         int beforeHp = beforeTarget.hp;
         int beforePg = beforeTarget.pg;
+        // 예상 계산은 회피를 굴리지 않으므로, 대상이 회피를 시도할 수 있으면 수치의 전제를 함께 알린다.
+        bool targetMayDodge = SrpSkills.CanTargetDodgeSkillDamage(
+            _pendingSkillData, cloneCaster, target != null ? clone.FindUnitById(target.id) : null, clone);
+        string dodgeNote = targetMayDodge
+            ? $"
+대상 회피 시도: 성공률 {SrpCombatResolver.DodgeChancePercent}%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)"
+            : string.Empty;
         SrpSkills.ResolveActiveSkill(_pendingSkillData, cloneRuntime, cloneCaster, _hoverTileX, _hoverTileY, clone, null);
         var afterTarget = clone.FindUnitById(targetId) ?? cloneCaster;
         int hpDelta = afterTarget.hp - beforeHp;
         int pgDelta = afterTarget.pg - beforePg;
         if (hpDelta == 0 && pgDelta == 0)
             return "예상 수치 변화: 직접 HP/PG 변화 없음";
-        return $"예상 수치 변화: {FormatSignedDelta("HP", hpDelta)} / {FormatSignedDelta("PG", pgDelta)}";
+        return $"예상 수치 변화: {FormatSignedDelta("HP", hpDelta)} / {FormatSignedDelta("PG", pgDelta)}{dodgeNote}";
     }
 
     (string title, string body) BuildInteractionPreview(SrpUnitRuntime active, SrpInteractionPointData point)

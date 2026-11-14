@@ -489,9 +489,9 @@ public class SrpM1CoreTests
         var outcome = SrpCombatResolver.ApplyAttack(state, firearm, defender);
 
         Assert.IsTrue(outcome.coverBufferApplied, "방향성 엄폐가 적용되지 않았습니다.");
-        Assert.AreEqual(33, outcome.damageToHp, "엄폐 후 최종 HP 피해가 기대와 다릅니다.");
-        Assert.AreEqual(16, outcome.firearmPgSpillover, "총기 PG 파급이 엄폐 후 최종 HP 피해의 50%로 계산되지 않았습니다.");
-        Assert.AreEqual(15, outcome.damageToPg, "엄폐 GRD가 총기 PG 파급에 적용되지 않았습니다.");
+        Assert.AreEqual(31, outcome.damageToHp, "엄폐 후 최종 HP 피해가 기대와 다릅니다.");
+        Assert.AreEqual(10, outcome.firearmPgSpillover, "총기 PG 파급이 엄폐 후 최종 HP 피해의 33%로 계산되지 않았습니다.");
+        Assert.AreEqual(9, outcome.damageToPg, "엄폐 GRD가 총기 PG 파급에 적용되지 않았습니다.");
     }
 
     [Test]
