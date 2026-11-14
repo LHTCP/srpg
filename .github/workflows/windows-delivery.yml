@@ -1,0 +1,154 @@
+name: Windows Delivery 파이프라인
+
+on:
+  # 빌드, 패키징, 업로드를 사람이 run id를 옮겨 적지 않고 한 번에 잇는 진입점이다.
+  # 개별 workflow(Windows PC 데모 빌드, itch.io Development 업로드, Windows Release asset 업로드)는
+  # 재실행과 복구용 수동 경로로 그대로 남긴다.
+  push:
+    branches:
+      - main
+    tags:
+      # 릴리즈컷: v<a.b.c> tag를 push하면 빌드 후 GitHub Release까지 만든다.
+      - "v[0-9]+.[0-9]+.[0-9]+"
+    # paths는 branch push에만 적용되고 tag push에는 적용되지 않는다.
+    # 빌드 결과가 달라지는 변경만 대상으로 삼아 문서, 테스트, CI 변경으로는 빌드와 업로드를 돌리지 않는다.
+    # workflow 파일을 넣지 않은 것은 CI 수정 PR을 병합하는 것만으로 itch.io에 게시되지 않게 하기 위해서다.
+    paths:
+      - "Assets/**"
+      - "!Assets/Tests/**"
+      - "Packages/**"
+      - "ProjectSettings/**"
+      - "scripts/package-windows-demo.sh"
+  workflow_dispatch:
+    inputs:
+      upload_itchio:
+        description: "빌드 후 itch.io development 채널에 업로드"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  # 같은 ref의 실행은 겹치지 않게 줄 세운다. 진행 중인 업로드를 끊지 않도록 취소하지 않는다.
+  group: windows-delivery-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: 실행 계획 결정
+    runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.plan.outputs.channel }}
+      upload_itchio: ${{ steps.plan.outputs.upload_itchio }}
+      create_release: ${{ steps.plan.outputs.create_release }}
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 이벤트별 채널과 업로드 대상 계산
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_UPLOAD_ITCHIO: ${{ inputs.upload_itchio }}
+          # 자동 업로드를 끄는 스위치다. 값이 없으면 development는 켜짐, production은 꺼짐이다.
+          AUTO_ITCHIO_DEVELOPMENT: ${{ vars.DELIVERY_ITCHIO_DEVELOPMENT }}
+          AUTO_ITCHIO_PRODUCTION: ${{ vars.DELIVERY_ITCHIO_PRODUCTION }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          channel="development"
+          upload_itchio="false"
+          create_release="false"
+
+          if [ "$EVENT_NAME" = "push" ] && [ "$REF_TYPE" = "tag" ]; then
+            # 릴리즈컷. 6분짜리 빌드를 돌리기 전에 tag와 bundleVersion 불일치를 먼저 걸러낸다.
+            base_version="$(grep -m1 '^[[:space:]]*bundleVersion:' ProjectSettings/ProjectSettings.asset | awk '{print $2}')"
+            if [ -z "${base_version:-}" ]; then
+              echo "::error::ProjectSettings.asset에서 bundleVersion을 찾지 못했습니다."
+              exit 1
+            fi
+
+            if [ "${REF_NAME#v}" != "$base_version" ]; then
+              echo "::error::tag ${REF_NAME}가 ProjectSettings bundleVersion(${base_version})과 다릅니다. bundleVersion을 올린 커밋에 tag를 다시 만드세요."
+              exit 1
+            fi
+
+            channel="production"
+            create_release="true"
+            # production 채널은 아직 한 번도 게시한 적이 없으므로 명시적으로 켠 경우에만 올린다.
+            if [ "${AUTO_ITCHIO_PRODUCTION:-}" = "true" ]; then
+              upload_itchio="true"
+            fi
+          elif [ "$EVENT_NAME" = "push" ]; then
+            # main 병합. 변수로 끄지 않는 한 development 채널에 올린다.
+            if [ "${AUTO_ITCHIO_DEVELOPMENT:-}" != "false" ]; then
+              upload_itchio="true"
+            fi
+          else
+            # 수동 실행은 입력값을 그대로 따른다.
+            if [ "${INPUT_UPLOAD_ITCHIO:-}" = "true" ]; then
+              upload_itchio="true"
+            fi
+          fi
+
+          {
+            echo "channel=${channel}"
+            echo "upload_itchio=${upload_itchio}"
+            echo "create_release=${create_release}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Windows Delivery 실행 계획"
+            echo ""
+            echo "- event: \`${EVENT_NAME}\` (\`${REF_NAME}\`)"
+            echo "- channel: \`${channel}\`"
+            echo "- itch.io 업로드: \`${upload_itchio}\`"
+            echo "- GitHub Release 생성: \`${create_release}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Windows 빌드
+    needs: plan
+    uses: ./.github/workflows/windows-demo-build.yml
+    with:
+      channel: ${{ needs.plan.outputs.channel }}
+    secrets: inherit
+
+  itchio:
+    name: itch.io 업로드
+    needs: [plan, build]
+    if: ${{ needs.plan.outputs.upload_itchio == 'true' }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/itchio-development-upload.yml
+    with:
+      # 같은 run 안에서 빌드한 artifact를 그대로 넘긴다.
+      run_id: ${{ github.run_id }}
+      artifact_name: ${{ needs.build.outputs.artifact_name }}
+      version: ${{ needs.build.outputs.full_version }}
+      channel: ${{ needs.plan.outputs.channel }}
+    secrets: inherit
+
+  release:
+    name: GitHub Release 생성
+    needs: [plan, build]
+    if: ${{ needs.plan.outputs.create_release == 'true' }}
+    permissions:
+      # Release 생성에는 contents: write가 필요하다. 이 job에만 준다.
+      contents: write
+      actions: read
+    uses: ./.github/workflows/windows-release-asset.yml
+    with:
+      run_id: ${{ github.run_id }}
+      artifact_name: ${{ needs.build.outputs.artifact_name }}
+      tag: ${{ github.ref_name }}
+      # 정책 기본값을 따른다. 정식 릴리스 전환은 Release 화면에서 사람이 한다.
+      prerelease: true
+      overwrite: false
+    secrets: inherit

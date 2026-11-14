@@ -24,6 +24,31 @@ on:
         type: boolean
         required: false
         default: false
+  # `Windows Delivery 파이프라인`이 tag push에서 같은 run 안의 빌드 artifact를 넘겨 호출한다.
+  workflow_call:
+    inputs:
+      run_id:
+        description: "artifact가 있는 workflow run id"
+        type: string
+        required: true
+      artifact_name:
+        description: "Release asset으로 올릴 GitHub Actions artifact 이름"
+        type: string
+        required: true
+      tag:
+        description: "릴리스 태그(v<a.b.c>)"
+        type: string
+        required: true
+      prerelease:
+        description: "새 Release를 prerelease로 만든다"
+        type: boolean
+        required: false
+        default: true
+      overwrite:
+        description: "이미 있는 Release의 같은 이름 asset을 덮어쓴다"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   # Release와 tag 생성에는 contents: write가 필요하다.
@@ -100,6 +125,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          # 파이프라인에서 호출된 경우 원본은 지금 실행 중인 run 자신이다.
+          # 이 run은 아직 완료 전이라 아래 완료/성공 검사를 통과할 수 없고,
+          # 빌드 job 성공은 호출한 쪽의 needs가 보장하므로 현재 커밋을 그대로 쓴다.
+          if [ "$RUN_ID" = "$GITHUB_RUN_ID" ]; then
+            {
+              echo "head_sha=${GITHUB_SHA}"
+              echo "run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           run_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")"
           workflow_path="$(jq -r '.path // ""' <<< "$run_json")"

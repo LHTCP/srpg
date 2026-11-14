@@ -22,26 +22,56 @@ Windows zip 생성과 `BUILD_INFO.txt` 생성은 `Windows PC 데모 빌드` work
 
 - `Windows Release asset 업로드` workflow(`.github/workflows/windows-release-asset.yml`)가 있다. `workflow_dispatch` 수동 실행 전용이며, 기존 Windows artifact를 GitHub Release asset으로 올린다. 2026-11-14 확인 기준 실행 기록과 게시된 Release가 없으므로 미검증이다. 정책은 [release-versioning.md](release-versioning.md)의 `GitHub Release asset 정책`을 따른다.
 
+- `Windows Delivery 파이프라인` workflow(`.github/workflows/windows-delivery.yml`)가 있다. `main` push와 `v<a.b.c>` tag push에서 빌드부터 업로드까지 자동으로 잇는다. 2026-11-14 추가했으며 실행 기록이 없으므로 미검증이다.
+
 아직 구현 전인 설계 후보:
 
-- production 채널 업로드 workflow
-- GitHub Release 생성과 itch.io production 업로드를 한 흐름으로 연결
 - `release.json` 추가와 production patch 증가 검증
+- itch.io production 채널 첫 게시 검증(업로드 경로는 구현했지만 기본값은 꺼짐)
 
 ## 자동화 범위와 트리거
 
-패키징은 완전 자동화가 아니다. 빌드와 배포 workflow는 모두 `workflow_dispatch` 수동 실행 전용이며, push, tag, schedule 트리거는 없다. 단계 사이도 사람이 run id와 artifact 이름을 입력해 이어 준다.
+`Windows Delivery 파이프라인` workflow(`.github/workflows/windows-delivery.yml`)가 빌드, 패키징, 업로드를 한 run으로 잇는다. 사람이 run id와 artifact 이름을 옮겨 적을 필요가 없다. 2026-11-14에 추가했으며, 기본 브랜치에 병합된 뒤 첫 실행으로 확인하기 전까지 미검증이다.
 
-| 단계 | workflow | 트리거 | 입력값 |
-| ---- | -------- | ------ | ------ |
+| 트리거 | 자동으로 하는 일 | 사람이 하는 일 |
+| ------ | ---------------- | -------------- |
+| `main`에 push(병합) | Windows 빌드 → zip → itch.io `development` 업로드 | 없음 |
+| `v<a.b.c>` tag push | Windows 빌드 → zip → GitHub Release(prerelease) 생성. 설정 시 itch.io `production` 업로드 | `bundleVersion`을 올린 커밋에 tag를 만들어 push |
+| 수동 실행 | Windows 빌드 → zip → 선택 시 itch.io `development` 업로드 | `upload_itchio` 선택 후 실행 |
+
+`main` push는 빌드 결과가 달라지는 경로가 바뀔 때만 실행된다: `Assets/**`(`Assets/Tests/**` 제외), `Packages/**`, `ProjectSettings/**`, `scripts/package-windows-demo.sh`. 문서, 테스트, workflow 파일만 바꾼 병합은 빌드와 업로드를 돌리지 않는다.
+
+tag push는 빌드 전에 tag와 `ProjectSettings/ProjectSettings.asset`의 `bundleVersion`이 일치하는지 먼저 확인하고, 다르면 빌드 없이 실패한다.
+
+자동 업로드는 repository variable로 끄고 켠다.
+
+| variable | 값이 없을 때 | 용도 |
+| -------- | ------------ | ---- |
+| `DELIVERY_ITCHIO_DEVELOPMENT` | 켜짐 | `false`로 두면 `main` push에서 itch.io `development` 업로드를 건너뛴다. 빌드와 artifact 생성은 계속한다. |
+| `DELIVERY_ITCHIO_PRODUCTION` | 꺼짐 | `true`로 두면 tag push에서 itch.io `production` 채널에도 올린다. production 채널은 게시한 적이 없으므로 첫 게시 전에 사람이 켠다. |
+
+아직 사람이 해야 하는 일:
+
+- 릴리즈컷: `bundleVersion`을 올리는 PR 병합과 tag push
+- Release의 prerelease 해제: 자동 생성 Release는 정책 기본값대로 prerelease다. 정식 전환은 Release 화면에서 한다.
+- 게시 후 smoke test와 known issue 안내
+- Actions cache 정리: 업로드 전 cache 예산 확인에서 막히면 `Actions 저장소 정리`를 수동 실행한다.
+- secret과 variable 준비: 파이프라인은 `UNITY_*`, `LFS_*`, `BUTLER_API_KEY`, `ITCHIO_USERNAME`, `ITCHIO_GAME`이 이미 설정되어 있다고 가정한다.
+
+버전의 build number는 실행한 workflow의 run number다. `Windows Delivery 파이프라인`과 `Windows PC 데모 빌드`는 run number를 따로 세므로, 두 경로로 만든 빌드는 같은 `a.b.c.<build>`를 가질 수 있다. 이때도 파일명의 `<short-sha>`와 `BUILD_INFO.txt`의 `workflow_run`으로 구분할 수 있다.
+
+개별 workflow는 재실행과 복구용 수동 경로로 남아 있다. 파이프라인은 이 workflow들을 호출해서 쓴다.
+
+| 단계 | workflow | 단독 트리거 | 입력값 |
+| ---- | -------- | ----------- | ------ |
 | Windows 빌드와 zip 패키징 | `Windows PC 데모 빌드` | 수동 실행 | 없음 |
 | itch.io development 업로드 | `itch.io Development 업로드` | 수동 실행 | `run_id`, `artifact_name`, 선택 `version` |
 | GitHub Release asset 업로드 | `Windows Release asset 업로드` | 수동 실행 | `run_id`, `artifact_name`, `tag`, `prerelease`, `overwrite` |
 | 패키징 경로 검증 | `Windows 패키징 헬스체크` | 수동 실행, PR 자동 | 없음 |
 
-`Windows PC 데모 빌드`를 한 번 실행하면 LFS pull, 버전 계산, Unity 빌드, `scripts/package-windows-demo.sh` zip 생성, artifact 업로드까지는 사람 개입 없이 이어진다.
+`itch.io Development 업로드`는 수동 실행에서는 `development` 채널만 올린다. `production` 채널은 파이프라인이 호출할 때만 지정할 수 있다.
 
-자동으로 실행되는 것은 `Windows 패키징 헬스체크`뿐이다. PR이 `.github/workflows/windows-demo-build.yml`, `.github/workflows/windows-packaging-healthcheck.yml`, `scripts/package-windows-demo.sh` 중 하나를 바꿀 때 실행된다. Unity 빌드 없이 모의 산출물로 zip 패키징과 artifact 업로드 경로만 확인하므로, 통과해도 실제 빌드 성공을 보장하지 않는다.
+PR에서 자동으로 실행되는 패키징 검증은 `Windows 패키징 헬스체크`뿐이다. PR이 `.github/workflows/windows-demo-build.yml`, `.github/workflows/windows-packaging-healthcheck.yml`, `scripts/package-windows-demo.sh` 중 하나를 바꿀 때 실행된다. Unity 빌드 없이 모의 산출물로 zip 패키징과 artifact 업로드 경로만 확인하므로, 통과해도 실제 빌드 성공을 보장하지 않는다.
 
 전체 workflow 목록은 [cicd-runbook.md](cicd-runbook.md)의 `Workflow와 트리거`를 본다.
 
@@ -169,7 +199,7 @@ bash scripts/package-windows-demo.sh
 
 기존 후보였던 `windows-demo`는 플랫폼 의미는 명확하지만, 릴리즈 단계 구분이 약하다. PC/Windows 전용 프로젝트인 동안에는 itch.io 파일 platform을 Windows로 지정하고, 채널명은 release channel의 의미가 드러나는 `development`/`production`을 우선한다.
 
-butler 업로드는 다음 형태를 기준으로 한다. `development` 채널 push는 `itch.io Development 업로드` workflow로 구현되어 있고, `production` 채널 push는 아직 이 저장소의 workflow로 구현되지 않았다.
+butler 업로드는 다음 형태를 기준으로 한다. 두 채널 모두 `itch.io Development 업로드` workflow가 처리한다. `production` 채널 push는 `Windows Delivery 파이프라인`이 tag push에서 호출할 때만, 그리고 `DELIVERY_ITCHIO_PRODUCTION=true`일 때만 실행된다.
 
 ```text
 butler push <zip-or-folder> lhtcp/lhtcp-srpg:development
@@ -207,7 +237,8 @@ srpg-demo-windows-<a.b.c.build>-<short-sha>
 - public repo standard GitHub-hosted runner 범위에서 먼저 검증한다.
 - larger runner, self-hosted runner, 유료 스토리지, S3/CloudFront는 이번 기준의 기본 완료조건이 아니다.
 - artifact/cache retention을 늘리는 PR은 비용과 보관 정책 영향을 PR 본문에 남긴다.
-- itch.io 자동 업로드는 처음부터 main merge 자동 배포로 켜지 않고 `workflow_dispatch` 수동 실행으로만 둔다. 현재 `itch.io Development 업로드` workflow가 이 기준을 따른다.
+- itch.io 업로드는 수동 실행으로 시작했고, 2026-11-14 지시자 요청으로 `main` push 자동 업로드(`development` 채널)를 `Windows Delivery 파이프라인`에 추가했다. 공개를 멈춰야 하면 repository variable `DELIVERY_ITCHIO_DEVELOPMENT=false`로 끈다.
+- 자동 실행도 public repo standard GitHub-hosted runner만 쓴다. 다만 `main` 병합마다 사설 LFS 서버 트래픽과 Unity 라이선스 활성화가 한 번씩 발생한다.
 
 ## 관련
 
