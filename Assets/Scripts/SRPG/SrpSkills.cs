@@ -75,7 +75,12 @@ public static class SrpSkills
         bool hasDamage = false;
         foreach (var eff in data.effects)
         {
-            if (eff != null && eff.type == SrpEffectType.Damage && eff.value > 0)
+            if (eff == null)
+                continue;
+            // 레거시 Cleave는 공격력 + 값을 기준 피해로 삼아 Damage와 같은 경로를 탄다.
+            if (eff.type == SrpEffectType.Damage && eff.value > 0)
+                hasDamage = true;
+            else if (eff.type == SrpEffectType.Cleave && caster.attackPower + eff.value > 0)
                 hasDamage = true;
         }
         return hasDamage && SrpCombatResolver.CanDefenderDodge(state, caster, target);
@@ -226,17 +231,33 @@ public static class SrpSkills
                 continue;
             if ((unit.owner != caster.owner) != wantsEnemy)
                 continue;
-            if (Mathf.Max(Mathf.Abs(unit.anchorX - targetX), Mathf.Abs(unit.anchorY - targetY)) > radius)
+            if (FootprintDistanceToTile(unit, targetX, targetY) > radius)
                 continue;
             units.Add(unit);
         }
         units.Sort((a, b) =>
         {
-            int da = Mathf.Max(Mathf.Abs(a.anchorX - targetX), Mathf.Abs(a.anchorY - targetY));
-            int db = Mathf.Max(Mathf.Abs(b.anchorX - targetX), Mathf.Abs(b.anchorY - targetY));
+            int da = FootprintDistanceToTile(a, targetX, targetY);
+            int db = FootprintDistanceToTile(b, targetX, targetY);
             return da != db ? da.CompareTo(db) : a.id.CompareTo(b.id);
         });
         return units;
+    }
+
+    /// <summary>유닛이 차지한 칸 중 대상 칸에 가장 가까운 칸까지의 거리(대각선 포함). 여러 칸 유닛은 한 칸만 걸쳐도 범위에 든다.</summary>
+    static int FootprintDistanceToTile(SrpUnitRuntime unit, int x, int y)
+    {
+        if (unit.footprintOffsets == null || unit.footprintOffsets.Count == 0)
+            return Mathf.Max(Mathf.Abs(unit.anchorX - x), Mathf.Abs(unit.anchorY - y));
+
+        int best = int.MaxValue;
+        foreach (var off in unit.footprintOffsets)
+        {
+            int dist = Mathf.Max(Mathf.Abs(unit.anchorX + off.x - x), Mathf.Abs(unit.anchorY + off.y - y));
+            if (dist < best)
+                best = dist;
+        }
+        return best;
     }
 
     public static void EnsureRuntimeInitialized(SrpSkillData data, SrpSkillRuntime runtime)

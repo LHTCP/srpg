@@ -8,7 +8,7 @@ public enum SrpSightRule
 {
     /// <summary>시야를 보지 않는다. 사거리만 맞으면 된다.</summary>
     None = 0,
-    /// <summary>지형만 막는다: 이동 불가 타일과 LOS 차단 엄폐 segment.</summary>
+    /// <summary>지형만 막는다: 이동 불가 타일(시야를 막지 않는 엄폐물 칸은 제외)과 LOS 차단 엄폐 segment.</summary>
     Terrain = 1,
     /// <summary>지형과 사선 중간의 유닛이 막는다. 총기 기본 공격과 같은 규칙이다.</summary>
     TerrainAndUnits = 2,
@@ -77,7 +77,7 @@ public static class SrpLineOfSight
             bool isDestination = x == toX && y == toY;
             if (!isDestination)
             {
-                if (!state.InBounds(x, y) || !state.IsWalkableTile(x, y))
+                if (state.BlocksSightTile(x, y))
                     return true;
                 if (rule == SrpSightRule.TerrainAndUnits)
                 {

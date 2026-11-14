@@ -383,6 +383,76 @@ public class SrpM1SkillMapTests
         Assert.That(target.pg, Is.EqualTo(30));
     }
 
+    [TestCase(TestName = "레거시 Cleave 효과도 회피 안내 대상이다")]
+    public void LegacyCleaveEffect_IsCoveredByDodgePreviewPredicate()
+    {
+        var state = CreateState();
+        var caster = Unit(id: 1, owner: 0, x: 0, y: 2, attackPower: 5);
+        var target = Unit(id: 2, owner: 1, x: 2, y: 2, stance: SrpStance.Aggressive);
+        target.reactionPoints = 1;
+        state.Units.Add(caster);
+        state.Units.Add(target);
+        var skill = new SrpSkillData
+        {
+            id = "test_legacy_cleave_ranged",
+            skillType = SrpSkillType.Active,
+            trigger = SrpSkillTrigger.OnActivate,
+            targetType = SrpTargetType.SingleEnemy,
+            range = 3,
+            effects = new[] { new SrpSkillEffect { type = SrpEffectType.Cleave, value = 0 } },
+        };
+
+        Assert.That(SrpSkills.CanTargetDodgeSkillDamage(skill, caster, target, state), Is.True,
+            "Cleave 피해(공격력 + 값)는 회피될 수 있는데 안내 대상에서 빠졌습니다.");
+
+        caster.attackPower = 0;
+        Assert.That(SrpSkills.CanTargetDodgeSkillDamage(skill, caster, target, state), Is.False, "피해가 0인 Cleave는 회피 안내 대상이 아닙니다.");
+    }
+
+    // ── 리뷰 반영: 여러 칸 유닛, 시야를 막지 않는 엄폐물 ─────────────────────
+
+    [TestCase(TestName = "범위 스킬은 여러 칸 유닛이 한 칸만 걸쳐도 한 번 적용한다")]
+    public void AreaSkill_HitsMultiCellUnitByAnyFootprintCellOnce()
+    {
+        var state = CreateState();
+        var caster = Unit(id: 1, owner: 0, x: 0, y: 0);
+        var large = Unit(id: 2, owner: 1, x: 2, y: 2);
+        large.footprintOffsets = new System.Collections.Generic.List<Vector2Int>
+        {
+            new Vector2Int(0, 0), new Vector2Int(1, 0), new Vector2Int(0, 1), new Vector2Int(1, 1),
+        };
+        state.Units.Add(caster);
+        state.Units.Add(large);
+
+        // 범위 0: 기준 칸이 아닌 (3,3)을 지정해도 맞는다.
+        var point = AreaSkill(SrpTargetType.AreaEnemy, 0, new SrpSkillEffect { type = SrpEffectType.Damage, value = 4 });
+        Assert.That(SrpSkills.GetSkillAffectedUnits(point, caster, 3, 3, state), Has.Member(large));
+
+        // 범위 1: (4,4) 중심의 3x3은 (3,3)만 걸친다. 여러 칸이 걸쳐도(중심 2,2) 한 번만 들어간다.
+        var blast = AreaSkill(SrpTargetType.AreaEnemy, 1, new SrpSkillEffect { type = SrpEffectType.Damage, value = 4 });
+        Assert.That(SrpSkills.GetSkillAffectedUnits(blast, caster, 4, 4, state), Has.Member(large));
+        Assert.That(SrpSkills.GetSkillAffectedUnits(blast, caster, 2, 2, state).Count, Is.EqualTo(1));
+        Assert.That(SrpSkills.GetSkillAffectedUnits(point, caster, 4, 4, state), Has.No.Member(large));
+    }
+
+    [TestCase(TestName = "시야를 막지 않는 엄폐물 칸은 이동은 막아도 시야와 사선은 통과시킨다")]
+    public void Sight_NonBlockingCoverObjectLetsSightAndAimThrough()
+    {
+        var state = CreateState();
+        Block(state, 2, 0);
+        Block(state, 2, 2);
+        state.CoverObjects.Add(new SrpCoverObjectData { x = 2, y = 0, blocksLineOfSight = false });
+        state.CoverObjects.Add(new SrpCoverObjectData { x = 2, y = 2, blocksLineOfSight = true });
+        var shooter = Unit(id: 1, owner: 0, x: 0, y: 0);
+        state.Units.Add(shooter);
+
+        Assert.That(state.IsWalkableTile(2, 0), Is.False);
+        Assert.That(SrpLineOfSight.HasSight(state, 0, 0, 4, 0, SrpSightRule.Terrain), Is.True, "시야 차단을 끈 엄폐물이 시야를 막았습니다.");
+        Assert.That(SrpFirearmAim.TryBuildAimLine(state, shooter, 4, 0, 10, -1, out _), Is.True, "시야 차단을 끈 엄폐물이 사선을 막았습니다.");
+        Assert.That(SrpLineOfSight.HasSight(state, 0, 2, 4, 2, SrpSightRule.Terrain), Is.False, "시야 차단 엄폐물이 시야를 막지 않았습니다.");
+        Assert.That(SrpLineOfSight.HasSight(state, 0, 0, 4, 0, SrpSightRule.TerrainAndUnits, shooter.id), Is.True);
+    }
+
     static SrpSkillData AreaSkill(SrpTargetType targetType, int areaSize, params SrpSkillEffect[] effects)
     {
         return new SrpSkillData

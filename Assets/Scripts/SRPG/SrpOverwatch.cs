@@ -289,7 +289,7 @@ public static class SrpFirearmAim
 
     static bool IsLineTileOpen(SrpBattleState state, int shooterId, int exceptUnitId, int x, int y)
     {
-        if (!state.InBounds(x, y) || !state.IsWalkableTile(x, y))
+        if (state.BlocksSightTile(x, y))
             return false;
 
         var occupant = state.GetOccupant(x, y);
