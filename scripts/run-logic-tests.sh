@@ -19,11 +19,38 @@ cd "$repo_root"
 
 echo "[srpg] 전투 로직 테스트 실행 (.NET)"
 # RequiresUnity: Unity 타입이나 컨트롤러가 있어야 의미가 있는 테스트. 스텁으로는 검증할 수 없어 뺀다.
-# 추가 인자는 그대로 넘긴다. 예: bash ./scripts/run-logic-tests.sh --filter "FullyQualifiedName~SrpM1SkillMapTests"
-if [[ $# -gt 0 ]]; then
-  dotnet test "$project" --nologo "$@"
+# 추가 인자는 그대로 넘긴다. --filter를 주면 RequiresUnity 제외와 AND로 합친다.
+# 예: bash ./scripts/run-logic-tests.sh --filter "FullyQualifiedName~SrpM1SkillMapTests"
+exclude_filter="TestCategory!=RequiresUnity"
+user_filter=""
+passthrough=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --filter)
+      if [[ $# -lt 2 ]]; then
+        echo "[srpg] --filter 뒤에 필터 식이 필요합니다." >&2
+        exit 1
+      fi
+      user_filter="$2"
+      shift 2
+      ;;
+    --filter=*|--filter:*)
+      user_filter="${1#--filter?}"
+      shift
+      ;;
+    *)
+      passthrough+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ -n "$user_filter" ]]; then
+  filter="($user_filter)&$exclude_filter"
 else
-  dotnet test "$project" --nologo --filter "TestCategory!=RequiresUnity"
+  filter="$exclude_filter"
 fi
+
+dotnet test "$project" --nologo --filter "$filter" ${passthrough[@]+"${passthrough[@]}"}
 
 echo "[srpg] 완료"

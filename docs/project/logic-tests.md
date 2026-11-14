@@ -11,6 +11,7 @@ bash ./scripts/run-logic-tests.sh
 - 필요한 것: .NET SDK 8 이상. 첫 실행은 NuGet 패키지를 내려받는다.
 - 걸리는 시간: 로컬 기준 약 1분. 대부분 AI 시뮬레이션(전투 2,900회)이다.
 - 일부만 돌리기: `bash ./scripts/run-logic-tests.sh --filter "FullyQualifiedName~SrpM1SkillMapTests"`
+- 추가 인자(`--logger trx` 등)는 `dotnet test`로 그대로 넘어간다. `--filter`를 주더라도 `RequiresUnity` 제외는 항상 유지된다.
 - AI 시뮬레이션 리포트는 테스트 실행 폴더 아래 `tools/logic-tests/bin/Debug/net8.0/TestResults/SrpSim/`에 생긴다(`.gitignore` 대상).
 
 ## 무엇을 검증하는가
