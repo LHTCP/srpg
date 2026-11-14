@@ -4,6 +4,8 @@
 
 ## 결론
 
+> 2026-11-14 갱신: 지시자 요청으로 `main` push 자동 업로드를 `Windows Delivery 파이프라인` workflow에 추가했다. 아래의 "수동 실행으로 시작한다"는 내용은 도입 당시의 설계 근거이며, 현재 트리거와 끄는 방법은 [pc-demo-packaging.md](pc-demo-packaging.md)의 `자동화 범위와 트리거`를 따른다.
+
 butler 자동화는 처음부터 main merge 자동 배포로 두지 않는다. 초기에는 `workflow_dispatch` 수동 실행으로만 열고, Windows PC zip이 이미 만들어진 상태에서 itch.io에 업로드하는 얇은 job으로 시작한다.
 
 자동화의 1차 목적은 “빌드 자동 생성”이 아니라 “검증된 PC zip을 반복 가능한 방식으로 itch.io에 올리는 것”이다.
@@ -61,8 +63,8 @@ development와 production을 분리한다.
 
 | 채널 | 용도 | 트리거 |
 | ---- | ---- | ------ |
-| `development` | 최신 개발 검증 빌드 | 수동 workflow 또는 main 기준 수동 배포 |
-| `production` | 릴리즈컷으로 고정한 빌드 | GitHub Release 생성 workflow |
+| `development` | 최신 개발 검증 빌드 | `main` push 자동(`Windows Delivery 파이프라인`) 또는 수동 workflow |
+| `production` | 릴리즈컷으로 고정한 빌드 | `v<a.b.c>` tag push 자동. `DELIVERY_ITCHIO_PRODUCTION=true`일 때만 |
 
 PC/Windows 플랫폼 표시는 itch.io 파일 metadata에서 처리하고, butler 채널은 운영 단계 구분에 사용한다.
 
@@ -97,7 +99,7 @@ PC/Windows 플랫폼 표시는 itch.io 파일 metadata에서 처리하고, butle
 
 ## workflow trigger
 
-초기 trigger는 수동 실행만 허용한다. 현재 구현된 `itch.io Development 업로드` workflow는 Windows 빌드를 새로 만들지 않고, 입력으로 받은 기존 `Windows PC 데모 빌드` run id와 artifact 이름을 사용한다.
+초기 trigger는 수동 실행만 허용했다. 2026-11-14부터는 `Windows Delivery 파이프라인`이 `main` push와 tag push에서 이 workflow를 `workflow_call`로 호출한다. 수동 실행 시 `itch.io Development 업로드` workflow는 Windows 빌드를 새로 만들지 않고, 입력으로 받은 기존 `Windows PC 데모 빌드` run id와 artifact 이름을 사용한다.
 
 ```yaml
 on:
@@ -114,9 +116,8 @@ on:
         required: false
 ```
 
-권장하지 않는 초기 trigger:
+권장하지 않는 trigger:
 
-- `push` to `main`
 - 모든 PR마다 자동 업로드
 - nightly 자동 업로드
 

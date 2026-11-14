@@ -12,12 +12,50 @@
 - Apple Developer Program, Google Play Console, S3+CloudFront처럼 명시적 비용 또는 사용량 과금이 있는 경로는 별도 decision/approval 없이 기본 완료조건에 넣지 않는다.
 - 배포 실패가 반복되면 임시 우회보다 재현 가능한 문서·workflow 수정 PR을 우선 만든다.
 
+## Workflow와 트리거
+
+2026-11-14 `.github/workflows/` 기준이다. push와 tag로 자동 시작되는 것은 `Windows Delivery 파이프라인` 하나이며, 나머지 빌드와 배포 workflow는 수동 실행(`workflow_dispatch`)으로만 단독 실행된다. schedule로 시작되는 workflow는 없다. PR에서 자동 실행되는 것은 `PR 빠른 체크`와 `Windows 패키징 헬스체크`뿐이다.
+
+| workflow | 파일 | 트리거 | 역할 |
+| -------- | ---- | ------ | ---- |
+| `Windows Delivery 파이프라인` | `windows-delivery.yml` | `main` push(경로 한정), `v<a.b.c>` tag push, 수동 | 빌드 → zip → itch.io 업로드 또는 GitHub Release 생성을 한 run으로 연결 |
+| `PR 빠른 체크` | `pr-fast-checks.yml` | PR 자동, 수동 | PR 기본 검증 |
+| `Windows 패키징 헬스체크` | `windows-packaging-healthcheck.yml` | PR 자동(경로 한정), 수동 | Unity 빌드 없이 zip 패키징과 artifact 업로드 경로 확인 |
+| `Unity EditMode 테스트` | `unity-editmode-tests.yml` | 수동 | EditMode 테스트 실행 |
+| `Windows PC 데모 빌드` | `windows-demo-build.yml` | 수동, 파이프라인에서 호출 | Windows 빌드와 zip artifact 생성 |
+| `WebGL 무료 Delivery` | `webgl-free-delivery.yml` | 수동 | WebGL 빌드. `main`에서 `deploy_pages=true`일 때만 GitHub Pages 배포 |
+| `itch.io Development 업로드` | `itchio-development-upload.yml` | 수동, 파이프라인에서 호출 | Windows artifact를 itch.io에 업로드. 수동은 `development`만, `production`은 파이프라인 호출에서만 |
+| `Windows Release asset 업로드` | `windows-release-asset.yml` | 수동, 파이프라인에서 호출 | Windows artifact를 GitHub Release asset으로 업로드 |
+| `Delivery 선행 헬스체크` | `delivery-healthcheck.yml` | 수동 | LFS와 Unity 라이선스 점검을 묶어 실행 |
+| `LFS 서버 헬스체크` | `lfs-healthcheck.yml` | 수동, 다른 workflow에서 호출 | 사설 LFS 서버 접근 확인 |
+| `Unity 라이선스 헬스체크` | `unity-license-healthcheck.yml` | 수동, 다른 workflow에서 호출 | Unity secret 존재와 형식 확인 |
+| `itch.io Delivery 설정 헬스체크` | `itchio-delivery-healthcheck.yml` | 수동 | butler secret과 variable 확인 |
+| `Actions 저장소 정리` | `actions-storage-maintenance.yml` | 수동 | 오래된 Actions cache 정리 |
+
+`Windows 패키징 헬스체크`는 PR이 `.github/workflows/windows-demo-build.yml`, `.github/workflows/windows-packaging-healthcheck.yml`, `scripts/package-windows-demo.sh` 중 하나를 바꿀 때만 자동 실행된다. 모의 산출물을 쓰므로 통과해도 실제 Unity 빌드 성공을 보장하지 않는다.
+
+패키징 단계별 입력값과 자동화 범위는 [pc-demo-packaging.md](pc-demo-packaging.md)의 `자동화 범위와 트리거`를 본다.
+
+### 파이프라인 실패 시
+
+`Windows Delivery 파이프라인`은 `실행 계획 결정` → `Windows 빌드` → `itch.io 업로드` 또는 `GitHub Release 생성` 순서로 job을 실행한다. 실패한 job에 따라 대응한다.
+
+| 실패한 job | 대응 |
+| ---------- | ---- |
+| `실행 계획 결정` | tag push에서만 실패한다. tag와 `bundleVersion`이 다르다는 뜻이므로 잘못 만든 tag를 지우고, `bundleVersion`을 올린 커밋에 tag를 다시 만든다. |
+| `Windows 빌드` | 아래 `LFS 실패`, `Unity license 실패`, `Windows 빌드 실패` 절을 따른다. 고친 뒤 run을 다시 실행한다. |
+| `itch.io 업로드` | 빌드 artifact는 남아 있다. 실패한 job만 다시 실행하거나, `itch.io Development 업로드`를 수동 실행하면서 이 파이프라인 run의 id와 artifact 이름을 입력한다. 이 workflow는 원본 run의 종류를 검사하지 않으므로 파이프라인 run id를 그대로 받는다. |
+| `GitHub Release 생성` | 실패한 job만 다시 실행한다. `Windows Release asset 업로드` 수동 실행은 원본 run이 `Windows PC 데모 빌드`여야 하므로 파이프라인 run id를 받지 않는다. |
+
+자동 업로드를 급히 멈춰야 하면 repository variable `DELIVERY_ITCHIO_DEVELOPMENT`를 `false`로 설정한다. 이미 올라간 빌드는 내려가지 않으므로 필요하면 itch.io 대시보드에서 직접 처리한다.
+
 ## 빠른 분류
 
 | 증상 | 먼저 볼 위치 | 대표 원인 |
 | ---- | ------------ | --------- |
+| Release asset 업로드 실패 | `Windows Release asset 업로드`의 실패 step | tag와 버전 불일치, 이미 있는 Release, artifact 보관 기간 만료 |
 | LFS 다운로드 실패 | `LFS 오브젝트 가져오기` step | secret 누락, 커스텀 LFS 서버 접근 불가, 권한 만료 |
-| Unity license 실패 | Unity test/build action step | `UNITY_LICENSE` 또는 `UNITY_SERIAL` 누락·만료 |
+| Unity license 실패 | Unity test/build action step | `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD` 누락·만료 |
 | 테스트 실패 | Unity test result, Editor log | 컴파일 오류, 테스트 회귀, 에셋 import 오류 |
 | WebGL 빌드 실패 | WebGL build step, Editor log | 플랫폼 모듈 누락, 메모리 부족, Player Settings 오류 |
 | Windows 빌드 실패 | Windows build step, Editor log | 플랫폼 모듈/runner 차이, 경로 문제, 실행 파일 패키징 누락 |
@@ -112,10 +150,21 @@ Unity build/test workflow를 실행하기 전에 `Delivery 선행 헬스체크` 
 - `UNITY_EMAIL`: Unity 계정 이메일
 - `UNITY_PASSWORD`: Unity 계정 비밀번호
 
-라이선스 방식에 따라 다음 secret 중 하나를 추가로 사용할 수 있다.
+라이선스 파일 방식을 쓰면 다음 secret을 추가로 사용한다.
 
 - `UNITY_LICENSE`: Unity Hub 또는 팀 계정에서 확보한 `.ulf` 파일 전체 내용
-- `UNITY_SERIAL`: serial 기반 Unity 라이선스를 쓰는 경우의 serial 값
+
+`UNITY_SERIAL`은 현재 어떤 빌드·테스트 workflow도 Unity action에 전달하지 않는다. `Unity 라이선스 헬스체크`가 설정 여부만 보고한다. 따라서 지금은 `UNITY_SERIAL` secret을 설정해도 빌드에 효과가 없고, serial 방식을 쓰려면 workflow의 Unity step `env`에 `UNITY_SERIAL`을 추가하는 PR이 먼저 필요하다.
+
+workflow별로 Unity action에 전달하는 secret은 다음과 같다.
+
+| workflow | 전달하는 secret |
+| -------- | --------------- |
+| `Windows PC 데모 빌드` | `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD` |
+| `Unity EditMode 테스트` | `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD` |
+| `WebGL 무료 Delivery` | `UNITY_LICENSE`만 |
+
+`WebGL 무료 Delivery`는 계정 secret을 전달하지 않으므로 `UNITY_LICENSE`가 비어 있으면 라이선스 활성화에 실패할 수 있다.
 
 팀 공통 Unity 계정이 준비되기 전에는 지시자의 개인 계정으로 임시 검증할 수 있다. 단, 개인 계정 secret은 PR, 이슈, 로그, 문서에 직접 쓰지 않고, 팀 계정이 생기면 같은 secret 이름으로 교체한다.
 
@@ -135,14 +184,14 @@ No valid Unity Editor license found.
 
 - repository secret `UNITY_LICENSE`가 설정되어 있는지 확인한다.
 - Personal license 방식이면 repository secret `UNITY_EMAIL`, `UNITY_PASSWORD`도 설정되어 있는지 확인한다.
-- `UNITY_LICENSE`를 쓰지 않는 방식이면 repository secret `UNITY_SERIAL`이 설정되어 있는지 확인한다.
+- 실패한 workflow가 Unity action에 어떤 secret을 전달하는지 위 `Windows zip delivery secret`의 표로 확인한다. `UNITY_SERIAL`은 현재 전달되지 않는다.
 - GameCI 또는 Unity action이 현재 workflow에서 어떤 license 방식을 기대하는지 확인한다.
 - Unity Personal/Pro/Enterprise 라이선스 정책과 활성화 한도를 확인한다.
 
 ### 조치
 
 - 라이선스 파일 방식을 쓰면 `UNITY_LICENSE` secret에 라이선스 파일 내용을 설정한다.
-- serial 방식을 쓰면 `UNITY_SERIAL`과 필요한 계정 secret 조합을 workflow 문서에 맞춰 설정한다.
+- serial 방식을 쓰려면 secret 설정만으로는 부족하다. workflow의 Unity step `env`에 `UNITY_SERIAL`을 추가하는 PR을 먼저 만든다.
 - license secret을 바꾼 뒤에는 같은 브랜치에서 수동 workflow를 재실행한다.
 - 라이선스 실패가 테스트 전에 발생했다면 test result artifact가 없는 것은 정상적인 2차 증상으로 본다.
 
@@ -247,6 +296,29 @@ File not found
 - Release asset 배포와 Actions artifact 배포 중 선택이 필요하다.
 - 빌드 산출물에 포함해야 할 추가 런타임 파일이 불명확하다.
 - 모바일 배포 요구가 다시 등장하면 현재 PC 우선 범위를 벗어나는 별도 decision 이슈로 분리한다.
+
+## Release asset 업로드 실패
+
+`Windows Release asset 업로드` workflow는 빌드를 새로 만들지 않고, 성공한 `Windows PC 데모 빌드` run의 artifact를 GitHub Release에 올린다. 2026-11-14 확인 기준 실행 기록이 없으므로 아래 내용은 workflow 정의 기준이며 실제 실패 사례로 검증되지 않았다. 정책은 [release-versioning.md](release-versioning.md)의 `GitHub Release asset 정책`을 따른다.
+
+### 오류 메시지별 원인과 조치
+
+| 실패 step | 오류 메시지 | 원인 | 조치 |
+| --------- | ----------- | ---- | ---- |
+| 입력값과 버전 확인 | `tag는 v<a.b.c> 형식이어야 합니다` | tag 형식 오류 | `v0.1.0`처럼 입력한다. build number는 붙이지 않는다. |
+| 입력값과 버전 확인 | `tag 버전(...)이 ProjectSettings bundleVersion(...)과 다릅니다` | workflow를 실행한 브랜치의 `bundleVersion`과 tag가 다름 | tag를 맞추거나, `bundleVersion`을 올리는 PR을 먼저 병합하고 다시 빌드한다. |
+| 입력값과 버전 확인 | `artifact 이름이 srpg-demo-windows-<a.b.c>.<build>-<short-sha> 형식이 아닙니다` | 다른 버전에서 만든 artifact를 지정함 | tag와 같은 `a.b.c`로 만든 빌드의 artifact 이름을 입력한다. |
+| 원본 Windows 빌드 run 확인 | `Windows PC 데모 빌드 workflow의 run이 아닙니다` | 다른 workflow의 run id를 입력함 | `Windows PC 데모 빌드` run 주소의 숫자 id를 입력한다. |
+| 원본 Windows 빌드 run 확인 | `성공으로 끝나지 않았습니다` | 실패했거나 진행 중인 run | 성공한 run을 고르거나 빌드를 다시 실행한다. |
+| Windows artifact 다운로드 | artifact를 찾지 못함 | artifact 이름 오타 또는 7일 보관 기간 만료 | 이름을 다시 확인한다. 만료됐으면 Windows 빌드부터 다시 만든다. |
+| Release 생성 또는 asset 업로드 | `태그 ...가 이미 다른 커밋(...)을 가리킵니다` | 같은 tag가 다른 커밋에 이미 있음 | `bundleVersion`의 patch를 올려 새 tag로 올린다. 기존 tag를 옮기지 않는다. |
+| Release 생성 또는 asset 업로드 | `Release ...가 이미 있습니다` | 같은 tag의 Release가 이미 있음 | 기본은 patch를 올려 새 tag로 올린다. 업로드 실패 복구일 때만 `overwrite=true`로 다시 실행한다. |
+
+### 에스컬레이션 기준
+
+- `gh release create` 또는 `gh release upload`가 권한 오류로 실패한다. workflow의 `contents: write` 권한과 저장소의 Actions 권한 설정을 확인해야 한다.
+- 이미 게시된 Release의 asset을 내리거나 tag를 삭제해야 한다.
+- production 채널 업로드와 Release를 함께 묶어야 하는 요구가 생긴다.
 
 ## Artifact 문제
 
