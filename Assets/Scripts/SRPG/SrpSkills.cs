@@ -111,40 +111,44 @@ public static class SrpSkills
         var tiles = new List<Vector2Int>();
         if (data == null) return tiles;
 
-        int range = data.range;
         for (int y = 0; y < state.Height; y++)
         for (int x = 0; x < state.Width; x++)
         {
-            int dist = Mathf.Max(Mathf.Abs(x - caster.anchorX), Mathf.Abs(y - caster.anchorY));
-            if (dist > range) continue;
-            if (!HasSightToTile(data, caster, x, y, state)) continue;
-
-            switch (data.targetType)
-            {
-                case SrpTargetType.Self:
-                    if (x == caster.anchorX && y == caster.anchorY)
-                        tiles.Add(new Vector2Int(x, y));
-                    break;
-
-                case SrpTargetType.SingleEnemy:
-                    var occ = state.GetOccupant(x, y);
-                    if (occ != null && !occ.eliminated && occ.owner != caster.owner)
-                        tiles.Add(new Vector2Int(x, y));
-                    break;
-
-                case SrpTargetType.SingleAlly:
-                    var ally = state.GetOccupant(x, y);
-                    if (ally != null && !ally.eliminated && ally.owner == caster.owner)
-                        tiles.Add(new Vector2Int(x, y));
-                    break;
-
-                case SrpTargetType.AreaEnemy:
-                case SrpTargetType.AreaAlly:
-                    tiles.Add(new Vector2Int(x, y));
-                    break;
-            }
+            if (CanTargetTile(data, caster, x, y, state))
+                tiles.Add(new Vector2Int(x, y));
         }
         return tiles;
+    }
+
+    /// <summary>
+    /// 시전자가 이 칸을 스킬 대상으로 고를 수 있는가. 사거리·시야에 더해 대상 유형별 조건을 본다
+    /// (자기 대상은 자기 칸, 단일 대상은 그 칸에 맞는 진영의 유닛, 범위는 칸만 닿으면 된다).
+    /// </summary>
+    public static bool CanTargetTile(SrpSkillData data, SrpUnitRuntime caster, int x, int y, SrpBattleState state)
+    {
+        if (!IsTileInSkillReach(data, caster, x, y, state))
+            return false;
+
+        switch (data.targetType)
+        {
+            case SrpTargetType.Self:
+                return x == caster.anchorX && y == caster.anchorY;
+
+            case SrpTargetType.SingleEnemy:
+                var occ = state.GetOccupant(x, y);
+                return occ != null && !occ.eliminated && occ.owner != caster.owner;
+
+            case SrpTargetType.SingleAlly:
+                var ally = state.GetOccupant(x, y);
+                return ally != null && !ally.eliminated && ally.owner == caster.owner;
+
+            case SrpTargetType.AreaEnemy:
+            case SrpTargetType.AreaAlly:
+                return true;
+
+            default:
+                return false;
+        }
     }
 
     public static void ResolveActiveSkill(SrpSkillData data, SrpSkillRuntime runtime,

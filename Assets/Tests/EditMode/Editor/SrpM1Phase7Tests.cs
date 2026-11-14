@@ -143,7 +143,537 @@ public class SrpM1Phase7Tests
         Assert.That(enemy.moveRange, Is.EqualTo(4), "회복이 아닌 강화 효과에 오버클럭 강화가 붙었습니다.");
     }
 
+    // ── 적 AI: 범위·태그·회복 스킬 ───────────────────────────────────────────
+
+    [TestCase(TestName = "적 AI는 범위 스킬을 적이 가장 많이 드는 칸에 쓰고 아군은 휘말리지 않는다")]
+    public void EnemyAi_AreaSkillTargetsTileCoveringMostEnemies()
+    {
+        var state = CreateState(6, 5);
+        var blast = AddSkill(state, new SrpSkillData
+        {
+            id = "p7_blast",
+            skillType = SrpSkillType.Active,
+            trigger = SrpSkillTrigger.OnActivate,
+            targetType = SrpTargetType.AreaEnemy,
+            range = 4,
+            areaSize = 1,
+            effects = new[] { new SrpSkillEffect { type = SrpEffectType.Damage, value = 6 } },
+        });
+        var actor = AddUnit(state, id: 1, owner: 1, x: 0, y: 2, actionPoints: 1, skills: new[] { blast.id });
+        var ally = AddUnit(state, id: 2, owner: 1, x: 2, y: 2);
+        var enemyA = AddUnit(state, id: 3, owner: 0, x: 3, y: 1);
+        var enemyB = AddUnit(state, id: 4, owner: 0, x: 4, y: 2);
+        var enemyC = AddUnit(state, id: 5, owner: 0, x: 3, y: 3);
+
+        var action = SrpEnemyAi.Decide(state, actor, 0, false);
+
+        Assert.That(action.type, Is.EqualTo(SrpEnemyAiActionType.UseSkill));
+        Assert.That(action.skillId, Is.EqualTo(blast.id));
+        // 세 적을 모두 덮는 칸은 (3,2)와 (4,2)뿐이고, 동점이면 앞선 칸을 고른다.
+        Assert.That((action.x, action.y), Is.EqualTo((3, 2)));
+        Assert.That(action.targetUnitId, Is.EqualTo(-1), "범위 스킬은 대상 유닛을 하나로 정하지 않습니다.");
+
+        int remaining = 0;
+        var step = SrpBattleFlow.ExecuteAiAction(state, actor, action, ref remaining, null);
+        Assert.That(step.executed, Is.True, "AI가 고른 범위 스킬이 실행되지 않았습니다.");
+        Assert.That(enemyA.hp, Is.LessThan(30));
+        Assert.That(enemyB.hp, Is.LessThan(30));
+        Assert.That(enemyC.hp, Is.LessThan(30));
+        Assert.That(ally.hp, Is.EqualTo(30), "범위 안의 아군이 피해를 받았습니다.");
+    }
+
+    [TestCase(TestName = "적 AI는 AP가 2면 태그 스킬을 먼저 쓰고 같은 대상을 공격해 태그를 바로 소모한다")]
+    public void EnemyAi_TagSkillThenAttackConsumesTag()
+    {
+        var state = CreateState(6, 5);
+        var hex = AddSkill(state, TagSkill("p7_hex", "balanceBroken"));
+        var actor = AddUnit(state, id: 1, owner: 1, x: 0, y: 0, attackPower: 8, skills: new[] { hex.id });
+        // id가 더 낮은 먼 적이 있어도, 지금 공격할 대상에게 태그를 붙여야 한다.
+        var far = AddUnit(state, id: 2, owner: 0, x: 3, y: 3);
+        var target = AddUnit(state, id: 3, owner: 0, x: 1, y: 0);
+
+        var first = SrpEnemyAi.Decide(state, actor, 0, false);
+        Assert.That(first.type, Is.EqualTo(SrpEnemyAiActionType.UseSkill));
+        Assert.That(first.targetUnitId, Is.EqualTo(target.id));
+
+        int remaining = 0;
+        Assert.That(SrpBattleFlow.ExecuteAiAction(state, actor, first, ref remaining, null).executed, Is.True);
+        Assert.That(target.HasCombatTag(SrpCombatTag.BalanceBroken), Is.True);
+        Assert.That(far.HasCombatTag(SrpCombatTag.BalanceBroken), Is.False);
+
+        var second = SrpEnemyAi.Decide(state, actor, 0, false);
+        Assert.That(second.type, Is.EqualTo(SrpEnemyAiActionType.Attack));
+        Assert.That(second.targetUnitId, Is.EqualTo(target.id));
+
+        var attack = SrpBattleFlow.ExecuteAiAction(state, actor, second, ref remaining, null);
+        Assert.That(attack.attack.outcome.consumedCombatTags, Is.EqualTo(SrpCombatTag.BalanceBroken),
+            "이어지는 공격이 방금 붙인 태그를 소모하지 않았습니다.");
+        Assert.That(target.HasCombatTag(SrpCombatTag.BalanceBroken), Is.False);
+    }
+
+    [TestCase(TestName = "적 AI는 AP가 1이면 태그보다 공격을 고르고, 이미 붙은 태그를 다시 붙이지 않는다")]
+    public void EnemyAi_TagSkillIsNotWastedWhenAttackIsWorthMore()
+    {
+        var state = CreateState(6, 5);
+        var hex = AddSkill(state, TagSkill("p7_hex", "balanceBroken"));
+        var actor = AddUnit(state, id: 1, owner: 1, x: 0, y: 0, attackPower: 8, actionPoints: 1, skills: new[] { hex.id });
+        var target = AddUnit(state, id: 2, owner: 0, x: 1, y: 0);
+
+        Assert.That(SrpEnemyAi.Decide(state, actor, 0, false).type, Is.EqualTo(SrpEnemyAiActionType.Attack),
+            "AP가 1뿐인데 공격 대신 태그 스킬을 골랐습니다.");
+
+        actor.actionPoints = 2;
+        target.AddCombatTag(SrpCombatTag.BalanceBroken);
+        Assert.That(SrpEnemyAi.Decide(state, actor, 0, false).type, Is.EqualTo(SrpEnemyAiActionType.Attack),
+            "이미 태그가 붙은 대상에게 같은 태그 스킬을 썼습니다.");
+    }
+
+    [TestCase(TestName = "적 AI는 활성화를 끝내는 피해 스킬을 공격 뒤로 미룬다")]
+    public void EnemyAi_EndingSkillIsUsedAfterAttack()
+    {
+        var state = CreateState(6, 5);
+        var actor = AddUnit(state, id: 1, owner: 1, x: 0, y: 0, attackPower: 8, skills: new[] { "cleave" });
+        var target = AddUnit(state, id: 2, owner: 0, x: 1, y: 0);
+
+        var first = SrpEnemyAi.Decide(state, actor, 0, false);
+        Assert.That(first.type, Is.EqualTo(SrpEnemyAiActionType.Attack));
+
+        int remaining = 0;
+        SrpBattleFlow.ExecuteAiAction(state, actor, first, ref remaining, null);
+        var second = SrpEnemyAi.Decide(state, actor, 0, true);
+        Assert.That(second.type, Is.EqualTo(SrpEnemyAiActionType.UseSkill));
+        Assert.That(second.skillId, Is.EqualTo("cleave"));
+        Assert.That(second.targetUnitId, Is.EqualTo(target.id));
+    }
+
+    [TestCase(TestName = "적 AI는 크게 다친 아군을 이동보다 먼저 회복시키고, 멀쩡한 아군에게는 회복을 쓰지 않는다")]
+    public void EnemyAi_HealsBadlyWoundedAllyBeforeMoving()
+    {
+        var state = CreateState(8, 5);
+        var heal = AddSkill(state, new SrpSkillData
+        {
+            id = "p7_heal",
+            skillType = SrpSkillType.Active,
+            trigger = SrpSkillTrigger.OnActivate,
+            targetType = SrpTargetType.SingleAlly,
+            range = 2,
+            effects = new[] { new SrpSkillEffect { type = SrpEffectType.Heal, stat = "hp", value = 10 } },
+        });
+        var healer = AddUnit(state, id: 1, owner: 1, x: 0, y: 0, moveRange: 3, skills: new[] { heal.id });
+        var ally = AddUnit(state, id: 2, owner: 1, x: 2, y: 0);
+        AddUnit(state, id: 3, owner: 0, x: 7, y: 4);
+
+        // 조금 다친 정도(3)로는 쓰지 않는다. 회복량 10의 3/4 이상이 들어가야 한다.
+        ally.hp = 27;
+        Assert.That(SrpEnemyAi.Decide(state, healer, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.Move));
+
+        ally.hp = 8;
+        var action = SrpEnemyAi.Decide(state, healer, 3, false);
+        Assert.That(action.type, Is.EqualTo(SrpEnemyAiActionType.UseSkill));
+        Assert.That(action.skillId, Is.EqualTo(heal.id));
+        Assert.That(action.targetUnitId, Is.EqualTo(ally.id));
+
+        int remaining = 3;
+        Assert.That(SrpBattleFlow.ExecuteAiAction(state, healer, action, ref remaining, null).executed, Is.True);
+        Assert.That(ally.hp, Is.EqualTo(18));
+        // 스킬은 활성화당 1회다. 남은 AP로는 접근한다.
+        Assert.That(SrpEnemyAi.Decide(state, healer, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.Move));
+    }
+
+    [TestCase(TestName = "적 AI는 PG가 깎인 아군이 있으면 전열 재정비를 쓰고, 붕괴한 아군만 있으면 쓰지 않는다")]
+    public void EnemyAi_UsesAreaPgRecoveryOnlyWhenItRestoresPg()
+    {
+        var state = CreateState(8, 5);
+        var actor = AddUnit(state, id: 1, owner: 1, x: 2, y: 2, moveRange: 3, skills: new[] { "rally_line" });
+        var ally = AddUnit(state, id: 2, owner: 1, x: 3, y: 2);
+        AddUnit(state, id: 3, owner: 0, x: 7, y: 4);
+
+        // 붕괴(그로기)한 유닛은 PG를 채워도 풀리지 않으므로 회복 대상으로 세지 않는다.
+        ally.pg = 0;
+        ally.groggy = true;
+        Assert.That(SrpEnemyAi.Decide(state, actor, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.Move));
+
+        ally.groggy = false;
+        ally.pg = 10;
+        var action = SrpEnemyAi.Decide(state, actor, 3, false);
+        Assert.That(action.type, Is.EqualTo(SrpEnemyAiActionType.UseSkill));
+        Assert.That(action.skillId, Is.EqualTo("rally_line"));
+        Assert.That((action.x, action.y), Is.EqualTo((2, 2)), "전열 재정비는 자기 칸을 중심으로 씁니다.");
+
+        int remaining = 3;
+        Assert.That(SrpBattleFlow.ExecuteAiAction(state, actor, action, ref remaining, null).executed, Is.True);
+        Assert.That(ally.pg, Is.EqualTo(14));
+    }
+
+    // ── 적 AI: 엄폐 ──────────────────────────────────────────────────────────
+
+    [TestCase(TestName = "적 AI 사격수는 사격 뒤 옆의 엄폐물에 엄폐하고, 다음 차례에 장전 후 다시 쏜다")]
+    public void EnemyAi_ShooterTakesCoverAfterFiring()
+    {
+        var state = CreateState(7, 5);
+        AddCoverObject(state, 2, 1);
+        var shooter = AddUnit(state, id: 1, owner: 1, x: 2, y: 2, attackPower: 8, attackRange: 4,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 0, actionPoints: 1);
+        var enemy = AddUnit(state, id: 2, owner: 0, x: 5, y: 2, attackPower: 8, attackRange: 4, moveRange: 3,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
+
+        var action = SrpEnemyAi.Decide(state, shooter, 0, true);
+        Assert.That(action.type, Is.EqualTo(SrpEnemyAiActionType.TakeCover));
+        Assert.That(shooter.coverActive, Is.False, "판단 과정에서 엄폐 상태가 바뀌었습니다.");
+
+        int remaining = 0;
+        var step = SrpBattleFlow.ExecuteAiAction(state, shooter, action, ref remaining, null);
+        Assert.That(step.executed, Is.True);
+        Assert.That((step.coverX, step.coverY), Is.EqualTo((2, 1)));
+        Assert.That(shooter.coverActive, Is.True);
+        Assert.That(shooter.actionPoints, Is.EqualTo(0));
+
+        var shot = SrpCombatResolver.ApplyAttack(state, enemy, shooter);
+        Assert.That(shot.reducedHpByCover, Is.GreaterThan(0), "AI가 건 엄폐가 사격 피해를 줄이지 않았습니다.");
+
+        // 다음 차례: 이미 엄폐 중이므로 장전하고 쏜다.
+        shooter.actionPoints = 2;
+        Assert.That(SrpEnemyAi.Decide(state, shooter, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.Reload));
+        shooter.ReloadAmmo();
+        shooter.actionPoints = 1;
+        Assert.That(SrpEnemyAi.Decide(state, shooter, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.Attack));
+    }
+
+    [TestCase(TestName = "적 AI는 사격해 올 적이 없으면 엄폐에 AP를 쓰지 않는다")]
+    public void EnemyAi_DoesNotTakeCoverWithoutRangedThreat()
+    {
+        var state = CreateState(7, 5);
+        AddCoverObject(state, 2, 1);
+        var shooter = AddUnit(state, id: 1, owner: 1, x: 2, y: 2, attackPower: 8, attackRange: 4,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 0, actionPoints: 1);
+        // 총이 없는 적.
+        AddUnit(state, id: 2, owner: 0, x: 5, y: 2, attackRange: 1, moveRange: 3);
+
+        Assert.That(SrpEnemyAi.Decide(state, shooter, 0, true).type, Is.EqualTo(SrpEnemyAiActionType.Reload));
+    }
+
+    [TestCase(TestName = "적 AI 근접 유닛은 더 할 행동이 없을 때 남은 AP로 엄폐한다")]
+    public void EnemyAi_IdleMeleeUnitTakesCover()
+    {
+        var state = CreateState(9, 5);
+        AddCoverObject(state, 2, 1);
+        var melee = AddUnit(state, id: 1, owner: 1, x: 2, y: 2, actionPoints: 1);
+        melee.hasMovedThisActivation = true;
+        AddUnit(state, id: 2, owner: 0, x: 6, y: 2, attackPower: 8, attackRange: 4, moveRange: 3,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
+
+        Assert.That(SrpEnemyAi.Decide(state, melee, 0, false).type, Is.EqualTo(SrpEnemyAiActionType.TakeCover));
+
+        // 이미 엄폐 중이면 다시 하지 않는다.
+        melee.SetCover(state.RoundNumber, 2, 1);
+        Assert.That(SrpEnemyAi.Decide(state, melee, 0, false).type, Is.EqualTo(SrpEnemyAiActionType.EndTurn));
+    }
+
+    // ── 적 AI: 승리 조건 ─────────────────────────────────────────────────────
+
+    [TestCase(TestName = "적 AI는 승리 목표 옆으로 이동해 상호작용으로 승리한다")]
+    public void EnemyAi_MovesToObjectiveAndSecuresIt()
+    {
+        var state = CreateObjectiveState(7, 5, pointX: 4, pointY: 2, requiredOwner: 1, objectiveRule: true);
+        var runner = AddUnit(state, id: 1, owner: 1, x: 0, y: 2, moveRange: 4);
+        AddUnit(state, id: 2, owner: 0, x: 6, y: 4);
+        SrpBattleFlow.StartRound(state);
+        int remaining = SrpBattleFlow.BeginActivation(state, runner, null);
+
+        var move = SrpEnemyAi.Decide(state, runner, remaining, false);
+        Assert.That(move.type, Is.EqualTo(SrpEnemyAiActionType.Move));
+        Assert.That((move.x, move.y), Is.EqualTo((3, 2)), "이동력 안에서 목표 옆에 설 수 있는 칸으로 가야 합니다.");
+        Assert.That(SrpBattleFlow.ExecuteAiAction(state, runner, move, ref remaining, null).executed, Is.True);
+
+        var interact = SrpEnemyAi.Decide(state, runner, remaining, false);
+        Assert.That(interact.type, Is.EqualTo(SrpEnemyAiActionType.Interact));
+        var step = SrpBattleFlow.ExecuteAiAction(state, runner, interact, ref remaining, null);
+        Assert.That(step.executed, Is.True);
+        Assert.That(step.interaction.id, Is.EqualTo("p7_point"));
+
+        var victory = SrpVictory.Evaluate(state);
+        Assert.That(victory.decided, Is.True);
+        Assert.That(victory.winnerOwner, Is.EqualTo(1));
+        Assert.That(victory.reason, Is.EqualTo(SrpVictoryReason.ObjectiveSecured));
+    }
+
+    [TestCase(TestName = "적 AI는 목표 승리 규칙이 꺼져 있거나 자기 진영이 쓸 수 없는 목표에는 상호작용하지 않는다")]
+    public void EnemyAi_IgnoresObjectiveItCannotWinWith()
+    {
+        // 규칙이 꺼진 맵: 포인트 옆에 서 있어도 상호작용하지 않고 적에게 접근한다.
+        var ruleOff = CreateObjectiveState(7, 5, pointX: 1, pointY: 2, requiredOwner: 1, objectiveRule: false);
+        var unit = AddUnit(ruleOff, id: 1, owner: 1, x: 0, y: 2, moveRange: 3);
+        AddUnit(ruleOff, id: 2, owner: 0, x: 6, y: 4);
+        Assert.That(SrpEnemyAi.Decide(ruleOff, unit, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.Move));
+
+        // 상대 진영 전용 목표: 옆에 서 있어도 쓸 수 없다.
+        var enemyOnly = CreateObjectiveState(7, 5, pointX: 1, pointY: 2, requiredOwner: 0, objectiveRule: true);
+        var blocked = AddUnit(enemyOnly, id: 1, owner: 1, x: 0, y: 2, moveRange: 3);
+        AddUnit(enemyOnly, id: 2, owner: 0, x: 6, y: 4);
+        Assert.That(SrpEnemyAi.Decide(enemyOnly, blocked, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.Move));
+    }
+
+    [TestCase(TestName = "적 AI는 승리 목표에 닿으려는 적을 더 다친 적보다 먼저 공격한다")]
+    public void EnemyAi_PrioritizesEnemyThreateningObjective()
+    {
+        var state = CreateObjectiveState(7, 5, pointX: 4, pointY: 2, requiredOwner: 0, objectiveRule: true);
+        var guard = AddUnit(state, id: 1, owner: 1, x: 2, y: 2, attackPower: 8, actionPoints: 1);
+        var wounded = AddUnit(state, id: 2, owner: 0, x: 1, y: 2, moveRange: 0);
+        wounded.hp = 10;
+        var runner = AddUnit(state, id: 3, owner: 0, x: 3, y: 2, moveRange: 3);
+
+        var action = SrpEnemyAi.Decide(state, guard, 0, false);
+        Assert.That(action.type, Is.EqualTo(SrpEnemyAiActionType.Attack));
+        Assert.That(action.targetUnitId, Is.EqualTo(runner.id), "목표 바로 옆의 적을 두고 다른 적을 공격했습니다.");
+
+        // 목표 승리 규칙이 꺼진 맵에서는 기존대로 더 다친 적을 고른다.
+        var ruleOff = CreateObjectiveState(7, 5, pointX: 4, pointY: 2, requiredOwner: 0, objectiveRule: false);
+        var guard2 = AddUnit(ruleOff, id: 1, owner: 1, x: 2, y: 2, attackPower: 8, actionPoints: 1);
+        var wounded2 = AddUnit(ruleOff, id: 2, owner: 0, x: 1, y: 2, moveRange: 0);
+        wounded2.hp = 10;
+        AddUnit(ruleOff, id: 3, owner: 0, x: 3, y: 2, moveRange: 3);
+        Assert.That(SrpEnemyAi.Decide(ruleOff, guard2, 0, false).targetUnitId, Is.EqualTo(wounded2.id));
+    }
+
+    [TestCase(TestName = "적 AI는 지휘관 처치 규칙이 켜진 맵에서 적 지휘관을 먼저 공격한다")]
+    public void EnemyAi_PrioritizesEnemyCommander()
+    {
+        var state = CreateObjectiveState(7, 5, commanderRule: true);
+        var actor = AddUnit(state, id: 1, owner: 1, x: 2, y: 2, attackPower: 8, actionPoints: 1);
+        var wounded = AddUnit(state, id: 2, owner: 0, x: 1, y: 2);
+        wounded.hp = 20;
+        var commander = AddUnit(state, id: 3, owner: 0, x: 3, y: 2);
+        commander.isCommander = true;
+
+        Assert.That(SrpEnemyAi.Decide(state, actor, 0, false).targetUnitId, Is.EqualTo(commander.id));
+
+        // 규칙이 꺼진 맵에서는 지휘관 표시가 판단에 영향을 주지 않는다.
+        var ruleOff = CreateObjectiveState(7, 5, commanderRule: false);
+        var actor2 = AddUnit(ruleOff, id: 1, owner: 1, x: 2, y: 2, attackPower: 8, actionPoints: 1);
+        var wounded2 = AddUnit(ruleOff, id: 2, owner: 0, x: 1, y: 2);
+        wounded2.hp = 20;
+        AddUnit(ruleOff, id: 3, owner: 0, x: 3, y: 2).isCommander = true;
+        Assert.That(SrpEnemyAi.Decide(ruleOff, actor2, 0, false).targetUnitId, Is.EqualTo(wounded2.id));
+    }
+
+    [TestCase(TestName = "적 AI 지휘관은 아군이 남아 있는 동안 앞으로 나서지 않고, 닿는 적은 공격하며, 혼자 남으면 움직인다")]
+    public void EnemyAi_CommanderHoldsPositionWhileAlliesRemain()
+    {
+        var state = CreateObjectiveState(7, 5, commanderRule: true);
+        var commander = AddUnit(state, id: 1, owner: 1, x: 0, y: 0, attackPower: 8, moveRange: 3);
+        commander.isCommander = true;
+        var ally = AddUnit(state, id: 2, owner: 1, x: 0, y: 1);
+        var enemy = AddUnit(state, id: 3, owner: 0, x: 6, y: 4);
+
+        Assert.That(SrpEnemyAi.Decide(state, commander, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.EndTurn),
+            "지휘관이 공격으로 이어지지 않는 접근 이동을 했습니다.");
+
+        // 이동 후 바로 공격할 수 있는 적은 공격하러 간다.
+        enemy.anchorX = 3;
+        enemy.anchorY = 0;
+        var strike = SrpEnemyAi.Decide(state, commander, 3, false);
+        Assert.That(strike.type, Is.EqualTo(SrpEnemyAiActionType.Move));
+        Assert.That(System.Math.Max(System.Math.Abs(strike.x - 3), System.Math.Abs(strike.y - 0)), Is.EqualTo(1));
+
+        // 혼자 남으면 고착을 피하려고 평소처럼 접근한다.
+        enemy.anchorX = 6;
+        enemy.anchorY = 4;
+        state.RemoveUnit(ally);
+        Assert.That(SrpEnemyAi.Decide(state, commander, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.Move));
+
+        // 지휘관 처치 규칙이 꺼진 맵에서는 지휘관 표시가 있어도 평소처럼 접근한다.
+        var ruleOff = CreateObjectiveState(7, 5, commanderRule: false);
+        var leader = AddUnit(ruleOff, id: 1, owner: 1, x: 0, y: 0, attackPower: 8, moveRange: 3);
+        leader.isCommander = true;
+        AddUnit(ruleOff, id: 2, owner: 1, x: 0, y: 1);
+        AddUnit(ruleOff, id: 3, owner: 0, x: 6, y: 4);
+        Assert.That(SrpEnemyAi.Decide(ruleOff, leader, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.Move));
+    }
+
+    // ── AI 행동 실행 규칙 ────────────────────────────────────────────────────
+
+    [TestCase(TestName = "AI 행동 실행은 두 번째 스킬과 조건이 안 맞는 엄폐·상호작용을 거부하고 상태를 바꾸지 않는다")]
+    public void ExecuteAiAction_RejectsInvalidSkillCoverAndInteraction()
+    {
+        var state = CreateState(6, 5);
+        var hex = AddSkill(state, TagSkill("p7_hex", "marked"));
+        var actor = AddUnit(state, id: 1, owner: 1, x: 0, y: 0, skills: new[] { hex.id, "cleave" });
+        var target = AddUnit(state, id: 2, owner: 0, x: 1, y: 0);
+        int remaining = 0;
+
+        var cover = SrpBattleFlow.ExecuteAiAction(state, actor, SrpEnemyAiAction.TakeCover(), ref remaining, null);
+        Assert.That(cover.executed, Is.False, "옆에 엄폐물이 없는데 엄폐했습니다.");
+        var interact = SrpBattleFlow.ExecuteAiAction(state, actor, SrpEnemyAiAction.Interact(), ref remaining, null);
+        Assert.That(interact.executed, Is.False, "옆에 상호작용 포인트가 없는데 상호작용했습니다.");
+        Assert.That(actor.actionPoints, Is.EqualTo(2));
+
+        // 적 대상 스킬을 빈 칸이나 아군(자기 자신)에게 쓸 수 없다.
+        var onEmpty = SrpBattleFlow.ExecuteAiAction(state, actor, SrpEnemyAiAction.UseSkillAt(hex.id, 2, 2), ref remaining, null);
+        Assert.That(onEmpty.executed, Is.False);
+        var onSelf = SrpBattleFlow.ExecuteAiAction(state, actor, SrpEnemyAiAction.UseSkillAt(hex.id, 0, 0), ref remaining, null);
+        Assert.That(onSelf.executed, Is.False);
+        Assert.That(actor.actionPoints, Is.EqualTo(2));
+
+        var first = SrpBattleFlow.ExecuteAiAction(state, actor, SrpEnemyAiAction.UseSkill(hex.id, target), ref remaining, null);
+        Assert.That(first.executed, Is.True);
+        Assert.That(actor.actionPoints, Is.EqualTo(1));
+
+        // 스킬은 활성화당 1회.
+        var second = SrpBattleFlow.ExecuteAiAction(state, actor, SrpEnemyAiAction.UseSkill("cleave", target), ref remaining, null);
+        Assert.That(second.executed, Is.False);
+        Assert.That(actor.actionPoints, Is.EqualTo(1));
+        Assert.That(target.hp, Is.EqualTo(30));
+    }
+
+    [Category("SrpAiSim")]
+    [TestCase(TestName = "AI 시뮬레이션은 방벽선 돌파에서 엄폐와 승리 목표와 지휘관 처치를 실제로 사용한다")]
+    public void Simulation_UsesCoverObjectiveAndCommanderKill()
+    {
+        var config = new SrpBattleSimConfig
+        {
+            mapPreset = SrpMapPreset.M1BarricadeAssault,
+            trials = 60,
+            maxRounds = 24,
+            baseSeed = 770001,
+            sampleSeedCount = 1,
+            owner0Policy = new SrpHeuristicAiPolicy(),
+            owner1Policy = new SrpRandomAiPolicy(),
+            thresholds = SrpSimThresholdConfig.Default(),
+        };
+
+        var report = SrpBattleSimRunner.RunBatch(config, writeReport: false).report;
+
+        Debug.Log(
+            $"[SRPG][AI-Sim][Phase7] cover={report.actions.coversPerBattle:F2}, " +
+            $"interact={report.actions.interactionsPerBattle:F2}, skill={report.actions.skillUsesPerBattle:F2}, " +
+            $"annihilation={report.outcome.annihilationRate:F3}, commander={report.outcome.commanderKillRate:F3}, " +
+            $"objective={report.outcome.objectiveRate:F3}");
+        Assert.That(report.actions.coversPerBattle, Is.GreaterThan(0f), "시뮬레이션이 엄폐를 쓰지 않았습니다.");
+        Assert.That(report.actions.interactionsPerBattle, Is.GreaterThan(0f), "시뮬레이션이 승리 목표를 확보하지 않았습니다.");
+        Assert.That(report.outcome.objectiveRate, Is.GreaterThan(0f), "목표 확보로 끝난 판이 없습니다.");
+        Assert.That(report.outcome.commanderKillRate, Is.GreaterThan(0f), "지휘관 처치로 끝난 판이 없습니다.");
+        float decided = report.outcome.annihilationRate + report.outcome.commanderKillRate + report.outcome.objectiveRate;
+        Assert.That(decided, Is.EqualTo(1f - report.outcome.drawRate).Within(0.001f), "종료 방식 비율의 합이 승패가 난 판의 비율과 다릅니다.");
+    }
+
     // ── 공용 ─────────────────────────────────────────────────────────────────
+
+    static SrpSkillData AddSkill(SrpBattleState state, SrpSkillData skill)
+    {
+        state.SkillLookup[skill.id] = skill;
+        return skill;
+    }
+
+    static SrpSkillData TagSkill(string id, string tag)
+    {
+        return new SrpSkillData
+        {
+            id = id,
+            skillType = SrpSkillType.Active,
+            trigger = SrpSkillTrigger.OnActivate,
+            targetType = SrpTargetType.SingleEnemy,
+            range = 4,
+            effects = new[] { new SrpSkillEffect { type = SrpEffectType.ApplyCombatTag, stat = tag, duration = 1 } },
+        };
+    }
+
+    static void AddCoverObject(SrpBattleState state, int x, int y)
+    {
+        Block(state, x, y);
+        state.CoverObjects.Add(new SrpCoverObjectData { x = x, y = y, coverDef = 2, coverGrd = 1, blocksLineOfSight = true });
+    }
+
+    /// <summary>AI 테스트용 유닛. 총이 없는 근접 유닛이 기본이고, 반응(RP)은 0이라 피해 계산이 단순하다.</summary>
+    static SrpUnitRuntime AddUnit(
+        SrpBattleState state,
+        int id,
+        int owner,
+        int x,
+        int y,
+        int attackPower = 0,
+        int attackRange = 1,
+        int moveRange = 0,
+        SrpWeaponClass weaponClass = SrpWeaponClass.Melee,
+        int maxAmmo = 0,
+        int ammo = 0,
+        int actionPoints = 2,
+        string[] skills = null)
+    {
+        var unit = new SrpUnitRuntime
+        {
+            id = id,
+            owner = owner,
+            displayName = $"U{id}",
+            anchorX = x,
+            anchorY = y,
+            hp = 30,
+            maxHp = 30,
+            pg = 20,
+            maxPg = 20,
+            attackPower = attackPower,
+            attackRange = attackRange,
+            moveRange = moveRange,
+            weaponClass = weaponClass,
+            maxAmmo = maxAmmo,
+            ammo = ammo,
+            actionPoints = actionPoints,
+            maxActionPoints = 2,
+            reactionPoints = 0,
+            maxReactionPoints = 1,
+            stance = SrpStance.Defensive,
+        };
+        if (skills != null)
+        {
+            foreach (string skillId in skills)
+            {
+                unit.skillIds.Add(skillId);
+                unit.skillRuntimes.Add(new SrpSkillRuntime(skillId));
+            }
+        }
+        state.Units.Add(unit);
+        state.RebuildEngagements();
+        return unit;
+    }
+
+    /// <summary>승리 조건을 켜거나 끌 수 있는 빈 맵. 포인트 좌표를 주면 승리 목표 포인트를 하나 놓는다.</summary>
+    static SrpBattleState CreateObjectiveState(
+        int width,
+        int height,
+        int pointX = -1,
+        int pointY = -1,
+        int requiredOwner = -1,
+        bool objectiveRule = false,
+        bool commanderRule = false)
+    {
+        var walk = new bool[width * height];
+        for (int i = 0; i < walk.Length; i++)
+            walk[i] = true;
+
+        var map = new SrpMapFileV1
+        {
+            width = width,
+            height = height,
+            walkable = walk,
+            playerOrder = new[] { 0, 1 },
+            victory = new SrpVictoryRuleData { commanderKill = commanderRule, interactionObjective = objectiveRule },
+        };
+        if (pointX >= 0)
+        {
+            map.interactionPoints = new[]
+            {
+                new SrpInteractionPointData
+                {
+                    id = "p7_point",
+                    x = pointX,
+                    y = pointY,
+                    requiredOwner = requiredOwner,
+                    singleUse = true,
+                    effect = SrpInteractionEffect.VictoryObjective,
+                },
+            };
+        }
+        return SrpBattleState.FromMap(map);
+    }
 
     static SrpUnitRuntime FindUnit(SrpBattleState state, string templateId, int owner)
     {

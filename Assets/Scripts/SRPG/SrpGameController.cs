@@ -681,6 +681,12 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
             case SrpEnemyAiActionType.Overwatch:
                 AfterOverwatchArm(unit);
                 break;
+            case SrpEnemyAiActionType.TakeCover:
+                AfterTakeCover(unit, step.coverX, step.coverY);
+                break;
+            case SrpEnemyAiActionType.Interact:
+                AfterInteraction(unit, step.interaction);
+                break;
         }
         return true;
     }
@@ -1335,12 +1341,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
     {
         return !_gameOver
             && _phase == Phase.UnitActive
-            && unit != null
-            && !unit.eliminated
-            && unit.actionPoints > 0
-            && !unit.coverActive
-            && _state != null
-            && _state.HasAdjacentCover(unit);
+            && SrpBattleFlow.CanTakeCover(_state, unit);
     }
 
     bool TryTakeCoverSelectedUnit(bool logFailure)
@@ -1363,21 +1364,25 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
             return false;
         }
 
-        if (!_state.TryGetAdjacentCover(unit, out int coverX, out int coverY))
+        PushUndo();
+        if (!SrpBattleFlow.TakeCover(_state, unit, out int coverX, out int coverY))
         {
+            _undo.Pop();
             UpdateHud();
             return false;
         }
 
-        PushUndo();
-        unit.SetCover(_state.RoundNumber, coverX, coverY);
-        unit.actionPoints = Mathf.Max(0, unit.actionPoints - 1);
+        AfterTakeCover(unit, coverX, coverY);
+        return true;
+    }
+
+    /// <summary>엄폐 직후의 연출과 화면 갱신. 엄폐 자체는 SrpBattleFlow.TakeCover가 한다.</summary>
+    void AfterTakeCover(SrpUnitRuntime unit, int coverX, int coverY)
+    {
         SpawnWorldFeedback(unit, "\uC5C4\uD3D0", new Color(0.55f, 1f, 0.35f));
         FlashUnit(unit, new Color(0.55f, 1f, 0.35f));
         LogLine($"엄폐: {unit.displayName} | 엄폐물 ({coverX},{coverY}) | AP-1");
-        RefreshActiveHighlights(unit);
-        UpdateHud();
-        return true;
+        RefreshAfterAction(unit);
     }
 
     bool CanInteractSelectedUnit(SrpUnitRuntime unit)
@@ -1416,6 +1421,13 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
             UpdateHud();
             return false;
         }
+        AfterInteraction(unit, point);
+        return true;
+    }
+
+    /// <summary>상호작용 직후의 연출과 승패 확인. 활성화 자체는 SrpBattleState.TryResolveInteractionAction이 한다.</summary>
+    void AfterInteraction(SrpUnitRuntime unit, SrpInteractionPointData point)
+    {
         string label = string.IsNullOrEmpty(point.displayName) ? point.id : point.displayName;
         SpawnWorldFeedback(unit, "\uC0C1\uD638\uC791\uC6A9", new Color(1f, 0.86f, 0.25f));
         FlashUnit(unit, new Color(1f, 0.86f, 0.25f));
@@ -1426,11 +1438,9 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         if (IsBattleDecided())
         {
             FinishActivation();
-            return true;
+            return;
         }
-        RefreshActiveHighlights(unit);
-        UpdateHud();
-        return true;
+        RefreshAfterAction(unit);
     }
 
     bool TryOverclockSelectedSkill(bool logFailure)

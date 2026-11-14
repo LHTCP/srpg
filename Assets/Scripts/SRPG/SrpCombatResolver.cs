@@ -248,21 +248,7 @@ public static class SrpCombatResolver
         }
         else
         {
-            switch (attackKind)
-            {
-                case SrpBasicAttackKind.Firearm:
-                    hpDamage = raw * 2 + FirearmHpFlatBonus;
-                    pgDamage = 0;
-                    break;
-                case SrpBasicAttackKind.Melee:
-                default:
-                    hpDamage = Mathf.Max(1, raw / 4);
-                    pgDamage = raw;
-                    break;
-            }
-
-            if (attacker.stance == SrpStance.Aggressive)
-                pgDamage += 1;
+            GetBaseBasicAttackDamage(attackKind, attacker, out hpDamage, out pgDamage);
             o.rawDamageToHp = hpDamage;
             o.rawDamageToPg = pgDamage;
             ApplyDirectionalVulnerability(attacker, defender, ref hpDamage, ref pgDamage);
@@ -281,6 +267,43 @@ public static class SrpCombatResolver
         ApplyResolvedDamage(defender, ref o, hpDamage, pgDamage);
         RecordDefensivePressure(state, defender);
         return o;
+    }
+
+    /// <summary>
+    /// 기본 공격의 기준 피해(방향·방어·반응·태그 적용 전). 실제 해결(ApplyAttack)과 적 AI의 가치 비교가 같이 쓴다.
+    /// 총기: HP 공격력 x 2 + 4. 근접: HP 공격력/4(최소 1), PG 공격력. 공격 태세면 PG +1.
+    /// </summary>
+    public static void GetBaseBasicAttackDamage(
+        SrpBasicAttackKind attackKind,
+        SrpUnitRuntime attacker,
+        out int hpDamage,
+        out int pgDamage)
+    {
+        int raw = Mathf.Max(1, attacker != null ? attacker.attackPower : 1);
+        switch (attackKind)
+        {
+            case SrpBasicAttackKind.Firearm:
+                hpDamage = raw * 2 + FirearmHpFlatBonus;
+                pgDamage = 0;
+                break;
+            case SrpBasicAttackKind.Melee:
+            default:
+                hpDamage = Mathf.Max(1, raw / 4);
+                pgDamage = raw;
+                break;
+        }
+
+        if (attacker != null && attacker.stance == SrpStance.Aggressive)
+            pgDamage += 1;
+    }
+
+    /// <summary>총기 HP 피해가 PG로 번지는 비율(%). 적 AI의 가치 비교에 쓴다.</summary>
+    public static int FirearmSpilloverPercent => FirearmHpToPgSpilloverPercent;
+
+    /// <summary>defender가 지금 걸어 둔 엄폐가 attacker의 원거리 사격을 줄여 주는가.</summary>
+    public static bool HasCoverAgainst(SrpBattleState state, SrpUnitRuntime attacker, SrpUnitRuntime defender)
+    {
+        return TryGetCoverMitigation(state, attacker, defender, out _, out _);
     }
 
     public static void ApplyResolvedDamage(
