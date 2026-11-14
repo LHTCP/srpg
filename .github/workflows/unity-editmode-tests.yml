@@ -5,6 +5,15 @@ on:
   # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatch
   workflow_dispatch:
 
+permissions:
+  contents: read
+  # GameCI Test Runner가 githubToken으로 테스트 결과 check run을 만들 때 필요하다.
+  checks: write
+
+concurrency:
+  group: unity-editmode-tests-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   editmode-tests:
     name: EditMode 테스트 실행
@@ -55,17 +64,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: Library
-          key: Library-${{ runner.os }}-Unity-6000.3.13f1-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json', 'ProjectSettings/ProjectVersion.txt') }}
+          # Windows 빌드 캐시(StandaloneWindows64)와 섞이지 않도록 EditMode 전용 key namespace를 쓴다.
+          key: Library-${{ runner.os }}-Unity-6000.3.13f1-EditMode-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json', 'ProjectSettings/ProjectVersion.txt') }}
           restore-keys: |
-            Library-${{ runner.os }}-Unity-6000.3.13f1-
+            Library-${{ runner.os }}-Unity-6000.3.13f1-EditMode-
 
       - name: EditMode 테스트 실행
         id: unity-tests
         # 참고: GameCI Test Runner는 Unity 라이선스 시크릿과 testMode/artifactsPath 입력을 지원한다.
         # https://game.ci/docs/github/test-runner/
-        uses: game-ci/unity-test-runner@v4
+        # v4 floating tag는 v4.4.0부터 game-ci/cli 래퍼 구현으로 바뀌어 unityVersion 입력을 무시한다.
+        # Windows 빌드(unity-builder v4)와 같은 Docker 기반 활성화 경로를 쓰는 마지막 버전인 v4.3.2로 고정한다.
+        uses: game-ci/unity-test-runner@v4.3.2
         env:
+          # v4.3.x 활성화 스크립트는 UNITY_LICENSE(serial 추출)와 UNITY_EMAIL, UNITY_PASSWORD를 모두 요구한다.
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           unityVersion: 6000.3.13f1
           testMode: EditMode
