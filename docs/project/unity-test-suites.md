@@ -58,6 +58,7 @@ PlayMode 합계: 어트리뷰트 10개. 이 중 `SrpM1All` 카테고리에 속�
 | `SrpM1All` | `SrpM1CoreTests`, `SrpM1RuleSpecTests`, `SrpMakerMetadataTests`, `SrpRuntimeMaterialTests`, `SrpM1AllTestsEntry`, `SrpM1AiSimAllEntry` | `SrpM1PlayModeTests`, `SrpM1AiPlaySampleTests` | M1 자동화 QA 전체 묶음 |
 | `SrpAiSim` | `SrpM1AiSimAllEntry` | `SrpM1AiPlaySampleTests` | AI 시뮬레이션 하이브리드 QA |
 | `SrpObservation` | 없음 | `SrpM1OpeningObservationTests` | 화면 캡처 기반 수동 관찰 |
+| `RequiresUnity` | `SrpM1CoreTests`, `SrpMakerMetadataTests`의 각 1개 | 없음 | Unity 타입·컨트롤러에 의존해 .NET 로직 테스트([logic-tests.md](logic-tests.md))에서 빼는 표시. Unity에서는 그대로 실행된다 |
 | (카테고리 없음) | `SrpCombatResolverTests` | 없음 | - |
 
 카테고리 관련 주의:

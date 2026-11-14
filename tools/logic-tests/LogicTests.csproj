@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Unity 없이 순수 전투 로직과 EditMode 테스트를 컴파일·실행하는 프로젝트다.
+    Unity 프로젝트의 일부가 아니다(Assets 밖). UnityEngine은 UnityStubs.cs의 최소 스텁으로 대체한다.
+    실행: bash ./scripts/run-logic-tests.sh  (설명: docs/project/logic-tests.md)
+  -->
+  <PropertyGroup>
+    <!-- GitHub-hosted ubuntu runner에 기본 설치된 SDK로 돌도록 LTS를 쓴다. 로컬에 더 높은 SDK만 있어도 빌드된다. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <RollForward>Major</RollForward>
+    <!-- Unity 6의 C# 버전에 맞춘다. 더 높은 문법을 쓰면 여기서 먼저 걸린다. -->
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <NoWarn>CS0649;CS0414;CS0219;CS0168;NU1701</NoWarn>
+    <DefineConstants>UNITY_INCLUDE_TESTS</DefineConstants>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- 경로 구분자는 Linux runner에서도 동작하도록 '/'만 쓴다. -->
+    <Repo>$(MSBuildThisFileDirectory)../..</Repo>
+    <Srpg>$(Repo)/Assets/Scripts/SRPG</Srpg>
+    <EditModeTests>$(Repo)/Assets/Tests/EditMode/Editor</EditModeTests>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="UnityStubs.cs" />
+    <!--
+      MonoBehaviour·UI·렌더링에 의존하는 파일은 뺀다. 새 순수 로직 파일은 자동으로 포함된다.
+      새 컨트롤러/뷰 파일을 추가해 여기서 컴파일이 깨지면 아래 제외 목록에 더한다.
+    -->
+    <Compile Include="$(Srpg)/*.cs"
+             Exclude="$(Srpg)/SrpGameController*.cs;$(Srpg)/Srp*MakerController.cs;$(Srpg)/SrpLobbyController.cs;$(Srpg)/SrpTacticalCameraController.cs;$(Srpg)/SrpTileView.cs;$(Srpg)/SrpUnitView.cs;$(Srpg)/SrpFontWarmup.cs;$(Srpg)/SrpRuntimeMaterial.cs;$(Srpg)/SrpDevTools.cs" />
+    <Compile Include="$(Repo)/Assets/Tests/Simulation/*.cs" />
+    <Compile Include="$(EditModeTests)/*.cs" Exclude="$(EditModeTests)/SrpRuntimeMaterialTests.cs" />
+  </ItemGroup>
+</Project>

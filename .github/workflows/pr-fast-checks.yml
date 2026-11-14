@@ -18,3 +18,23 @@ jobs:
 
       - name: 검증 스크립트 실행
         run: bash ./scripts/validate-repo.sh
+
+  logic-tests:
+    name: 전투 로직 테스트 (.NET)
+    # Unity 없이 순수 전투 로직과 EditMode 테스트를 .NET SDK로 컴파일·실행한다.
+    # Unity 라이선스나 LFS가 필요 없고 standard runner에서 돈다. 캐시와 아티팩트는 쓰지 않는다.
+    # 컨트롤러·HUD·메이커 화면 코드는 대상이 아니다(docs/project/logic-tests.md).
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: .NET SDK 준비
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: 로직 테스트 실행
+        run: bash ./scripts/run-logic-tests.sh
