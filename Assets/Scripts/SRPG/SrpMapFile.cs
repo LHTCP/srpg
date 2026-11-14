@@ -202,7 +202,8 @@ public class SrpMapFileV1
 /// 맵 메이커가 편집하지 않는 맵 데이터를 불러오기에서 저장까지 그대로 들고 가는 묶음.
 /// 메이커는 저장할 때 맵 객체를 새로 만들기 때문에, 이 묶음에 담지 않은 값은 저장 시 기본값으로 돌아간다.
 /// 대상: 승리 조건(victory), 상호작용 포인트(승리 목표 효과 포함), 허용 스킬 목록(allowedSkillIds).
-/// 배치의 지휘관 표시는 메이커가 배치별로 따로 보존하고, 엄폐물과 엄폐 segment는 메이커가 직접 편집한다.
+/// 승리 조건과 상호작용 포인트는 메이커가 이 묶음 안에서 직접 고친다(SrpMapObjectiveEdit). 허용 스킬 목록은 보존만 한다.
+/// 배치의 지휘관 표시는 메이커가 배치별로 들고 있고, 엄폐물과 엄폐 segment는 메이커가 따로 편집한다.
 /// </summary>
 public class SrpMapCarryOver
 {
@@ -273,9 +274,61 @@ public static class SrpMapCoverEdit
         return offsetY >= 0f ? SrpCoverEdge.North : SrpCoverEdge.South;
     }
 
+    /// <summary>메이커에서 고르는 엄폐 강도. 새로 놓는 엄폐의 감쇠 수치(coverDef/coverGrd)를 정한다.</summary>
+    public enum Strength
+    {
+        /// <summary>규칙 기본값. 엄폐 벽은 0/0으로 저장해 전투 규칙의 기본 감쇠를 쓰고, 엄폐물은 2/1이다.</summary>
+        Default = 0,
+        /// <summary>약한 엄폐: 1/1.</summary>
+        Light = 1,
+        /// <summary>강한 엄폐: 3/2.</summary>
+        Heavy = 2,
+    }
+
+    public static Strength NextStrength(Strength current)
+    {
+        switch (current)
+        {
+            case Strength.Default: return Strength.Light;
+            case Strength.Light: return Strength.Heavy;
+            default: return Strength.Default;
+        }
+    }
+
+    public static string GetStrengthLabel(Strength strength)
+    {
+        switch (strength)
+        {
+            case Strength.Light: return "약";
+            case Strength.Heavy: return "강";
+            default: return "기본";
+        }
+    }
+
+    /// <summary>강도에 따른 감쇠 수치. 엄폐물과 엄폐 벽의 기본값이 달라 종류를 받는다.</summary>
+    public static void ResolveStrength(Strength strength, bool isCoverObject, out int coverDef, out int coverGrd)
+    {
+        switch (strength)
+        {
+            case Strength.Light:
+                coverDef = 1;
+                coverGrd = 1;
+                break;
+            case Strength.Heavy:
+                coverDef = 3;
+                coverGrd = 2;
+                break;
+            default:
+                coverDef = isCoverObject ? 2 : 0;
+                coverGrd = isCoverObject ? 1 : 0;
+                break;
+        }
+    }
+
     /// <summary>칸의 엄폐물을 켜고 끈다. 새로 놓았으면 true, 있던 것을 지웠으면 false.</summary>
     public static bool ToggleCoverObject(
-        System.Collections.Generic.List<SrpCoverObjectData> objects, int x, int y, bool blocksLineOfSight)
+        System.Collections.Generic.List<SrpCoverObjectData> objects, int x, int y, bool blocksLineOfSight,
+        Strength strength = Strength.Default)
     {
         for (int i = objects.Count - 1; i >= 0; i--)
         {
@@ -285,16 +338,25 @@ public static class SrpMapCoverEdit
                 return false;
             }
         }
-        objects.Add(new SrpCoverObjectData { x = x, y = y, blocksLineOfSight = blocksLineOfSight });
+        ResolveStrength(strength, true, out int coverDef, out int coverGrd);
+        objects.Add(new SrpCoverObjectData
+        {
+            x = x,
+            y = y,
+            coverDef = coverDef,
+            coverGrd = coverGrd,
+            blocksLineOfSight = blocksLineOfSight,
+        });
         return true;
     }
 
     /// <summary>
     /// 칸 가장자리의 엄폐 segment를 켜고 끈다. 새로 놓았으면 true, 같은 칸·같은 가장자리의 것을 지웠으면 false.
-    /// 감쇠 수치는 0으로 두어 전투 규칙의 기본값을 쓴다.
+    /// 강도가 기본이면 감쇠 수치를 0으로 두어 전투 규칙의 기본값을 쓴다.
     /// </summary>
     public static bool ToggleCoverSegment(
-        System.Collections.Generic.List<SrpCoverSegmentData> segments, int x, int y, SrpCoverEdge edge, bool blocksLineOfSight)
+        System.Collections.Generic.List<SrpCoverSegmentData> segments, int x, int y, SrpCoverEdge edge, bool blocksLineOfSight,
+        Strength strength = Strength.Default)
     {
         for (int i = segments.Count - 1; i >= 0; i--)
         {
@@ -305,12 +367,15 @@ public static class SrpMapCoverEdit
                 return false;
             }
         }
+        ResolveStrength(strength, false, out int coverDef, out int coverGrd);
         segments.Add(new SrpCoverSegmentData
         {
             x = x,
             y = y,
             edge = edge,
             shape = SrpCoverShape.Linear,
+            coverDef = coverDef,
+            coverGrd = coverGrd,
             blocksLineOfSight = blocksLineOfSight,
         });
         return true;
@@ -373,5 +438,76 @@ public static class SrpMapCoverEdit
     static bool InBounds(SrpMapFileV1 map, int x, int y)
     {
         return x >= 0 && y >= 0 && x < map.width && y < map.height;
+    }
+}
+
+/// <summary>
+/// 맵 메이커의 상호작용 포인트 편집 규칙(순수 로직).
+/// </summary>
+public static class SrpMapObjectiveEdit
+{
+    /// <summary>
+    /// 칸의 상호작용 포인트를 켜고 끈다. 새로 놓았으면 true, 있던 것을 지웠으면 false.
+    /// requiredOwner는 이 포인트를 쓸 수 있는 진영(-1이면 누구나)이고,
+    /// victoryObjective가 true면 승리 목표 효과를 붙인다(맵의 victory.interactionObjective가 켜져 있어야 승패에 쓰인다).
+    /// </summary>
+    public static bool ToggleInteractionPoint(
+        SrpMapCarryOver carry, int x, int y, int requiredOwner, bool victoryObjective)
+    {
+        var points = new System.Collections.Generic.List<SrpInteractionPointData>();
+        bool removed = false;
+        if (carry.interactionPoints != null)
+        {
+            foreach (var point in carry.interactionPoints)
+            {
+                if (point == null)
+                    continue;
+                if (point.x == x && point.y == y)
+                {
+                    removed = true;
+                    continue;
+                }
+                points.Add(point);
+            }
+        }
+
+        if (!removed)
+        {
+            points.Add(new SrpInteractionPointData
+            {
+                id = NextPointId(points),
+                displayName = victoryObjective ? "승리 목표" : "상호작용 지점",
+                x = x,
+                y = y,
+                owner = -1,
+                requiredOwner = requiredOwner,
+                singleUse = true,
+                activated = false,
+                effect = victoryObjective ? SrpInteractionEffect.VictoryObjective : SrpInteractionEffect.None,
+            });
+        }
+
+        carry.interactionPoints = points.ToArray();
+        return !removed;
+    }
+
+    /// <summary>이미 있는 id와 겹치지 않는 "point_N"을 만든다.</summary>
+    static string NextPointId(System.Collections.Generic.List<SrpInteractionPointData> points)
+    {
+        for (int n = 1; ; n++)
+        {
+            string candidate = "point_" + n;
+            bool used = false;
+            foreach (var point in points)
+            {
+                if (point.id == candidate)
+                {
+                    used = true;
+                    break;
+                }
+            }
+            if (!used)
+                return candidate;
+        }
     }
 }

@@ -125,8 +125,13 @@ public class SrpM1SkillMapTests
     {
         foreach (var skill in SrpDefaultSkills.Create())
         {
-            bool enemyTagSkill = skill.id == "tactical_mark" || skill.id == "balance_hex" || skill.id == "kill_order";
-            Assert.That(skill.sightRule, Is.EqualTo(enemyTagSkill ? SrpSightRule.Terrain : SrpSightRule.None), skill.id);
+            // 지형 시야: 적 대상 태그 스킬 3종과 충격장. 지형·유닛 시야: 제압 사격(총기와 같은 사선). 그 밖은 시야 불필요.
+            var expected = SrpSightRule.None;
+            if (skill.id == "tactical_mark" || skill.id == "balance_hex" || skill.id == "kill_order" || skill.id == "shock_field")
+                expected = SrpSightRule.Terrain;
+            else if (skill.id == "suppressing_fire")
+                expected = SrpSightRule.TerrainAndUnits;
+            Assert.That(skill.sightRule, Is.EqualTo(expected), skill.id);
         }
 
         var data = new SrpSkillData { id = "s", sightRule = SrpSightRule.TerrainAndUnits };
