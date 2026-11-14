@@ -3,18 +3,18 @@ using NUnit.Framework;
 [Category("SrpM1All")]
 public class SrpCombatResolverTests
 {
-    [TestCase(TestName = "총기 피해는 실제 HP 피해의 50%를 PG로 파급한다")]
-    public void ApplyAttack_FirearmSpillsHalfFinalHpDamageToPg()
+    [TestCase(TestName = "총기 피해는 실제 HP 피해의 33%를 PG로 파급한다")]
+    public void ApplyAttack_FirearmSpillsThirdOfFinalHpDamageToPg()
     {
         var attacker = Unit(attackPower: 8, weaponClass: SrpWeaponClass.Firearm, stance: SrpStance.Defensive);
         var defender = Unit(hp: 30, pg: 20, maxPg: 20);
 
         var outcome = SrpCombatResolver.ApplyAttack(attacker, defender);
 
-        Assert.That(outcome.damageToHp, Is.EqualTo(22));
-        Assert.That(outcome.damageToPg, Is.EqualTo(11));
-        Assert.That(defender.hp, Is.EqualTo(8));
-        Assert.That(defender.pg, Is.EqualTo(9));
+        Assert.That(outcome.damageToHp, Is.EqualTo(20), "총기 HP 피해 = 공격력 x 2 + 4");
+        Assert.That(outcome.damageToPg, Is.EqualTo(6), "파급 PG = HP 피해 20의 33%(내림)");
+        Assert.That(defender.hp, Is.EqualTo(10));
+        Assert.That(defender.pg, Is.EqualTo(14));
     }
 
     [TestCase(TestName = "근접 공격은 HP보다 PG 붕괴를 우선한다")]
@@ -26,7 +26,7 @@ public class SrpCombatResolverTests
         var outcome = SrpCombatResolver.ApplyAttack(attacker, defender);
 
         Assert.That(outcome.damageToHp, Is.EqualTo(1));
-        Assert.That(outcome.damageToPg, Is.EqualTo(11));
+        Assert.That(outcome.damageToPg, Is.EqualTo(7), "근접 PG 피해 = 공격력 6 + 공격 태세 1");
         Assert.That(outcome.becameGroggy, Is.True);
         Assert.That(defender.groggy, Is.True);
         Assert.That(defender.pg, Is.EqualTo(0));
@@ -202,11 +202,11 @@ public class SrpCombatResolverTests
         var half = SrpCombatResolver.ApplyAttack(attacker, halfHp);
         var quarter = SrpCombatResolver.ApplyAttack(attacker, quarterHp);
 
-        Assert.That(half.damageToPg, Is.EqualTo(14));
-        Assert.That(half.bonusPgFromLowHpVulnerability, Is.EqualTo(3));
+        Assert.That(half.damageToPg, Is.EqualTo(9));
+        Assert.That(half.bonusPgFromLowHpVulnerability, Is.EqualTo(2));
         Assert.That(half.lowHpPgVulnerabilityApplied, Is.True);
-        Assert.That(quarter.damageToPg, Is.EqualTo(17));
-        Assert.That(quarter.bonusPgFromLowHpVulnerability, Is.EqualTo(6));
+        Assert.That(quarter.damageToPg, Is.EqualTo(11));
+        Assert.That(quarter.bonusPgFromLowHpVulnerability, Is.EqualTo(4));
     }
 
     [TestCase(TestName = "HP 취약도는 스킬 피해 경로에도 적용된다")]
@@ -567,7 +567,7 @@ public class SrpCombatResolverTests
         var outcome = SrpCombatResolver.ApplyAttack(attacker, defender);
 
         Assert.That(outcome.damageToHp, Is.EqualTo(2), "수비 태세가 반응 없이 근접 HP 피해(공격력/4)를 줄였습니다.");
-        Assert.That(outcome.damageToPg, Is.EqualTo(10), "수비 태세 PG 감쇠 2가 적용되지 않았습니다(공격력+4 = 12).");
+        Assert.That(outcome.damageToPg, Is.EqualTo(6), "수비 태세 PG 감쇠 2가 적용되지 않았습니다(근접 PG = 공격력 8).");
         Assert.That(outcome.reducedHpByDef, Is.EqualTo(0));
         Assert.That(outcome.reducedPgByGrd, Is.EqualTo(2));
     }
@@ -588,7 +588,7 @@ public class SrpCombatResolverTests
         Assert.That(outcome.reactionKind, Is.EqualTo(SrpReactionKind.Guard));
         Assert.That(outcome.reducedHpByDef, Is.EqualTo(2), "Guard의 HP 감쇠 2가 적용되지 않았습니다.");
         Assert.That(outcome.damageToHp, Is.EqualTo(0));
-        Assert.That(outcome.damageToPg, Is.EqualTo(8), "수비 태세 PG-2와 Guard PG-2가 함께 적용되지 않았습니다.");
+        Assert.That(outcome.damageToPg, Is.EqualTo(4), "수비 태세 PG-2와 Guard PG-2가 함께 적용되지 않았습니다.");
     }
 
     [TestCase(TestName = "수비 지속 완충은 후속 피격의 PG만 줄인다")]
@@ -622,10 +622,10 @@ public class SrpCombatResolverTests
         var reduced = SrpCombatResolver.ApplyAttack(attacker, defensive);
         var baseline = SrpCombatResolver.ApplyAttack(attacker, aggressive);
 
-        Assert.That(baseline.damageToHp, Is.EqualTo(22));
-        Assert.That(baseline.damageToPg, Is.EqualTo(11));
-        Assert.That(reduced.damageToHp, Is.EqualTo(22), "수비 태세가 총격 HP 피해를 줄였습니다.");
-        Assert.That(reduced.damageToPg, Is.EqualTo(9), "수비 태세 PG 감쇠 2가 총기 파급 PG에 적용되지 않았습니다.");
+        Assert.That(baseline.damageToHp, Is.EqualTo(20));
+        Assert.That(baseline.damageToPg, Is.EqualTo(6));
+        Assert.That(reduced.damageToHp, Is.EqualTo(20), "수비 태세가 총격 HP 피해를 줄였습니다.");
+        Assert.That(reduced.damageToPg, Is.EqualTo(4), "수비 태세 PG 감쇠 2가 총기 파급 PG에 적용되지 않았습니다.");
     }
 
     [TestCase(TestName = "강타는 중대 HP 피해라 완벽한 수비를 뚫는다")]

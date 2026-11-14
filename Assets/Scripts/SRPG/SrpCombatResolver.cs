@@ -6,6 +6,8 @@ using UnityEngine;
 public static class SrpCombatResolver
 {
     const int ExecutionBonusDamage = 6;
+    // 총기 HP 피해 = 공격력 x 2 + 4. 근접은 HP 공격력/4(최소 1), PG 공격력(공격 태세 +1).
+    const int FirearmHpFlatBonus = 4;
     // 상시 감쇠(수비 태세, 수비 지속 완충)는 PG 전용이다. HP 감쇠는 RP를 쓰는 Guard,
     // 탱커 특성(다중 교전, 완벽한 수비), 엄폐에만 둔다(RQ-004, 계획 문서 Q5).
     const int DefensiveStanceGrd = 2;
@@ -22,7 +24,7 @@ public static class SrpCombatResolver
     const int BackAttackHpBonus = 2;
     const int BackAttackPgBonus = 2;
     const float DirectionalArcDotThreshold = 0.7071067f;
-    const int FirearmHpToPgSpilloverPercent = 50;
+    const int FirearmHpToPgSpilloverPercent = 33;
     const int LowHpPgVulnerabilityThresholdPercent = 50;
     const int CriticalHpPgVulnerabilityThresholdPercent = 25;
     const int LowHpPgVulnerabilityBonusPercent = 25;
@@ -247,13 +249,13 @@ public static class SrpCombatResolver
             switch (attackKind)
             {
                 case SrpBasicAttackKind.Firearm:
-                    hpDamage = raw * 2 + 6;
+                    hpDamage = raw * 2 + FirearmHpFlatBonus;
                     pgDamage = 0;
                     break;
                 case SrpBasicAttackKind.Melee:
                 default:
                     hpDamage = Mathf.Max(1, raw / 4);
-                    pgDamage = raw + 4;
+                    pgDamage = raw;
                     break;
             }
 

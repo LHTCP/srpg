@@ -321,7 +321,7 @@ public class SrpM1RuleSpecTests
         Assert.AreEqual(8, outcome.bonusPgFromCombatTags, "표식/균형 붕괴/사살 지시 PG 보너스가 기록되지 않았습니다.");
         Assert.AreEqual(0, defender.combatTags, "소모형 전투 태그가 다음 공격 후 제거되지 않았습니다.");
         Assert.AreEqual(26, defender.hp, "전투 태그 HP 보너스가 실제 피해에 반영되지 않았습니다.");
-        Assert.AreEqual(9, defender.pg, "전투 태그 PG 보너스가 실제 피해에 반영되지 않았습니다.");
+        Assert.AreEqual(13, defender.pg, "전투 태그 PG 보너스가 실제 피해에 반영되지 않았습니다.");
     }
 
     /// <summary>다음 회피 판정이 원하는 결과가 되도록 전투 난수 시드를 고른다.</summary>
