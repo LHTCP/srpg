@@ -16,9 +16,16 @@
 | [project/github-governance.md](project/github-governance.md) | GitHub 이슈·PR·브랜치 보호 운영 기준 |
 | [project/latest-play-guide.md](project/latest-play-guide.md) | 최신 Windows 데모 다운로드·실행·itch.io 확인 가이드 |
 | [project/release-checklist.md](project/release-checklist.md) | 배포 전·후 검증과 rollback/known issue 판단 기준 |
-| [project/release-versioning.md](project/release-versioning.md) | development/production 채널과 `a.b.c.<build>` 버전 운영 원칙 |
+| [project/release-versioning.md](project/release-versioning.md) | development/production 채널과 `a.b.c.<build>` 버전 운영 원칙, GitHub Release asset 정책 |
 | [project/cicd-runbook.md](project/cicd-runbook.md) | CI/CD 테스트·빌드·배포 실패 대응 Runbook |
+| [project/unity-test-suites.md](project/unity-test-suites.md) | Unity 테스트 묶음·카테고리·최소 smoke 실행 기준 |
+| [project/pc-demo-packaging.md](project/pc-demo-packaging.md) | Windows PC 데모 zip 패키징 구조·파일명·smoke test 기준 |
+| [project/itchio-deployment-research.md](project/itchio-deployment-research.md) | itch.io 게시·임베드 방식 조사와 채널·버전 원칙 |
+| [project/itchio-manual-publishing-checklist.md](project/itchio-manual-publishing-checklist.md) | itch.io 수동 게시 체크리스트와 게시 기록 템플릿 |
+| [project/butler-automation-design.md](project/butler-automation-design.md) | butler 기반 itch.io 업로드 자동화 설계·구현 상태·실패 대응 |
 | [project/windows-build-runner-research.md](project/windows-build-runner-research.md) | Windows 빌드 runner 전략 조사 |
+| [project/gameci-cache-research.md](project/gameci-cache-research.md) | GameCI Unity 6000.3.13f1 지원 상태와 Library cache 전략 조사 |
+| [project/lfs-free-ci-research.md](project/lfs-free-ci-research.md) | LFS-free CI 가능성 조사 (실측 미완료) |
 | [project/documentation-standards.md](project/documentation-standards.md) | 문서 위치·갱신 규칙 |
 | [srpg/README.md](srpg/README.md) | SRPG 문서 계층·현재 실행 플랜 |
 
@@ -36,9 +43,16 @@
 | [github-governance.md](project/github-governance.md) | GitHub 이슈·PR 템플릿과 브랜치 보호 기준 |
 | [latest-play-guide.md](project/latest-play-guide.md) | 최신 Windows 데모 다운로드·실행·itch.io 확인 가이드 |
 | [release-checklist.md](project/release-checklist.md) | 릴리스 체크리스트와 배포 후 smoke test 기준 |
-| [release-versioning.md](project/release-versioning.md) | 릴리스 버전·채널 운영 원칙 |
+| [release-versioning.md](project/release-versioning.md) | 릴리스 버전·채널 운영 원칙, GitHub Release asset 정책 |
 | [cicd-runbook.md](project/cicd-runbook.md) | LFS·Unity license·테스트·빌드·artifact/cache 실패 대응 Runbook |
+| [unity-test-suites.md](project/unity-test-suites.md) | Unity 테스트 폴더·카테고리 정리, CI 후보/로컬 전용 구분, 최소 smoke 기준 |
+| [pc-demo-packaging.md](project/pc-demo-packaging.md) | Windows PC 데모 zip 패키징 기준 |
+| [itchio-deployment-research.md](project/itchio-deployment-research.md) | itch.io 게시·임베드 방식 조사 |
+| [itchio-manual-publishing-checklist.md](project/itchio-manual-publishing-checklist.md) | itch.io 수동 게시 체크리스트 |
+| [butler-automation-design.md](project/butler-automation-design.md) | butler 배포 자동화 설계와 development 업로드 workflow 실패 대응 |
 | [windows-build-runner-research.md](project/windows-build-runner-research.md) | Windows 빌드 runner 전략 조사 |
+| [gameci-cache-research.md](project/gameci-cache-research.md) | GameCI 6000.3.13f1 지원 근거, Library cache key·retention·Node runtime 추천안 |
+| [lfs-free-ci-research.md](project/lfs-free-ci-research.md) | LFS 없이 EditMode 테스트/빌드가 가능한지 조사, 잠정 추천안과 남은 검증 |
 | [documentation-standards.md](project/documentation-standards.md) | 문서 전용 폴더 구조·작성 규칙 |
 | [webgl-deployment-research.md](project/webgl-deployment-research.md) | WebGL 배포 대상 비교와 추천안 |
 

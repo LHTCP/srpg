@@ -6,7 +6,7 @@
 
 - PC/Windows 빌드 아티팩트: `Windows PC 데모 빌드` workflow의 `srpg-demo-windows-<version>-<short-sha>` artifact
 - itch.io 프로젝트: <https://lhtcp.itch.io/lhtcp-srpg>
-- GitHub Release asset: TODO
+- GitHub Release asset: 수동 workflow `Windows Release asset 업로드` 추가됨(미실행·미검증), 게시된 Release 없음
 - WebGL 플레이 링크: 보조 후보
 - 모바일 테스트 배포 링크: 보류
 - 릴리스 노트 위치: TODO
@@ -21,7 +21,7 @@
 - [ ] GitHub Actions 필수 체크가 모두 통과했다.
 - [ ] `Delivery 선행 헬스체크` workflow가 통과했다.
 - [ ] itch.io 업로드를 수행할 예정이면 `itch.io Delivery 설정 헬스체크` workflow가 통과했다.
-- [ ] Unity EditMode/PlayMode 테스트 실행 결과를 확인했다.
+- [ ] Unity EditMode/PlayMode 테스트 실행 결과를 확인했다. 실행 묶음과 최소 smoke 기준은 [unity-test-suites.md](unity-test-suites.md)를 따른다.
 - [ ] LFS, Unity license, 플랫폼별 signing secret이 필요한 workflow에서 정상적으로 접근 가능한지 확인했다.
 - [ ] PC/Windows 배포 대상과 산출물 위치를 명시했다.
 - [ ] 이번 배포에서 제외되는 플랫폼이 있으면 제외 사유를 릴리스 노트에 남겼다.
