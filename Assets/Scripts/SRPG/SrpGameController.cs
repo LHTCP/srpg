@@ -43,7 +43,16 @@ public partial class SrpGameController : MonoBehaviour
 
     const float DefaultHudPanelWidth = 370f;
     SrpBattleState _state;
-    readonly Stack<SrpBattleState> _undo = new Stack<SrpBattleState>();
+    readonly Stack<UndoSnapshot> _undo = new Stack<UndoSnapshot>();
+
+    /// <summary>되감기 지점. 전투 상태에 들어 있지 않은 활성화 진행 값(남은 이동력)을 함께 보관한다.</summary>
+    struct UndoSnapshot
+    {
+        public SrpBattleState state;
+        public int remainingMove;
+    }
+
+    int _undoResumeRemainingMove;
 
     // ── 입력·페이즈 상태 ─────────────────────────────────────────────────────
 
@@ -678,6 +687,9 @@ public partial class SrpGameController : MonoBehaviour
 
     void BeginSelectUnit(SrpUnitRuntime u)
     {
+        // 되감기 뒤 다시 선택한 경우는 새 활성화가 아니다. 이미 쓴 기본 공격과 이동력을 되살려야
+        // 공격 → 다른 행동 → 되감기 → 재공격 같은 우회가 생기지 않는다.
+        bool resumingAfterUndo = _postUndoHint;
         _postUndoHint = false;
         if (!u.passiveAppliedThisTurn)
         {
@@ -685,12 +697,20 @@ public partial class SrpGameController : MonoBehaviour
             u.passiveAppliedThisTurn = true;
         }
         _selectedId = u.id;
-        _remainingMove = u.moveRange;
-        _hasAttackedThisTurn = false;
-        u.hasMovedThisActivation = false;
-        u.hasAttackedThisActivation = false;
-        u.hasUsedSkillThisActivation = false;
-        u.hasReloadedThisActivation = false;
+        if (resumingAfterUndo)
+        {
+            _remainingMove = Mathf.Clamp(_undoResumeRemainingMove, 0, u.moveRange);
+            _hasAttackedThisTurn = u.hasAttackedThisActivation;
+        }
+        else
+        {
+            _remainingMove = u.moveRange;
+            _hasAttackedThisTurn = false;
+            u.hasMovedThisActivation = false;
+            u.hasAttackedThisActivation = false;
+            u.hasUsedSkillThisActivation = false;
+            u.hasReloadedThisActivation = false;
+        }
         _phase = Phase.UnitActive;
         RefreshActiveHighlights(u);
         FlashUnit(u, new Color(1f, 0.92f, 0.35f));
@@ -845,7 +865,9 @@ public partial class SrpGameController : MonoBehaviour
     void OnUndo()
     {
         if (_undo.Count == 0 || _phase == Phase.EnemyActing) return;
-        _state = _undo.Pop();
+        var snapshot = _undo.Pop();
+        _state = snapshot.state;
+        _undoResumeRemainingMove = snapshot.remainingMove;
         _selectedId = null;
         _phase = Phase.Idle;
         _moveCostMap.Clear();
@@ -876,7 +898,7 @@ public partial class SrpGameController : MonoBehaviour
         // 적 AI 행동은 되감기 대상이 아니다.
         if (_phase == Phase.EnemyActing)
             return;
-        _undo.Push(_state.Clone());
+        _undo.Push(new UndoSnapshot { state = _state.Clone(), remainingMove = _remainingMove });
     }
 
     bool TryResolveOpportunityAttack(SrpUnitRuntime mover, List<int> previousEngagers)

@@ -10,6 +10,7 @@
   - `SrpGameController`의 이동/스킬/재장전 실행부를 `PerformMove`/`PerformSkill`/`PerformReload`로 분리해 플레이어 입력과 AI가 같은 경로를 쓴다
   - AI 시뮬레이션: Heuristic 정책이 `SrpEnemyAi`를 사용, 재장전/피해 스킬/공격 후 행동/그로기/라운드 시작 스킬 자원 틱 반영
   - PlayMode 테스트는 `[SetUp]`에서 적 AI를 끄고 기존 수동 조작 흐름을 유지
+  - 되감기 뒤 유닛을 다시 선택해도 이미 쓴 기본 공격과 남은 이동력이 유지된다. 공격 → 다른 행동 → 되감기 → 재공격 우회를 막는다(`SrpGameController.BeginSelectUnit`, 되감기 스냅샷에 남은 이동력 포함)
   - `SrpCombatResolverTests`에 그로기 3건, 적 AI 4건 추가
   - 검증: Unity 미실행. .NET 하네스 105개 중 103개 통과(2개는 컨트롤러 의존), Unity DLL 참조 컴파일 오류 0, `scripts/validate-repo.sh` 통과
 
