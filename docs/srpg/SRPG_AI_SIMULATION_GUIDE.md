@@ -55,6 +55,14 @@
 ## 2026-11-14 정책 변경
 
 - `SrpHeuristicAiPolicy`는 런타임 적 AI(`Assets/Scripts/SRPG/SrpEnemyAi.cs`)와 같은 판단을 쓴다. 시뮬레이션 결과가 실제 전투에서 적이 하는 행동을 반영한다.
-- 시뮬레이션 러너는 재장전, 단일 적 대상 피해 스킬, 공격 후 남은 AP 행동, 그로기 회복 스킵, 라운드 시작 스킬 자원 틱을 반영한다. 경계태세, 기회공격, 엄폐, 태그/회복 스킬은 아직 반영하지 않는다.
+- 시뮬레이션 러너는 재장전, 단일 적 대상 피해 스킬, 공격 후 남은 AP 행동, 그로기 회복 스킵, 라운드 시작 스킬 자원 틱을 반영한다. 경계태세, 기회공격, 엄폐, 태그/회복 스킬은 아직 반영하지 않는다. (아래 "진행 로직 공유"에서 경계태세와 기회공격은 반영됐다.)
 - Heuristic 미러전은 난수가 없어 같은 한 판을 반복한다. 승률은 참고하지 말고 종료 라운드만 본다.
 - 최근 측정값은 `SRPG_IMPLEMENTATION_DECISIONS.md`의 2026-11-14 절을 본다.
+
+## 2026-11-14 진행 로직 공유
+
+- 러너는 자체 진행 루프를 쓰지 않는다. 라운드 시작과 행동 실행은 `SrpBattleFlow`, 행동 순서와 그로기 스킵은 `SrpTurnOrder`, 승패는 `SrpVictory`를 호출한다. 런타임(`SrpGameController`)이 쓰는 것과 같은 함수다.
+- 그래서 시뮬레이션에도 교전 이탈 기회공격, 경계사격, 라운드 자원 초기화, 턴 시작 패시브, 맵별 승리 조건이 반영된다.
+- Heuristic 정책(= `SrpEnemyAi`)은 총기 역할 유닛의 경계태세 예약을 쓴다. 엄폐와 태그/회복 스킬은 쓰지 않는다.
+- 리포트의 `actions`는 판당 평균 행동 횟수다(`reloadsPerBattle`, `skillUsesPerBattle`, `overwatchArmsPerBattle`, `overwatchShotsPerBattle`, `opportunityAttacksPerBattle`, `groggySkipsPerBattle`). 시뮬레이션이 실제로 어떤 수단을 썼는지 확인할 때 본다.
+- 전투 피해 지표(`firearmHpShare`, `meleePgShare`)에는 기회공격과 경계사격 피해도 들어간다.
