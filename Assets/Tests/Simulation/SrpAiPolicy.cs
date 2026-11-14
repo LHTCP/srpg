@@ -8,6 +8,7 @@ public enum SrpAiActionType
     Attack,
     Reload,
     UseSkill,
+    Overwatch,
 }
 
 public struct SrpAiMoveOption
@@ -69,6 +70,11 @@ public struct SrpAiCommand
     public static SrpAiCommand Reload()
     {
         return new SrpAiCommand { actionType = SrpAiActionType.Reload };
+    }
+
+    public static SrpAiCommand Overwatch()
+    {
+        return new SrpAiCommand { actionType = SrpAiActionType.Overwatch };
     }
 
     public static SrpAiCommand UseSkill(string skillId, int x, int y, int targetUnitId)

@@ -25,6 +25,13 @@ public class SrpSimMetrics
     public int aggressiveAttackCount;
     public int defensiveAttackCount;
 
+    public int reloadCount;
+    public int skillUseCount;
+    public int overwatchArmCount;
+    public int overwatchShotCount;
+    public int opportunityAttackCount;
+    public int groggySkipCount;
+
     public List<int> sampledSeeds = new List<int>();
 }
 
@@ -64,6 +71,18 @@ public class SrpSimControlSummary
     public int defensiveAttackCount;
 }
 
+/// <summary>판당 평균 행동/반응 횟수. 시뮬레이션이 런타임 AI와 같은 수단을 쓰는지 확인하는 용도다.</summary>
+[Serializable]
+public class SrpSimActionSummary
+{
+    public float reloadsPerBattle;
+    public float skillUsesPerBattle;
+    public float overwatchArmsPerBattle;
+    public float overwatchShotsPerBattle;
+    public float opportunityAttacksPerBattle;
+    public float groggySkipsPerBattle;
+}
+
 [Serializable]
 public class SrpSimThresholdResult
 {
@@ -78,6 +97,7 @@ public class SrpSimReport
     public SrpSimOutcomeSummary outcome = new SrpSimOutcomeSummary();
     public SrpSimCombatSummary combat = new SrpSimCombatSummary();
     public SrpSimControlSummary control = new SrpSimControlSummary();
+    public SrpSimActionSummary actions = new SrpSimActionSummary();
     public SrpSimThresholdResult threshold = new SrpSimThresholdResult();
     public List<int> sampleSeeds = new List<int>();
 }

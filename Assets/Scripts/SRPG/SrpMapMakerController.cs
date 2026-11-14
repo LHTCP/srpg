@@ -14,6 +14,8 @@ public class SrpMapMakerController : MonoBehaviour
     string _mapName = "new_map";
     bool[] _walkable;
     List<PlacedUnit> _placements = new List<PlacedUnit>();
+    // 메이커가 편집하지 않는 맵 데이터(승리 조건, 상호작용 포인트). 불러온 값을 저장 때 그대로 되돌려 넣는다.
+    SrpMapCarryOver _carryOver = new SrpMapCarryOver();
     SrpUnitTemplateData[] _allUnits = Array.Empty<SrpUnitTemplateData>();
     SrpSkillData[] _allSkills = Array.Empty<SrpSkillData>();
 
@@ -29,6 +31,8 @@ public class SrpMapMakerController : MonoBehaviour
         public int x, y;
         public int footprintW, footprintH;
         public List<string> disabledSkillIds;
+        // 메이커에서 편집하지 않지만 불러온 맵의 지휘관 표시를 저장 때 유지한다.
+        public bool isCommander;
     }
 
     // ── 그리드 뷰 ─────────────────────────────────────────────────────────────
@@ -126,6 +130,8 @@ public class SrpMapMakerController : MonoBehaviour
         for (int i = 0; i < _walkable.Length; i++)
             _walkable[i] = true;
         _placements.Clear();
+        // 그리드를 새로 만들면 새 맵이므로 이전에 불러온 맵의 승리 조건/상호작용 포인트도 비운다.
+        _carryOver = new SrpMapCarryOver();
     }
 
     // ── 그리드 ────────────────────────────────────────────────────────────────
@@ -662,6 +668,7 @@ public class SrpMapMakerController : MonoBehaviour
         else
             for (int i = 0; i < _walkable.Length; i++) _walkable[i] = true;
 
+        _carryOver = SrpMapCarryOver.Capture(map);
         _placements.Clear();
         if (map.placements != null)
         {
@@ -686,6 +693,7 @@ public class SrpMapMakerController : MonoBehaviour
                     disabledSkillIds = p.disabledSkillIds != null
                         ? new List<string>(p.disabledSkillIds)
                         : new List<string>(),
+                    isCommander = p.isCommander,
                 });
             }
         }
@@ -733,10 +741,11 @@ public class SrpMapMakerController : MonoBehaviour
                 disabledSkillIds = p.disabledSkillIds != null
                     ? p.disabledSkillIds.ToArray()
                     : Array.Empty<string>(),
+                isCommander = p.isCommander,
             });
         }
 
-        return new SrpMapFileV1
+        var map = new SrpMapFileV1
         {
             version = 2,
             name = _mapName,
@@ -747,6 +756,8 @@ public class SrpMapMakerController : MonoBehaviour
             templates = usedTemplates.ToArray(),
             placements = placements.ToArray(),
         };
+        _carryOver.ApplyTo(map);
+        return map;
     }
 
     void OnReturnToLobby()

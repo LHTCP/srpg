@@ -2,6 +2,25 @@
 
 ## 2026-11-14
 
+- 맵 메이커 저장 시 승리 조건 유실 수정 (PR #100 리뷰 반영)
+  - 승리 조건을 켠 맵을 맵 메이커에서 불러와 다시 저장하면 `victory`와 배치의 `isCommander`가 기본값으로 돌아갔다. 메이커가 저장할 때 맵 객체를 새로 만들기 때문이다
+  - `SrpMapCarryOver`(`SrpMapFile.cs`) 추가: 메이커가 편집하지 않는 `victory`와 상호작용 포인트(승리 목표 효과 포함)를 불러오기에서 저장까지 보존한다. 맵 크기를 벗어난 포인트는 저장하지 않는다. `SrpMapMakerController`는 배치별 `isCommander`도 유지한다
+  - 상호작용 포인트는 이전에도 메이커 저장 시 사라졌다. 승리 목표가 포인트에 붙으므로 같이 보존했다. 엄폐물/엄폐 segment/허용 스킬 목록은 여전히 메이커 저장 시 사라진다(5차 메이커 범위)
+  - 메이커에서 "그리드 재생성"을 하면 새 맵으로 보고 보존한 값을 비운다. 메이커에서 승리 조건을 편집하는 UI는 없다
+  - `SrpM1VictoryTests.MapCarryOver_PreservesVictoryAndInteractionPoints` 추가
+  - 검증: Unity 미실행. .NET 하네스 128개 중 125개 통과(실패 3개는 이전과 같음), Unity DLL 참조 컴파일 오류 0. 메이커 화면에서의 불러오기/저장은 확인하지 못했다
+
+- 3차 나머지: 승리 조건, 전투 진행 로직 공유, 플레이 루프 보완
+  - 승리 조건(`SrpVictory`, 순수 로직): 전멸 > 지휘관 처치 > 상호작용 목표 순으로 판정. 맵 스키마에 `victory`(`commanderKill`, `interactionObjective`), 배치 `isCommander`, 상호작용 포인트 `effect`(`VictoryObjective`) 추가. 값이 없는 기존 맵과 `M1OpeningPrototype`/`M1QaIntegrated`/`M1EngagementLab`은 전멸 규칙 그대로다
+  - 확인용 내장 프리셋 `M1ObjectiveLab` 추가(로비 "승리 조건 검증 랩"). 양 진영 지휘관 1명, owner 0 전용 승리 목표 `신호 장치` 1개
+  - 전투 진행 로직(`SrpBattleFlow`, 순수 로직): 라운드 시작, 활성화 시작, 이동/기본 공격/스킬/재장전, 기회공격·경계사격 반응, AI 행동 검증·실행. `SrpGameController`는 규칙 처리를 여기에 맡기고 되감기/로그/연출/활성화 종료만 처리한다(`ISrpBattleFlowObserver`)
+  - AI 시뮬레이션(`SrpBattleSimRunner`)이 자체 진행 루프 대신 `SrpBattleFlow`/`SrpTurnOrder`/`SrpVictory`를 호출한다. 새로 반영된 것: 교전 이탈 기회공격, 경계사격, 라운드 자원 초기화(RP·경계태세·수비 피격 누적), 턴 시작 패시브. 리포트에 판당 행동 횟수(`actions`) 추가
+  - 적 AI(`SrpEnemyAi`): 총기 역할 유닛은 더 할 행동이 없으면 경계태세를 예약한다
+  - 플레이 루프 보완: 스킬 처치로 승패가 나면 즉시 종료, 적 AI 예외 시 적 차례가 멈추지 않게 처리, 전투 종료 후 시스템 탭(되감기/로비) 유지와 종료 안내 문구, 반응 사격으로 끝난 경우 HUD 갱신, HUD의 "공격 후 행동 종료" 안내를 현재 규칙(Q3)에 맞게 수정
+  - 테스트: `SrpM1VictoryTests` 9건, `SrpM1BattleFlowTests` 10건 추가. `SrpM1PlayModeTests`의 상태 문구 단언 1곳을 새 안내 문구에 맞춤
+  - 시뮬레이션 수치 변화(케이스당 300판 평균 라운드): `M1QaIntegrated` H vs R 5.04 → 4.61, R vs H 6.23 → 5.75, H vs H 6.00 → 6.00. `M1OpeningPrototype` H vs R 5.72 → 5.42, R vs H 7.50 → 6.56, H vs H 5.00 → 5.00. `SrpSimThresholds` 임계치는 모두 통과. 오프닝 하한 6은 변경 전부터 미달이며 하한과 오프닝 수치는 바꾸지 않았다(`SRPG_IMPLEMENTATION_DECISIONS.md`)
+  - 검증: Unity 미실행(라이선스 미활성, 배치모드 return code 198). 저장소 밖 .NET 하네스 127개 중 124개 통과(실패 3개는 변경 전과 같은 컨트롤러 의존 2건과 오프닝 하한 1건), Unity DLL 참조 컴파일 오류 0, `scripts/validate-repo.sh` 통과
+
 - 적 AI 장애물 우회 이동 (PR #97 리뷰 반영)
   - `SrpEnemyAi.TryPickMove`: 직선(맨해튼) 거리 점수로 고를 칸이 없거나 고른 칸이 공격 가능한 칸까지의 실제 경로 비용을 늘리면, 최단 경로를 따라 이번 이동력만큼 우회한다. 이동 직후 공격할 수 있는 칸을 고른 경우와 경로로 닿는 공격 칸이 없는 경우는 기존 판단 그대로다
   - `SrpPathfinder.GetReachableWithCosts`에 직전 칸(`cameFrom`)을 기록하는 오버로드 추가. 이동 규칙(ZOC/교전 이탈/점유)은 기존 탐색을 그대로 쓴다

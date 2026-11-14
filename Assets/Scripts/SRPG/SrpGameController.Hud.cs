@@ -89,6 +89,7 @@ public partial class SrpGameController
     GameObject _commandRailPanel;
     GameObject _contextPanel;
     GameObject _secondaryActionPanel;
+    bool _gameOverDrawerShown;
     GameObject _secondaryActionTabStripPanel;
     GameObject _secondaryStancePage;
     GameObject _secondaryTacticalPage;
@@ -1021,11 +1022,7 @@ public partial class SrpGameController
             UpdateHud();
             return;
         }
-        SpawnWorldFeedback(unit, "\uACBD\uACC4\uD0DC\uC138 \uC900\uBE44", new Color(0.35f, 0.55f, 1f));
-        FlashUnit(unit, new Color(0.35f, 0.55f, 1f));
-        LogLine($"경계태세 준비: {unit.displayName}({unit.id}) | 사거리 {unit.overwatchRange} | 행동 소모");
-        RefreshUnitViews();
-        FinishActivation();
+        AfterOverwatchArm(unit);
     }
 
     SkillListEntry GetOrCreateSkillEntry(int index)
@@ -1221,9 +1218,25 @@ public partial class SrpGameController
     void UpdateHud()
     {
         if (_txtTurn == null) return;
-        if (_secondaryActionPanel != null && (_gameOver
-            || (_phase != Phase.UnitActive && _phase != Phase.SelectingSkillTarget)))
-            SetSecondaryDrawerOpen(false, _secondaryDrawerTab);
+        if (_secondaryActionPanel != null)
+        {
+            if (_gameOver)
+            {
+                // 전투가 끝나면 되감기/로비가 있는 시스템 탭을 한 번 열어 나갈 길을 보여 준다.
+                // 그 뒤에는 강제로 닫지 않아 플레이어가 탭을 직접 여닫을 수 있다.
+                if (!_gameOverDrawerShown)
+                {
+                    _gameOverDrawerShown = true;
+                    SetSecondaryDrawerOpen(true, SecondaryActionDrawerTab.System);
+                }
+            }
+            else
+            {
+                _gameOverDrawerShown = false;
+                if (_phase != Phase.UnitActive && _phase != Phase.SelectingSkillTarget)
+                    SetSecondaryDrawerOpen(false, _secondaryDrawerTab);
+            }
+        }
         if (_state == null)
         {
             _txtTurn.text = "초기화 중...";
@@ -1613,6 +1626,8 @@ public partial class SrpGameController
 
         var parts = new List<string>();
         parts.Add($"반응: {BuildReactionReadinessText(unit)}");
+        if (unit.isCommander && _state != null && _state.VictoryRule != null && _state.VictoryRule.commanderKill)
+            parts.Add("지휘관");
         if (unit.frozenHeart > 0)
             parts.Add($"안정도(FH) {unit.frozenHeart}");
         if (unit.IsPgBroken)
@@ -1783,7 +1798,7 @@ public partial class SrpGameController
             return "초기화 중...";
         string mapName = initialMap != null ? initialMap.name : "?";
         return _gameOver
-            ? "게임 종료"
+            ? BuildGameOverText()
             : $"라운드 {_state.RoundNumber} | 상태: {BuildHudPhaseLabel()} | 위험영역 {(IsDangerAreaVisible ? "ON" : "OFF")} | 맵: {mapName}";
     }
 
@@ -1856,6 +1871,8 @@ public partial class SrpGameController
     {
         if (_state == null)
             return "전투 상태를 준비 중입니다.";
+        if (_gameOver)
+            return $"{BuildGameOverText()}\n시스템 탭에서 로비로 돌아가거나, 되감기가 남아 있으면 마지막 행동을 되돌릴 수 있습니다.";
         if (_phase == Phase.Idle)
         {
             if (_postUndoHint)
@@ -1880,7 +1897,7 @@ public partial class SrpGameController
         }
 
         string moveInfo = _remainingMove > 0 ? $"이동력 {_remainingMove}" : "이동력 없음";
-        string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능 (공격 후 행동 종료)";
+        string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능 (활성화당 1회, AP가 남으면 계속 행동)";
         string dangerInfo = IsDangerAreaVisible ? "위험영역 ON" : "위험영역 OFF";
         string undoInfo = _undo.Count > 0 ? "되감기 가능" : "되감기 없음(행동 확정 후 생성)";
         return $"행동 단계: {moveInfo} | {atkInfo} | {dangerInfo} | {undoInfo}\n{OverlayLegendText}";
@@ -2120,8 +2137,12 @@ public partial class SrpGameController
         string ownerText = point.requiredOwner < 0 ? "누구나 가능" : $"P{point.requiredOwner} 전용";
         string stateText = point.activated ? "활성화됨" : "미활성";
         string result = canInteract ? "실행 가능: AP-1, 포인트 활성화" : "현재 유닛으로 실행 불가";
+        string effectText = point.effect == SrpInteractionEffect.VictoryObjective
+            && _state.VictoryRule != null && _state.VictoryRule.interactionObjective
+            ? "\n효과: 승리 목표 (대상 목표를 모두 확보하면 승리)"
+            : string.Empty;
         return ($"상호작용 Preview: {GetInteractionLabel(point)}",
-            $"위치 ({point.x},{point.y}) | {stateText}\n조건: {ownerText} | singleUse:{point.singleUse}\n{result}");
+            $"위치 ({point.x},{point.y}) | {stateText}\n조건: {ownerText} | singleUse:{point.singleUse}\n{result}{effectText}");
     }
 
     string BuildTargetInfoText(SrpUnitRuntime target)
@@ -2132,6 +2153,8 @@ public partial class SrpGameController
             $"HP {target.hp}/{target.maxHp} | PG {target.pg}/{target.maxPg}",
             $"반응: {BuildReactionReadinessText(target)}",
         };
+        if (target.isCommander && _state.VictoryRule != null && _state.VictoryRule.commanderKill)
+            parts.Add("지휘관 (쓰러지면 해당 진영 패배)");
         if (target.UsesAmmo)
             parts.Add($"탄약 {target.ammo}/{target.maxAmmo}");
         if (target.coverActive)

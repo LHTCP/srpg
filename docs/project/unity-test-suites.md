@@ -34,6 +34,8 @@
 | `SrpM1AllTestsEntry` | `SrpM1All` | 1 | `SrpM1CoreTests` 2개, `SrpM1RuleSpecTests` 4개 메서드를 다시 호출하는 단일 엔트리. 위 클래스와 중복 실행된다 |
 | `SrpM1AiSimAllEntry` | `SrpM1All`, `SrpAiSim` | 3 | AI 시뮬레이션 배치와 임계치 검증. 소스 기준 500회 1건 + 정책 매트릭스 4케이스×300회 2건 = 전투 2,900회. `TestResults/SrpSim/`에 JSON 리포트를 쓴다 |
 | `SrpCombatResolverTests` | 없음 | 13 (`[TestCase]` 8 + `[Test]` 5) | 화기 PG 파급, 근접 PG 압박, 그로기 처단, HP 취약도 등 전투 해석기 규칙 |
+| `SrpM1VictoryTests` | `SrpM1All` | 10 (`[TestCase]`) | 승리 조건 판정(전멸, 지휘관 처치, 상호작용 승리 목표)과 맵 데이터 계약, 맵 메이커 보존 묶음 (2026-11-14 추가) |
+| `SrpM1BattleFlowTests` | `SrpM1All` | 10 (`[TestCase]`) | 런타임과 AI 시뮬레이션이 공유하는 전투 진행 로직(`SrpBattleFlow`), 적 AI 경계태세, 시뮬레이션 행동 지표 (2026-11-14 추가) |
 
 EditMode 합계: 어트리뷰트 96개. 이 중 `SrpM1All` 카테고리에 속한 것은 83개다.
 

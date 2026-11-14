@@ -31,12 +31,14 @@ public class SrpLobbyController : MonoBehaviour
         SrpMapPreset.M1OpeningPrototype,
         SrpMapPreset.M1QaIntegrated,
         SrpMapPreset.M1EngagementLab,
+        SrpMapPreset.M1ObjectiveLab,
     };
     static readonly string[] PresetLabels =
     {
         "첫 전투\n프로토타입",
         "M1 QA\n통합 검증",
         "교전/포위\n검증 랩",
+        "승리 조건\n검증 랩",
     };
 
     // ── 생명주기 ──────────────────────────────────────────────────────────────

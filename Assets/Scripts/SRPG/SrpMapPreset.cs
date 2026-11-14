@@ -6,4 +6,5 @@ public enum SrpMapPreset
     M1OpeningPrototype = 0,
     M1EngagementLab = 1,
     M1QaIntegrated = 2,
+    M1ObjectiveLab = 3,
 }

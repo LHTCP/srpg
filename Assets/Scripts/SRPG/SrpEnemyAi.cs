@@ -8,6 +8,7 @@ public enum SrpEnemyAiActionType
     Attack,
     Reload,
     UseSkill,
+    Overwatch,
 }
 
 public struct SrpEnemyAiAction
@@ -38,6 +39,11 @@ public struct SrpEnemyAiAction
         return new SrpEnemyAiAction { type = SrpEnemyAiActionType.Reload };
     }
 
+    public static SrpEnemyAiAction Overwatch()
+    {
+        return new SrpEnemyAiAction { type = SrpEnemyAiActionType.Overwatch };
+    }
+
     public static SrpEnemyAiAction UseSkill(string skillId, SrpUnitRuntime target)
     {
         return new SrpEnemyAiAction
@@ -54,8 +60,8 @@ public struct SrpEnemyAiAction
 /// <summary>
 /// 적 진영 기본 AI. 전투 상태만 읽어 다음 행동 하나를 고르는 순수 로직이다.
 /// 런타임(SrpGameController)과 AI 시뮬레이션이 같은 판단을 쓴다.
-/// 1차 범위: 기본 공격, 단일 적 대상 피해 스킬, 이동, 재장전.
-/// 태그/회복 스킬, 경계태세, 엄폐, 상호작용, 태세/방향 변경은 쓰지 않는다.
+/// 범위: 기본 공격, 단일 적 대상 피해 스킬, 이동, 재장전, 총기 역할의 경계태세.
+/// 태그/회복 스킬, 엄폐, 상호작용, 태세/방향 변경은 쓰지 않는다.
 /// </summary>
 public static class SrpEnemyAi
 {
@@ -83,7 +89,7 @@ public static class SrpEnemyAi
                 return SrpEnemyAiAction.UseSkill(skill.id, skillTarget);
             if (isShooter && actor.CanReload())
                 return SrpEnemyAiAction.Reload();
-            return SrpEnemyAiAction.EndTurn();
+            return OverwatchOrEndTurn(actor, isShooter);
         }
 
         var target = PickAttackTarget(state, actor);
@@ -109,7 +115,18 @@ public static class SrpEnemyAi
         if (actor.CanReload() && actor.ammo <= 0)
             return SrpEnemyAiAction.Reload();
 
-        return SrpEnemyAiAction.EndTurn();
+        return OverwatchOrEndTurn(actor, isShooter);
+    }
+
+    /// <summary>
+    /// 더 할 행동이 없을 때, 총기 역할 유닛은 남은 AP로 경계태세를 예약한다.
+    /// 근접/마법 역할은 반응(RP)을 패링·가드에 남겨 두도록 경계태세를 쓰지 않는다.
+    /// </summary>
+    static SrpEnemyAiAction OverwatchOrEndTurn(SrpUnitRuntime actor, bool isShooter)
+    {
+        return isShooter && SrpOverwatch.CanArm(actor)
+            ? SrpEnemyAiAction.Overwatch()
+            : SrpEnemyAiAction.EndTurn();
     }
 
     /// <summary>지금 자리에서 기본 공격할 대상. 처단 가능 대상을 최우선으로 한다.</summary>
