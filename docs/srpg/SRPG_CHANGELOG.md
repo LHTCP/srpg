@@ -1,5 +1,18 @@
 # SRPG 변경 이력
 
+## 2026-11-15
+
+- 6차: 검증 기반·콘텐츠·메이커 마무리
+  - 검증: Unity 없이 도는 전투 로직 테스트를 저장소에 넣고 PR CI에 붙였다(`tools/logic-tests`, `scripts/run-logic-tests.sh`, `docs/project/logic-tests.md`). 컨트롤러·화면 코드는 대상이 아니다
+  - 데이터: 로컬 `skills.json`/`units.json`에 기본 데이터 버전을 저장하고, 버전이 낮으면 내장 id의 항목을 최신 값으로 갱신한다. 사용자 항목은 유지하고 이전 파일은 백업한다(`SrpDataIO`, `SrpDefaultDataMerge`)
+  - 스킬 5종 추가: `투지`, `균열 베기`, `제압 사격`, `전열 재정비`, `충격장`
+  - 유닛 `투사` 추가(GDD §10 근접 투사). 기본 유닛 DB의 탱커·사격수에 새 스킬 추가
+  - 맵 프리셋 `M1BarricadeAssault`(방벽선 돌파) 추가. 로비 프리셋 목록에 추가
+  - 맵 메이커: 엄폐 강도, 상호작용 포인트, 지휘관, 승리 규칙 편집 추가(`SrpMapObjectiveEdit`)
+  - 테스트: `SrpM1ContentTests` 14건 추가
+  - 주의: 예전 `skills.json`에서 내장 스킬을 직접 고쳐 쓰던 값은 기본값으로 돌아간다(백업 파일 생성)
+  - 검증: Unity 미실행(라이선스 미활성). .NET 로직 테스트 174개 통과, Unity DLL 참조 컴파일 오류 0·경고 0, `scripts/validate-repo.sh` 통과. 맵 메이커와 로비의 새 UI는 화면으로 확인하지 못했다. 확인 항목은 계획 문서 13절
+
 ## 2026-11-14
 
 - 5차: 스킬·맵 확장

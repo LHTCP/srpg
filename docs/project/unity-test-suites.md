@@ -36,6 +36,8 @@
 | `SrpCombatResolverTests` | 없음 | 13 (`[TestCase]` 8 + `[Test]` 5) | 화기 PG 파급, 근접 PG 압박, 그로기 처단, HP 취약도 등 전투 해석기 규칙 |
 | `SrpM1VictoryTests` | `SrpM1All` | 10 (`[TestCase]`) | 승리 조건 판정(전멸, 지휘관 처치, 상호작용 승리 목표)과 맵 데이터 계약, 맵 메이커 보존 묶음 (2026-11-14 추가) |
 | `SrpM1BattleFlowTests` | `SrpM1All` | 10 (`[TestCase]`) | 런타임과 AI 시뮬레이션이 공유하는 전투 진행 로직(`SrpBattleFlow`), 적 AI 경계태세, 시뮬레이션 행동 지표 (2026-11-14 추가) |
+| `SrpM1SkillMapTests` | `SrpM1All` | 25 (`[TestCase]`) | 시야(LOS) 모듈, 범위 스킬, 전투 태그 지속시간, 맵 메이커 엄폐 편집 (2026-11-14 추가. 아래 합계에는 넣지 않았다) |
+| `SrpM1ContentTests` | `SrpM1All`, 일부 `SrpAiSim` | 14 (`[TestCase]`) | 내장 프리셋·기본 데이터 정합성, 새 스킬·유닛·방벽선 돌파 맵, 로컬 DB 기본 데이터 갱신, 맵 메이커 승리 조건 편집 (2026-11-15 추가. 아래 합계에는 넣지 않았다) |
 
 EditMode 합계: 어트리뷰트 96개. 이 중 `SrpM1All` 카테고리에 속한 것은 83개다.
 
