@@ -76,7 +76,7 @@ public static class SrpOverwatch
             return false;
         if (watcher.overwatchRound != state.RoundNumber)
             return false;
-        if (watcher.owner == target.owner || watcher.reactionPoints <= 0)
+        if (watcher.owner == target.owner || watcher.reactionPoints <= 0 || watcher.IsPgBroken)
             return false;
         if (watcher.maxAmmo <= 0 || watcher.ammo <= 0)
             return false;

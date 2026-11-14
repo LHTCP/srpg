@@ -120,6 +120,7 @@ public class SrpUnitRuntime
 {
     public const int DefaultFirearmMaxAmmo = 1;
     public const int DefaultHumanFirearmRange = 3;
+    public const int GroggyRecoveryPgPercent = 35;
 
     public int id;
     public string templateId;
@@ -155,6 +156,8 @@ public class SrpUnitRuntime
     public List<SrpSkillRuntime> skillRuntimes = new List<SrpSkillRuntime>();
 
     public bool groggy;
+    /// <summary>재붕괴 보호: 그로기에서 회복한 뒤 자신의 다음 활성화가 시작될 때까지 PG가 1 밑으로 내려가지 않는다.</summary>
+    public bool pgBreakGuard;
     public bool eliminated;
 
     public bool hasMovedThisActivation;
@@ -208,6 +211,7 @@ public class SrpUnitRuntime
             combatTags = combatTags,
             skillIds = new List<string>(skillIds),
             groggy = groggy,
+            pgBreakGuard = pgBreakGuard,
             eliminated = eliminated,
             hasMovedThisActivation = hasMovedThisActivation,
             hasAttackedThisActivation = hasAttackedThisActivation,
@@ -257,6 +261,32 @@ public class SrpUnitRuntime
         var consumed = (SrpCombatTag)(combatTags & (int)mask);
         combatTags &= ~(int)consumed;
         return consumed;
+    }
+
+    /// <summary>PG 붕괴(그로기 포함) 상태. 다음 활성화에서 회복할 때까지 행동·반응을 하지 못한다.</summary>
+    public bool IsPgBroken => groggy || pg <= 0;
+
+    /// <summary>
+    /// PG 피해를 적용한다. 재붕괴 보호 중이면 PG를 1에서 멈춘다.
+    /// 이번 피해로 PG가 0이 되어 그로기에 들어가면 true.
+    /// </summary>
+    public bool ApplyPgDamage(int pgDamage, out int appliedDamage)
+    {
+        int before = pg;
+        int floor = pgBreakGuard && before > 0 ? 1 : 0;
+        int after = before - (pgDamage > 0 ? pgDamage : 0);
+        if (after < floor)
+            after = floor;
+        if (after > before)
+            after = before;
+        pg = after;
+        appliedDamage = before - after;
+        if (before > 0 && pg <= 0)
+        {
+            groggy = true;
+            return true;
+        }
+        return false;
     }
 
     public bool UsesAmmo => maxAmmo > 0;

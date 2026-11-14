@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -34,15 +35,33 @@ public partial class SrpGameController : MonoBehaviour
     [Tooltip("시작 시 오른쪽 로그 패널 표시 여부.")]
     public bool startWithLogVisible = false;
 
+    [Header("Enemy AI")]
+    [Tooltip("적 AI가 행동 하나를 한 뒤 다음 행동까지 쉬는 시간(초).")]
+    public float enemyAiStepDelay = 0.55f;
+
     // ── 시뮬레이션 상태 ──────────────────────────────────────────────────────
 
     const float DefaultHudPanelWidth = 370f;
     SrpBattleState _state;
-    readonly Stack<SrpBattleState> _undo = new Stack<SrpBattleState>();
+    readonly Stack<UndoSnapshot> _undo = new Stack<UndoSnapshot>();
+
+    /// <summary>되감기 지점. 전투 상태에 들어 있지 않은 활성화 진행 값(남은 이동력)을 함께 보관한다.</summary>
+    struct UndoSnapshot
+    {
+        public SrpBattleState state;
+        public int remainingMove;
+    }
+
+    int _undoResumeRemainingMove;
 
     // ── 입력·페이즈 상태 ─────────────────────────────────────────────────────
 
-    enum Phase { Idle, UnitActive, SelectingSkillTarget }
+    enum Phase { Idle, UnitActive, SelectingSkillTarget, EnemyActing }
+
+    const int PlayerOwner = 0;
+    const int EnemyAiMaxActionsPerActivation = 8;
+    bool _enemyAiEnabled;
+    int _enemyAiToken;
 
     Phase _phase;
     int? _selectedId;
@@ -95,6 +114,7 @@ public partial class SrpGameController : MonoBehaviour
 
         _state = SrpBattleState.FromMap(initialMap);
         _undo.Clear();
+        _enemyAiEnabled = SrpGameSettings.EnemyAiEnabled;
 
         BuildGrid();
         if (frameCameraOnStart) FrameBoardCamera();
@@ -221,34 +241,15 @@ public partial class SrpGameController : MonoBehaviour
                     CancelSkillTargeting();
                     return;
                 }
-                PushUndo();
-                var beforeVitals = CaptureUnitVitals();
-                SpawnWorldFeedback(u, $"{_pendingSkillData.displayName}!", new Color(0.82f, 0.55f, 1f));
-                SrpSkills.ResolveActiveSkill(_pendingSkillData, _pendingSkillRuntime,
-                    u, x, y, _state, LogLine);
-                FlashChangedUnits(beforeVitals);
-                u.hasUsedSkillThisActivation = true;
-                u.actionPoints = Mathf.Max(0, u.actionPoints - 1);
-                RefreshUnitViews();
-                if (TryResolveOverwatchAgainst(u))
-                {
-                    FinishActivation();
+                if (PerformSkill(u, _pendingSkillData, _pendingSkillRuntime, x, y))
                     return;
-                }
 
-                if (_pendingSkillData.endsActivation)
-                {
-                    FinishActivation();
-                }
-                else
-                {
-                    _phase = Phase.UnitActive;
-                    _pendingSkillData = null;
-                    _pendingSkillRuntime = null;
-                    _skillTargetTiles.Clear();
-                    RefreshActiveHighlights(u);
-                    UpdateHud();
-                }
+                _phase = Phase.UnitActive;
+                _pendingSkillData = null;
+                _pendingSkillRuntime = null;
+                _skillTargetTiles.Clear();
+                RefreshActiveHighlights(u);
+                UpdateHud();
             }
             else
             {
@@ -259,7 +260,7 @@ public partial class SrpGameController : MonoBehaviour
 
         if (_phase == Phase.Idle)
         {
-            if (occ != null && !occ.eliminated && _state.CurrentUnitId == occ.id)
+            if (occ != null && !occ.eliminated && _state.CurrentUnitId == occ.id && !IsEnemyAiUnit(occ))
                 BeginSelectUnit(occ);
             return;
         }
@@ -280,33 +281,7 @@ public partial class SrpGameController : MonoBehaviour
             {
                 if (!EnsureApAvailable(u, "이동"))
                     return;
-                bool wasEngaged = _state.IsUnitEngaged(u.id);
-                var previousEngagers = _state.GetEngagedEnemyIds(u.id);
-                PushUndo();
-                u.anchorX = x;
-                u.anchorY = y;
-                u.ClearCover();
-                _state.RebuildEngagements();
-                bool disengaged = wasEngaged && !_state.IsUnitEngaged(u.id);
-                _remainingMove -= moveCost;
-                u.actionPoints = Mathf.Max(0, u.actionPoints - 1);
-                u.hasMovedThisActivation = true;
-                string disengageHint = disengaged ? " (교전 이탈)" : string.Empty;
-                LogLine($"이동: {u.displayName}({u.id}) → ({x},{y}), 잔여 이동력 {_remainingMove}{disengageHint}");
-                bool opportunityKilledMover = disengaged && TryResolveOpportunityAttack(u, previousEngagers);
-                RefreshUnitViews();
-                if (opportunityKilledMover)
-                {
-                    FinishActivation();
-                    return;
-                }
-                if (TryResolveOverwatchAgainst(u))
-                {
-                    FinishActivation();
-                    return;
-                }
-                RefreshActiveHighlights(u);
-                UpdateHud();
+                PerformMove(u, x, y, moveCost);
                 return;
             }
 
@@ -481,8 +456,240 @@ public partial class SrpGameController : MonoBehaviour
         OnTileClicked(unit.anchorX, unit.anchorY);
     }
 
+    /// <summary>이동 1회를 실행한다. 이 이동으로 활성화가 끝났으면 true.</summary>
+    bool PerformMove(SrpUnitRuntime u, int x, int y, int moveCost)
+    {
+        bool wasEngaged = _state.IsUnitEngaged(u.id);
+        var previousEngagers = _state.GetEngagedEnemyIds(u.id);
+        PushUndo();
+        u.anchorX = x;
+        u.anchorY = y;
+        u.ClearCover();
+        _state.RebuildEngagements();
+        bool disengaged = wasEngaged && !_state.IsUnitEngaged(u.id);
+        _remainingMove -= moveCost;
+        u.actionPoints = Mathf.Max(0, u.actionPoints - 1);
+        u.hasMovedThisActivation = true;
+        string disengageHint = disengaged ? " (교전 이탈)" : string.Empty;
+        LogLine($"이동: {u.displayName}({u.id}) → ({x},{y}), 잔여 이동력 {_remainingMove}{disengageHint}");
+        bool opportunityKilledMover = disengaged && TryResolveOpportunityAttack(u, previousEngagers);
+        RefreshUnitViews();
+        if (opportunityKilledMover)
+        {
+            FinishActivation();
+            return true;
+        }
+        if (TryResolveOverwatchAgainst(u))
+        {
+            FinishActivation();
+            return true;
+        }
+        if (TryEndActivationIfPgBroken(u))
+            return true;
+        RefreshAfterAction(u);
+        return false;
+    }
+
+    /// <summary>대상 지정 스킬 1회를 실행한다. 이 스킬로 활성화가 끝났으면 true.</summary>
+    bool PerformSkill(SrpUnitRuntime u, SrpSkillData data, SrpSkillRuntime runtime, int x, int y)
+    {
+        PushUndo();
+        var beforeVitals = CaptureUnitVitals();
+        SpawnWorldFeedback(u, $"{data.displayName}!", new Color(0.82f, 0.55f, 1f));
+        SrpSkills.ResolveActiveSkill(data, runtime, u, x, y, _state, LogLine);
+        FlashChangedUnits(beforeVitals);
+        u.hasUsedSkillThisActivation = true;
+        u.actionPoints = Mathf.Max(0, u.actionPoints - 1);
+        RefreshUnitViews();
+        if (TryResolveOverwatchAgainst(u))
+        {
+            FinishActivation();
+            return true;
+        }
+        if (data.endsActivation)
+        {
+            FinishActivation();
+            return true;
+        }
+        return TryEndActivationIfPgBroken(u);
+    }
+
+    void PerformReload(SrpUnitRuntime unit)
+    {
+        PushUndo();
+        unit.ReloadAmmo();
+        unit.actionPoints = Mathf.Max(0, unit.actionPoints - 1);
+        unit.hasReloadedThisActivation = true;
+        SpawnWorldFeedback(unit, "\uC7AC\uC7A5\uC804", new Color(0.25f, 1f, 0.65f));
+        FlashUnit(unit, new Color(0.25f, 1f, 0.65f));
+        LogLine($"재장전: {unit.displayName} | 탄약 {unit.ammo}/{unit.maxAmmo} | AP-1");
+        RefreshAfterAction(unit);
+    }
+
+    /// <summary>행동 하나가 끝난 뒤 화면을 갱신한다. 적 AI 차례에는 플레이어용 이동/공격 표시를 띄우지 않는다.</summary>
+    void RefreshAfterAction(SrpUnitRuntime u)
+    {
+        if (_phase == Phase.EnemyActing)
+        {
+            ResetTileColors();
+            _moveCostMap.Clear();
+            _attackIds.Clear();
+            UpdateUnitFeedbackVisuals();
+        }
+        else
+        {
+            RefreshActiveHighlights(u);
+        }
+        UpdateHud();
+    }
+
+    /// <summary>행동 도중 PG가 붕괴(그로기)한 유닛은 남은 AP와 무관하게 활성화를 끝낸다.</summary>
+    bool TryEndActivationIfPgBroken(SrpUnitRuntime unit)
+    {
+        if (unit == null || unit.eliminated || !unit.IsPgBroken)
+            return false;
+        LogLine($"행동 중단: {unit.displayName}({unit.id}) PG 붕괴로 남은 행동 불가");
+        FinishActivation();
+        return true;
+    }
+
+    bool IsBattleDecided()
+    {
+        int aliveOwner = -1;
+        foreach (var unit in _state.Units)
+        {
+            if (unit.eliminated)
+                continue;
+            if (aliveOwner == -1)
+                aliveOwner = unit.owner;
+            else if (aliveOwner != unit.owner)
+                return false;
+        }
+        return true;
+    }
+
+    // ── 적 AI ────────────────────────────────────────────────────────────────
+
+    bool IsEnemyAiUnit(SrpUnitRuntime unit)
+    {
+        return _enemyAiEnabled && unit != null && unit.owner != PlayerOwner;
+    }
+
+    void BeginEnemyAiActivation(SrpUnitRuntime unit)
+    {
+        // 적 차례를 넘어서 되감지 않도록 되감기 기록을 비운다.
+        _undo.Clear();
+        _phase = Phase.EnemyActing;
+        ResetTileColors();
+        _moveCostMap.Clear();
+        _attackIds.Clear();
+        UpdateUnitFeedbackVisuals();
+        _enemyAiToken++;
+        StartCoroutine(RunEnemyAiActivation(unit.id, _enemyAiToken));
+    }
+
+    IEnumerator RunEnemyAiActivation(int unitId, int token)
+    {
+        float delay = Mathf.Max(0f, enemyAiStepDelay);
+        yield return new WaitForSeconds(delay);
+
+        for (int step = 0; step < EnemyAiMaxActionsPerActivation; step++)
+        {
+            if (!IsEnemyAiActivationCurrent(unitId, token))
+                yield break;
+
+            var unit = GetUnit(unitId);
+            var action = SrpEnemyAi.Decide(_state, unit, _remainingMove, _hasAttackedThisTurn);
+            if (!ExecuteEnemyAiAction(unit, action))
+                break;
+            if (!IsEnemyAiActivationCurrent(unitId, token))
+                yield break;
+
+            yield return new WaitForSeconds(delay);
+        }
+
+        if (!IsEnemyAiActivationCurrent(unitId, token))
+            yield break;
+        LogLine($"유닛 완료 — {GetUnit(unitId)?.displayName}({unitId})");
+        FinishActivation();
+    }
+
+    bool IsEnemyAiActivationCurrent(int unitId, int token)
+    {
+        if (_gameOver || token != _enemyAiToken || _phase != Phase.EnemyActing)
+            return false;
+        if (!_selectedId.HasValue || _selectedId.Value != unitId)
+            return false;
+        var unit = GetUnit(unitId);
+        return unit != null && !unit.eliminated;
+    }
+
+    /// <summary>AI가 고른 행동 하나를 실행한다. 실행할 수 없는 행동이면 false.</summary>
+    bool ExecuteEnemyAiAction(SrpUnitRuntime unit, SrpEnemyAiAction action)
+    {
+        if (unit == null || unit.eliminated || unit.actionPoints <= 0)
+            return false;
+
+        switch (action.type)
+        {
+            case SrpEnemyAiActionType.Move:
+            {
+                var costs = SrpPathfinder.GetReachableWithCosts(_state, unit, _remainingMove);
+                if (!costs.TryGetValue(new Vector2Int(action.x, action.y), out int moveCost))
+                    return false;
+                PerformMove(unit, action.x, action.y, moveCost);
+                return true;
+            }
+            case SrpEnemyAiActionType.Attack:
+            {
+                var target = GetUnit(action.targetUnitId);
+                if (_hasAttackedThisTurn || target == null || target.eliminated
+                    || !SrpCombatResolver.CanAttack(_state, unit, target))
+                    return false;
+                DoAttack(unit, target);
+                return true;
+            }
+            case SrpEnemyAiActionType.Reload:
+            {
+                if (!unit.CanReload())
+                    return false;
+                PerformReload(unit);
+                return true;
+            }
+            case SrpEnemyAiActionType.UseSkill:
+            {
+                var target = GetUnit(action.targetUnitId);
+                if (target == null || target.eliminated || string.IsNullOrEmpty(action.skillId)
+                    || !_state.SkillLookup.TryGetValue(action.skillId, out var data))
+                    return false;
+
+                SrpSkillRuntime runtime = null;
+                foreach (var candidate in unit.skillRuntimes)
+                {
+                    if (candidate != null && candidate.skillId == action.skillId)
+                    {
+                        runtime = candidate;
+                        break;
+                    }
+                }
+                if (runtime == null || !SrpSkills.CanUseActiveSkill(data, runtime)
+                    || _state.ChebyshevAnchor(unit, target) > data.range)
+                    return false;
+
+                if (!PerformSkill(unit, data, runtime, target.anchorX, target.anchorY))
+                    RefreshAfterAction(unit);
+                return true;
+            }
+            default:
+                return false;
+        }
+    }
+
     void BeginSelectUnit(SrpUnitRuntime u)
     {
+        // 되감기 뒤 다시 선택한 경우는 새 활성화가 아니다. 이미 쓴 기본 공격과 이동력을 되살려야
+        // 공격 → 다른 행동 → 되감기 → 재공격 같은 우회가 생기지 않는다.
+        bool resumingAfterUndo = _postUndoHint;
         _postUndoHint = false;
         if (!u.passiveAppliedThisTurn)
         {
@@ -490,12 +697,20 @@ public partial class SrpGameController : MonoBehaviour
             u.passiveAppliedThisTurn = true;
         }
         _selectedId = u.id;
-        _remainingMove = u.moveRange;
-        _hasAttackedThisTurn = false;
-        u.hasMovedThisActivation = false;
-        u.hasAttackedThisActivation = false;
-        u.hasUsedSkillThisActivation = false;
-        u.hasReloadedThisActivation = false;
+        if (resumingAfterUndo)
+        {
+            _remainingMove = Mathf.Clamp(_undoResumeRemainingMove, 0, u.moveRange);
+            _hasAttackedThisTurn = u.hasAttackedThisActivation;
+        }
+        else
+        {
+            _remainingMove = u.moveRange;
+            _hasAttackedThisTurn = false;
+            u.hasMovedThisActivation = false;
+            u.hasAttackedThisActivation = false;
+            u.hasUsedSkillThisActivation = false;
+            u.hasReloadedThisActivation = false;
+        }
         _phase = Phase.UnitActive;
         RefreshActiveHighlights(u);
         FlashUnit(u, new Color(1f, 0.92f, 0.35f));
@@ -530,7 +745,7 @@ public partial class SrpGameController : MonoBehaviour
     void RefreshAttackTargets(SrpUnitRuntime atk)
     {
         _attackIds.Clear();
-        if (atk.actionPoints <= 0)
+        if (atk.actionPoints <= 0 || _hasAttackedThisTurn)
             return;
         foreach (var o in _state.Units)
         {
@@ -551,7 +766,7 @@ public partial class SrpGameController : MonoBehaviour
 
     void BeginSkillTargeting(SrpSkillData data, SrpSkillRuntime runtime)
     {
-        if (_selectedId == null) return;
+        if (_selectedId == null || _phase == Phase.EnemyActing) return;
         var u = GetUnit(_selectedId.Value);
         if (u == null) return;
 
@@ -649,8 +864,10 @@ public partial class SrpGameController : MonoBehaviour
 
     void OnUndo()
     {
-        if (_undo.Count == 0) return;
-        _state = _undo.Pop();
+        if (_undo.Count == 0 || _phase == Phase.EnemyActing) return;
+        var snapshot = _undo.Pop();
+        _state = snapshot.state;
+        _undoResumeRemainingMove = snapshot.remainingMove;
         _selectedId = null;
         _phase = Phase.Idle;
         _moveCostMap.Clear();
@@ -676,7 +893,13 @@ public partial class SrpGameController : MonoBehaviour
 
     // ── 게임 흐름 ────────────────────────────────────────────────────────────
 
-    void PushUndo() => _undo.Push(_state.Clone());
+    void PushUndo()
+    {
+        // 적 AI 행동은 되감기 대상이 아니다.
+        if (_phase == Phase.EnemyActing)
+            return;
+        _undo.Push(new UndoSnapshot { state = _state.Clone(), remainingMove = _remainingMove });
+    }
 
     bool TryResolveOpportunityAttack(SrpUnitRuntime mover, List<int> previousEngagers)
     {
@@ -773,7 +996,7 @@ public partial class SrpGameController : MonoBehaviour
             var enemy = _state.FindUnitById(enemyId);
             if (enemy == null || enemy.eliminated || enemy.owner == mover.owner)
                 continue;
-            if (enemy.reactionPoints <= 0)
+            if (enemy.reactionPoints <= 0 || enemy.IsPgBroken)
                 continue;
             if (_state.Engagements.TryGetValue(mover.id, out var current) && current.Contains(enemy.id))
                 continue;
@@ -795,7 +1018,8 @@ public partial class SrpGameController : MonoBehaviour
         PushUndo();
         if (!SrpCombatResolver.SpendAmmoForBasicAttack(attackKind, atk))
         {
-            _undo.Pop();
+            if (_phase != Phase.EnemyActing && _undo.Count > 0)
+                _undo.Pop();
             LogLine($"공격 불가: {atk.displayName} 탄약 없음. 재장전 필요");
             UpdateHud();
             return;
@@ -831,14 +1055,15 @@ public partial class SrpGameController : MonoBehaviour
             _state.RebuildEngagements();
             LogLine($"사망: {def.displayName}({def.id})");
         }
-        if (TryResolveOverwatchAgainst(atk))
+        bool attackerDied = TryResolveOverwatchAgainst(atk);
+        RefreshUnitViews();
+        // 기본 공격은 활성화당 1회지만, AP가 남으면 이동/스킬/재장전 등을 이어서 할 수 있다.
+        if (attackerDied || atk.eliminated || atk.actionPoints <= 0 || atk.IsPgBroken || IsBattleDecided())
         {
-            RefreshUnitViews();
             FinishActivation();
             return;
         }
-        RefreshUnitViews();
-        FinishActivation();
+        RefreshAfterAction(atk);
     }
 
     void LogDefenseBuffers(SrpUnitRuntime defender, SrpCombatResolver.AttackOutcome outcome)
@@ -953,10 +1178,21 @@ public partial class SrpGameController : MonoBehaviour
             return;
         }
 
+        if (SrpTurnOrder.TryConsumeActivationForGroggyRecovery(next, out int recoveredPg))
+        {
+            SpawnWorldFeedback(next, "그로기 회복", new Color(0.72f, 0.86f, 1f));
+            LogLine($"그로기 회복: {next.displayName}({next.id}) 이번 행동 불가 | PG +{recoveredPg} → {next.pg}/{next.maxPg} | 다음 행동까지 재붕괴 보호");
+            RefreshUnitViews();
+            AdvanceToNextActivation();
+            return;
+        }
+
         BeginSelectUnit(next);
         SpawnWorldFeedback(next, "\uD134 \uC2DC\uC791", new Color(1f, 0.92f, 0.35f));
         LogLine($"행동 시작: {next.displayName}({next.id}) [SPD {next.speed}]");
         CheckWin();
+        if (!_gameOver && IsEnemyAiUnit(next))
+            BeginEnemyAiActivation(next);
         UpdateHud();
     }
 
@@ -977,6 +1213,7 @@ public partial class SrpGameController : MonoBehaviour
         _selectedId = null;
         _phase = Phase.Idle;
         _gameOver = false;
+        _enemyAiToken++;
 
         _state = SrpBattleState.FromMap(map);
         BuildGrid();
@@ -1115,15 +1352,7 @@ public partial class SrpGameController : MonoBehaviour
             return false;
         }
 
-        PushUndo();
-        unit.ReloadAmmo();
-        unit.actionPoints = Mathf.Max(0, unit.actionPoints - 1);
-        unit.hasReloadedThisActivation = true;
-        SpawnWorldFeedback(unit, "\uC7AC\uC7A5\uC804", new Color(0.25f, 1f, 0.65f));
-        FlashUnit(unit, new Color(0.25f, 1f, 0.65f));
-        LogLine($"재장전: {unit.displayName} | 탄약 {unit.ammo}/{unit.maxAmmo} | AP-1");
-        RefreshActiveHighlights(unit);
-        UpdateHud();
+        PerformReload(unit);
         return true;
     }
 

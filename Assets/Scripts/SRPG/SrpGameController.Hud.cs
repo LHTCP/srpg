@@ -1615,8 +1615,10 @@ public partial class SrpGameController
         parts.Add($"반응: {BuildReactionReadinessText(unit)}");
         if (unit.frozenHeart > 0)
             parts.Add($"안정도(FH) {unit.frozenHeart}");
-        if (unit.groggy)
+        if (unit.IsPgBroken)
             parts.Add("그로기");
+        else if (unit.pgBreakGuard)
+            parts.Add("재붕괴 보호");
         if (unit.coverActive)
             parts.Add($"엄폐 ({unit.coverSourceX},{unit.coverSourceY})");
         if (unit.overwatchArmed)
@@ -1800,6 +1802,8 @@ public partial class SrpGameController
                 return "행동 중";
             case Phase.SelectingSkillTarget:
                 return "스킬 대상 선택";
+            case Phase.EnemyActing:
+                return "적 행동 중";
             default:
                 return "대기";
         }

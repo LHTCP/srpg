@@ -13,6 +13,9 @@ public static class SrpGameSettings
     /// <summary>로비에서 JSON으로 불러온 맵. null이면 SelectedPreset 사용.</summary>
     public static SrpMapFileV1 CustomMap = null;
 
+    /// <summary>true면 전투에서 플레이어(owner 0)가 아닌 진영을 적 AI가 자동으로 조작한다.</summary>
+    public static bool EnemyAiEnabled = true;
+
     public const string LobbyScene      = "SrpgLobby";
     public const string BattleScene     = "SrpgBattle";
     public const string SkillMakerScene = "SrpgSkillMaker";
