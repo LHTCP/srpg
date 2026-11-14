@@ -210,13 +210,14 @@ public static class SrpEnemyAi
         bool canAttackAfterMove = actor.actionPoints >= 2;
         int originX = actor.anchorX;
         int originY = actor.anchorY;
-        int currentScore = ScoreTile(state, actor, originX, originY, 0, false);
+        int currentScore = ScoreTile(state, actor, originX, originY, 0, false, out _);
         int bestScore = currentScore;
         bool found = false;
+        bool bestEnablesAttack = false;
 
         foreach (var kv in costs)
         {
-            int score = ScoreTile(state, actor, kv.Key.x, kv.Key.y, kv.Value, canAttackAfterMove);
+            int score = ScoreTile(state, actor, kv.Key.x, kv.Key.y, kv.Value, canAttackAfterMove, out bool enablesAttack);
             if (score > bestScore
                 || (found && score == bestScore && IsEarlierTile(kv.Key, moveX, moveY)))
             {
@@ -224,12 +225,132 @@ public static class SrpEnemyAi
                 moveX = kv.Key.x;
                 moveY = kv.Key.y;
                 found = true;
+                bestEnablesAttack = enablesAttack;
             }
         }
 
         actor.anchorX = originX;
         actor.anchorY = originY;
-        return found;
+
+        // 이동 직후 공격할 수 있는 칸을 골랐으면 그대로 쓴다.
+        if (found && bestEnablesAttack)
+            return true;
+
+        // 위 점수는 직선(맨해튼) 거리 기준이라 장애물을 돌아가야 하는 길을 찾지 못한다.
+        // 고른 칸이 없거나 그 칸이 공격 가능한 칸까지의 실제 경로 비용을 늘리면, 최단 경로를 따라 우회한다.
+        int unlimited = state.Width * state.Height * 3;
+        var cameFrom = new Dictionary<Vector2Int, Vector2Int>();
+        var pathCosts = SrpPathfinder.GetReachableWithCosts(state, actor, unlimited, cameFrom);
+        var attackTiles = CollectAttackTiles(state, actor, pathCosts);
+        // 경로로 닿는 공격 칸이 없으면(완전히 막힘, 아군이 자리를 다 차지함) 직선 거리 판단을 유지한다.
+        if (attackTiles.Count == 0)
+            return found;
+
+        var goal = default(Vector2Int);
+        int goalCost = int.MaxValue;
+        foreach (var tile in attackTiles)
+        {
+            int cost = pathCosts[tile];
+            if (cost < goalCost || (cost == goalCost && IsEarlierTile(tile, goal.x, goal.y)))
+            {
+                goalCost = cost;
+                goal = tile;
+            }
+        }
+
+        if (found)
+        {
+            var picked = new Vector2Int(moveX, moveY);
+            if (attackTiles.Contains(picked)
+                || RemainingPathCost(state, actor, moveX, moveY, attackTiles, unlimited) <= goalCost)
+                return true;
+        }
+
+        // 직선 거리 판단은 경로 비용을 늘리지 않을 때만 쓰고 우회는 경로 비용을 반드시 줄이므로,
+        // 막힌 쪽으로 되돌아갔다가 다시 나오는 왕복이 생기지 않는다.
+        var origin = new Vector2Int(originX, originY);
+        var step = goal;
+        while (pathCosts[step] > remainingMove)
+        {
+            if (!cameFrom.TryGetValue(step, out var previous) || previous == origin)
+            {
+                moveX = originX;
+                moveY = originY;
+                return false;
+            }
+            step = previous;
+        }
+
+        moveX = step.x;
+        moveY = step.y;
+        return true;
+    }
+
+    /// <summary>경로로 닿는 칸 중 그 자리에서 기본 공격이 가능한 칸. 유닛 위치는 원래대로 되돌린다.</summary>
+    static HashSet<Vector2Int> CollectAttackTiles(
+        SrpBattleState state,
+        SrpUnitRuntime actor,
+        Dictionary<Vector2Int, int> pathCosts)
+    {
+        var tiles = new HashSet<Vector2Int>();
+        int originX = actor.anchorX;
+        int originY = actor.anchorY;
+        try
+        {
+            foreach (var kv in pathCosts)
+            {
+                actor.anchorX = kv.Key.x;
+                actor.anchorY = kv.Key.y;
+                foreach (var unit in state.Units)
+                {
+                    if (unit == null || unit.eliminated || unit.owner == actor.owner)
+                        continue;
+                    if (!SrpCombatResolver.CanAttack(state, actor, unit))
+                        continue;
+                    tiles.Add(kv.Key);
+                    break;
+                }
+            }
+        }
+        finally
+        {
+            actor.anchorX = originX;
+            actor.anchorY = originY;
+        }
+        return tiles;
+    }
+
+    /// <summary>(x, y)에 섰다고 가정했을 때 가장 가까운 공격 칸까지의 경로 비용. 닿지 않으면 int.MaxValue.</summary>
+    static int RemainingPathCost(
+        SrpBattleState state,
+        SrpUnitRuntime actor,
+        int x,
+        int y,
+        HashSet<Vector2Int> attackTiles,
+        int maxCost)
+    {
+        int originX = actor.anchorX;
+        int originY = actor.anchorY;
+        Dictionary<Vector2Int, int> costs;
+        try
+        {
+            actor.anchorX = x;
+            actor.anchorY = y;
+            costs = SrpPathfinder.GetReachableWithCosts(state, actor, maxCost);
+        }
+        finally
+        {
+            actor.anchorX = originX;
+            actor.anchorY = originY;
+        }
+
+        int best = int.MaxValue;
+        foreach (var tile in attackTiles)
+        {
+            if (costs.TryGetValue(tile, out int cost) && cost < best)
+                best = cost;
+        }
+        return best;
     }
 
     static bool IsEarlierTile(Vector2Int tile, int x, int y)
@@ -243,7 +364,8 @@ public static class SrpEnemyAi
         int x,
         int y,
         int moveCost,
-        bool countAttackOpportunity)
+        bool countAttackOpportunity,
+        out bool enablesAttack)
     {
         int originX = actor.anchorX;
         int originY = actor.anchorY;
@@ -282,6 +404,7 @@ public static class SrpEnemyAi
             score += AttackFromTileScore;
         if (canExecute)
             score += ExecuteFromTileScore;
+        enablesAttack = canAttack;
         return score;
     }
 }

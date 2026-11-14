@@ -454,6 +454,117 @@ public class SrpCombatResolverTests
         Assert.That(action.targetUnitId, Is.EqualTo(target.id));
     }
 
+    [TestCase(TestName = "적 AI는 직선 거리가 멀어지는 길이라도 장애물을 돌아가 공격 위치에 도달한다")]
+    public void EnemyAi_DetoursAroundBarrierWhenEveryReachableTileIsFartherAway()
+    {
+        // 아래가 열린 ㄷ자 벽 안에 적 AI가 있고 벽 너머에 대상이 있다. (y가 큰 쪽이 위)
+        //   . . T . .
+        //   . # # # .
+        //   . # A # .
+        //   . . . . .
+        //   . . . . .
+        var state = CreateState();
+        Block(state, 1, 3, 2, 3, 3, 3, 1, 2, 3, 2);
+        var actor = Unit(id: 1, owner: 1, x: 2, y: 2, hp: 30, attackPower: 8);
+        var target = Unit(id: 2, owner: 0, x: 2, y: 4, hp: 30, pg: 10, maxPg: 10);
+        state.Units.Add(actor);
+        state.Units.Add(target);
+        const int moveRange = 3;
+
+        int startDistance = state.ManhattanAnchor(actor, target);
+        foreach (var kv in SrpPathfinder.GetReachableWithCosts(state, actor, moveRange))
+        {
+            int distance = System.Math.Abs(kv.Key.x - target.anchorX) + System.Math.Abs(kv.Key.y - target.anchorY);
+            Assert.That(distance, Is.GreaterThan(startDistance), "전제: 이동 가능한 모든 칸이 대상에서 더 멀어야 합니다.");
+        }
+
+        var visited = new System.Collections.Generic.HashSet<int> { state.Index(actor.anchorX, actor.anchorY) };
+        bool attacked = false;
+        for (int activation = 0; activation < 4 && !attacked; activation++)
+        {
+            actor.actionPoints = 2;
+            actor.hasMovedThisActivation = false;
+            var action = SrpEnemyAi.Decide(state, actor, moveRange, false);
+            if (activation == 0)
+                Assert.That(action.type, Is.EqualTo(SrpEnemyAiActionType.Move), "막힌 쪽을 돌아가는 이동을 골라야 합니다.");
+
+            if (action.type == SrpEnemyAiActionType.Move)
+            {
+                Assert.That(SrpPathfinder.GetReachableWithCosts(state, actor, moveRange).ContainsKey(
+                    new UnityEngine.Vector2Int(action.x, action.y)), Is.True, "이동력 안에서 갈 수 있는 칸이어야 합니다.");
+                Assert.That(visited.Add(state.Index(action.x, action.y)), Is.True,
+                    $"이미 지나온 칸 ({action.x}, {action.y})으로 되돌아갔습니다.");
+                actor.anchorX = action.x;
+                actor.anchorY = action.y;
+                actor.hasMovedThisActivation = true;
+                actor.actionPoints = 1;
+                state.RebuildEngagements();
+                action = SrpEnemyAi.Decide(state, actor, 0, false);
+            }
+
+            attacked = action.type == SrpEnemyAiActionType.Attack && action.targetUnitId == target.id;
+        }
+
+        Assert.That(attacked, Is.True, "여러 활성화에 걸쳐 우회한 뒤 대상을 공격해야 합니다.");
+        Assert.That(state.ChebyshevAnchor(actor, target), Is.EqualTo(1));
+    }
+
+    [TestCase(TestName = "적 AI는 대상에게 닿는 경로가 전혀 없으면 우회 이동을 하지 않는다")]
+    public void EnemyAi_DoesNotMoveWhenNoPathLeadsToAnyTarget()
+    {
+        // 위 우회 테스트와 같은 배치에서 대상 양옆까지 막아, 공격할 수 있는 칸에 닿는 경로를 없앤다.
+        var state = CreateState();
+        Block(state, 1, 3, 2, 3, 3, 3, 1, 2, 3, 2, 1, 4, 3, 4);
+        var actor = Unit(id: 1, owner: 1, x: 2, y: 2, hp: 30, attackPower: 8);
+        actor.actionPoints = 2;
+        var target = Unit(id: 2, owner: 0, x: 2, y: 4, hp: 30, pg: 10, maxPg: 10);
+        state.Units.Add(actor);
+        state.Units.Add(target);
+
+        var action = SrpEnemyAi.Decide(state, actor, 3, false);
+
+        Assert.That(action.type, Is.EqualTo(SrpEnemyAiActionType.EndTurn));
+        Assert.That(actor.anchorX, Is.EqualTo(2), "판단 과정에서 유닛 위치가 바뀌었습니다.");
+        Assert.That(actor.anchorY, Is.EqualTo(2));
+
+        // 출구까지 막혀 움직일 칸이 없을 때도 같다.
+        Block(state, 2, 1);
+        action = SrpEnemyAi.Decide(state, actor, 3, false);
+        Assert.That(action.type, Is.EqualTo(SrpEnemyAiActionType.EndTurn));
+    }
+
+    [TestCase(TestName = "적 AI의 장애물 없는 접근 이동은 우회 판단을 넣은 뒤에도 그대로다")]
+    public void EnemyAi_OpenFieldMoveChoiceIsUnchanged()
+    {
+        var state = CreateState();
+        var actor = Unit(id: 1, owner: 1, x: 0, y: 0, hp: 30, attackPower: 8);
+        actor.actionPoints = 2;
+        var target = Unit(id: 2, owner: 0, x: 4, y: 0, hp: 30, pg: 10, maxPg: 10);
+        state.Units.Add(actor);
+        state.Units.Add(target);
+
+        // AP 2: 이동 후 공격할 수 있는 칸 중 점수가 가장 높은 대상 옆 칸.
+        var attackMove = SrpEnemyAi.Decide(state, actor, 4, false);
+        Assert.That(attackMove.type, Is.EqualTo(SrpEnemyAiActionType.Move));
+        Assert.That((attackMove.x, attackMove.y), Is.EqualTo((3, 0)));
+
+        // AP 1: 공격 기회 가산 없이 직선 거리가 가장 줄어드는 칸(동점이면 y, x가 작은 칸).
+        target.anchorX = 4;
+        target.anchorY = 4;
+        actor.actionPoints = 1;
+        var approachMove = SrpEnemyAi.Decide(state, actor, 3, false);
+        Assert.That(approachMove.type, Is.EqualTo(SrpEnemyAiActionType.Move));
+        Assert.That((approachMove.x, approachMove.y), Is.EqualTo((3, 0)));
+        Assert.That((actor.anchorX, actor.anchorY), Is.EqualTo((0, 0)), "판단 과정에서 유닛 위치가 바뀌었습니다.");
+    }
+
+    /// <summary>(x, y) 쌍으로 넘긴 칸을 이동 불가로 만든다.</summary>
+    static void Block(SrpBattleState state, params int[] xyPairs)
+    {
+        for (int i = 0; i + 1 < xyPairs.Length; i += 2)
+            state.Walkable[state.Index(xyPairs[i], xyPairs[i + 1])] = false;
+    }
+
     static SrpSkillData DamageSkill(int value)
     {
         return new SrpSkillData

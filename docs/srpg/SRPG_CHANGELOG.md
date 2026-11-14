@@ -2,6 +2,13 @@
 
 ## 2026-11-14
 
+- 적 AI 장애물 우회 이동 (PR #97 리뷰 반영)
+  - `SrpEnemyAi.TryPickMove`: 직선(맨해튼) 거리 점수로 고를 칸이 없거나 고른 칸이 공격 가능한 칸까지의 실제 경로 비용을 늘리면, 최단 경로를 따라 이번 이동력만큼 우회한다. 이동 직후 공격할 수 있는 칸을 고른 경우와 경로로 닿는 공격 칸이 없는 경우는 기존 판단 그대로다
+  - `SrpPathfinder.GetReachableWithCosts`에 직전 칸(`cameFrom`)을 기록하는 오버로드 추가. 이동 규칙(ZOC/교전 이탈/점유)은 기존 탐색을 그대로 쓴다
+  - `SrpCombatResolverTests`에 적 AI 우회 3건 추가
+  - 시뮬레이션 수치 변화: 기본 맵 `M1OpeningPrototype`에서 owner 0 선봉이 (2,4)에 멈춰 있던 경우가 풀려 전투가 짧아졌다. `Opening_Heuristic_vs_Random` 평균 6.02 → 5.72라운드로 `Run_M1OpeningPrototype_Ai_Policy_Matrix_For_BalanceObservation`의 하한 6을 밑돈다. 하한 조정 여부는 미결정(`SRPG_IMPLEMENTATION_DECISIONS.md`)
+  - 검증: Unity 미실행. 저장소 밖 .NET 하네스로 `SrpCombatResolverTests` 26건과 `SrpM1AiSimAllEntry` 3건 실행, 위 밸런스 관찰 1건만 실패. `scripts/validate-repo.sh` 통과
+
 - 2차/3차 묶음: 그로기 브릿지, 공격 후 행동, 런타임 적 AI
   - 그로기 유닛은 다음 활성화를 잃고 PG 35%를 회복하며 그다음 자기 활성화까지 재붕괴 보호를 받는다(`SrpTurnOrder.TryConsumeActivationForGroggyRecovery`, `SrpUnitRuntime.IsPgBroken`/`pgBreakGuard`/`ApplyPgDamage`)
   - 그로기 중 가드/회피/패링/기회공격/경계사격 불가(`SrpCombatResolver`, `SrpOverwatch.CanTrigger`)
