@@ -10,6 +10,19 @@ using UnityEngine.UI;
 [Category("SrpObservation")]
 public class SrpM1OpeningObservationTests
 {
+    // 기존 PlayMode 테스트는 양 진영을 직접 조작하는 흐름을 검증하므로 적 AI를 끈다.
+    [SetUp]
+    public void DisableEnemyAi()
+    {
+        SrpGameSettings.EnemyAiEnabled = false;
+    }
+
+    [TearDown]
+    public void RestoreEnemyAi()
+    {
+        SrpGameSettings.EnemyAiEnabled = true;
+    }
+
     [UnityTest]
     public IEnumerator M1OpeningPrototype_Captures_FirstScreen_RouteObservation()
     {

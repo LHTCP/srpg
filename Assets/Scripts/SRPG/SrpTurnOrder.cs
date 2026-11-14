@@ -26,6 +26,38 @@ public static class SrpTurnOrder
         }
     }
 
+    /// <summary>
+    /// 활성화 시작 처리(그로기 브릿지).
+    /// PG 붕괴 유닛은 이번 활성화를 잃고 PG 일부를 회복하며, 다음 활성화까지 재붕괴 보호를 받는다. 이때 true.
+    /// 정상 유닛은 재붕괴 보호를 해제하고 false를 돌려준다.
+    /// </summary>
+    public static bool TryConsumeActivationForGroggyRecovery(SrpUnitRuntime unit, out int recoveredPg)
+    {
+        recoveredPg = 0;
+        if (unit == null || unit.eliminated)
+            return false;
+        if (!unit.IsPgBroken)
+        {
+            unit.pgBreakGuard = false;
+            return false;
+        }
+
+        int before = unit.pg > 0 ? unit.pg : 0;
+        int maxPg = unit.maxPg > 0 ? unit.maxPg : 1;
+        int target = (maxPg * SrpUnitRuntime.GroggyRecoveryPgPercent + 99) / 100;
+        if (target < 1)
+            target = 1;
+        if (target > maxPg)
+            target = maxPg;
+
+        unit.pg = before > target ? before : target;
+        unit.groggy = false;
+        unit.pgBreakGuard = true;
+        unit.actionPoints = 0;
+        recoveredPg = unit.pg - before;
+        return true;
+    }
+
     public static List<int> BuildRoundQueue(SrpBattleState state)
     {
         var queue = new List<SrpUnitRuntime>();

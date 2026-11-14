@@ -2,6 +2,18 @@
 
 ## 2026-11-14
 
+- 2차/3차 묶음: 그로기 브릿지, 공격 후 행동, 런타임 적 AI
+  - 그로기 유닛은 다음 활성화를 잃고 PG 35%를 회복하며 그다음 자기 활성화까지 재붕괴 보호를 받는다(`SrpTurnOrder.TryConsumeActivationForGroggyRecovery`, `SrpUnitRuntime.IsPgBroken`/`pgBreakGuard`/`ApplyPgDamage`)
+  - 그로기 중 가드/회피/패링/기회공격/경계사격 불가(`SrpCombatResolver`, `SrpOverwatch.CanTrigger`)
+  - 기본 공격 후 AP가 남으면 계속 행동(`SrpGameController.DoAttack`), 행동 도중 PG가 붕괴하면 활성화 종료
+  - `SrpEnemyAi` 추가: owner 0이 아닌 유닛을 적 AI가 자동 조작. `SrpGameController`에 적 차례 코루틴, 입력 차단용 `Phase.EnemyActing`, 인스펙터 필드 `enemyAiStepDelay`, `SrpGameSettings.EnemyAiEnabled` 추가
+  - `SrpGameController`의 이동/스킬/재장전 실행부를 `PerformMove`/`PerformSkill`/`PerformReload`로 분리해 플레이어 입력과 AI가 같은 경로를 쓴다
+  - AI 시뮬레이션: Heuristic 정책이 `SrpEnemyAi`를 사용, 재장전/피해 스킬/공격 후 행동/그로기/라운드 시작 스킬 자원 틱 반영
+  - PlayMode 테스트는 `[SetUp]`에서 적 AI를 끄고 기존 수동 조작 흐름을 유지
+  - 되감기 뒤 유닛을 다시 선택해도 이미 쓴 기본 공격과 남은 이동력이 유지된다. 공격 → 다른 행동 → 되감기 → 재공격 우회를 막는다(`SrpGameController.BeginSelectUnit`, 되감기 스냅샷에 남은 이동력 포함)
+  - `SrpCombatResolverTests`에 그로기 3건, 적 AI 4건 추가
+  - 검증: Unity 미실행. .NET 하네스 105개 중 103개 통과(2개는 컨트롤러 의존), Unity DLL 참조 컴파일 오류 0, `scripts/validate-repo.sh` 통과
+
 - 재개 시점 갭 분석과 진행 계획
   - `SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md` 추가: 기준서 v2/밸런스 피드백 대비 구현 상태, 단계별 계획, 기획 질문 Q1~Q10
   - GDD 미정 수치의 경계태세 표기 정정, 마스터플랜/레거시 코드 분류/밸런스 피드백 프롬프트에 현재 상태 안내 추가

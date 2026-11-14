@@ -87,6 +87,8 @@ public static class SrpBattleSimRunner
             state.RoundNumber = round;
             state.RoundQueue.Clear();
             state.RoundQueue.AddRange(SrpTurnOrder.BuildRoundQueue(state));
+            foreach (var unit in state.Units)
+                SrpSkills.TickSkillResourcesForUnit(unit, state);
             if (state.RoundQueue.Count == 0)
             {
                 result.rounds = round;
@@ -100,14 +102,19 @@ public static class SrpBattleSimRunner
                 var actor = FindAliveUnit(state, unitId);
                 if (actor == null)
                     continue;
+                if (SrpTurnOrder.TryConsumeActivationForGroggyRecovery(actor, out _))
+                    continue;
 
                 actor.actionPoints = Mathf.Max(1, actor.maxActionPoints);
                 actor.reactionPoints = Mathf.Max(0, actor.maxReactionPoints);
                 int remainingMove = Mathf.Max(0, actor.moveRange);
                 bool moved = false;
                 bool attacked = false;
+                actor.hasMovedThisActivation = false;
+                actor.hasAttackedThisActivation = false;
+                actor.hasUsedSkillThisActivation = false;
 
-                for (int step = 0; step < 3 && actor.actionPoints > 0; step++)
+                for (int step = 0; step < 4 && actor.actionPoints > 0; step++)
                 {
                     var moves = BuildMoveOptions(state, actor, remainingMove);
                     var attacks = BuildAttackOptions(state, actor);
@@ -135,6 +142,7 @@ public static class SrpBattleSimRunner
                         actor.actionPoints = Mathf.Max(0, actor.actionPoints - 1);
                         remainingMove = Mathf.Max(0, remainingMove - moveCost);
                         moved = true;
+                        actor.hasMovedThisActivation = true;
                         continue;
                     }
 
@@ -144,7 +152,30 @@ public static class SrpBattleSimRunner
                             break;
                         actor.actionPoints = Mathf.Max(0, actor.actionPoints - 1);
                         attacked = true;
-                        break;
+                        actor.hasAttackedThisActivation = true;
+                        if (GetWinnerOwner(state) >= 0)
+                            break;
+                        // 기본 공격은 활성화당 1회지만 AP가 남으면 이동/재장전을 이어서 할 수 있다.
+                        continue;
+                    }
+
+                    if (command.actionType == SrpAiActionType.UseSkill)
+                    {
+                        if (!TryUseSkill(state, actor, command, ref result, out bool endsActivation))
+                            break;
+                        actor.actionPoints = Mathf.Max(0, actor.actionPoints - 1);
+                        actor.hasUsedSkillThisActivation = true;
+                        if (endsActivation || GetWinnerOwner(state) >= 0)
+                            break;
+                        continue;
+                    }
+
+                    if (command.actionType == SrpAiActionType.Reload)
+                    {
+                        if (!actor.ReloadAmmo())
+                            break;
+                        actor.actionPoints = Mathf.Max(0, actor.actionPoints - 1);
+                        continue;
                     }
 
                     break;
@@ -224,6 +255,42 @@ public static class SrpBattleSimRunner
             state.RemoveUnit(target);
             state.RebuildEngagements();
         }
+        return true;
+    }
+
+    static bool TryUseSkill(
+        SrpBattleState state,
+        SrpUnitRuntime actor,
+        SrpAiCommand command,
+        ref SrpSingleBattleResult result,
+        out bool endsActivation)
+    {
+        endsActivation = false;
+        if (string.IsNullOrEmpty(command.skillId) || !state.SkillLookup.TryGetValue(command.skillId, out var data))
+            return false;
+
+        SrpSkillRuntime runtime = null;
+        foreach (var candidate in actor.skillRuntimes)
+        {
+            if (candidate != null && candidate.skillId == command.skillId)
+            {
+                runtime = candidate;
+                break;
+            }
+        }
+        if (runtime == null || !SrpSkills.CanUseActiveSkill(data, runtime))
+            return false;
+
+        var target = FindAliveUnit(state, command.targetUnitId);
+        if (target == null || state.ChebyshevAnchor(actor, target) > data.range)
+            return false;
+
+        int hpBefore = Mathf.Max(0, target.hp);
+        int pgBefore = Mathf.Max(0, target.pg);
+        SrpSkills.ResolveActiveSkill(data, runtime, actor, target.anchorX, target.anchorY, state, null);
+        result.magicHpDamage += Mathf.Max(0, hpBefore - Mathf.Max(0, target.hp));
+        result.magicPgDamage += Mathf.Max(0, pgBefore - Mathf.Max(0, target.pg));
+        endsActivation = data.endsActivation;
         return true;
     }
 

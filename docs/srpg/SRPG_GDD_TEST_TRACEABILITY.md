@@ -8,7 +8,9 @@
 | 스킬 처치 직후 교전 상태 갱신 (`RQ-010`) | `SrpCombatResolverTests.ResolveActiveSkill_KillRebuildsEngagements` | 완전 | 수비 지속 완충/탱커 다중 교전/이탈 비용이 사망 유닛을 세지 않음 |
 | 스킬 피해의 피격 패시브 발동 (`RQ-015`) | `SrpCombatResolverTests.ResolveActiveSkill_DamageTriggersTargetOnTakeDamagePassive` | 완전 | `전열 고정` PG +2 |
 | AP 사용 후 태세 변경 불가 (`RQ-005`) | 없음 | 미커버 | `SrpGameController.CanSetSelectedStance`. PlayMode에 엄폐/상호작용 후 태세 변경 거부 assert 추가 필요 |
-| 그로기 1턴 무방비/회복 (밸런스 피드백 2026-06-15 요구 2) | 없음 | 미커버 | 미구현. `SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md` 2차 |
+| 그로기 1턴 무방비/회복/재붕괴 보호 (밸런스 피드백 2026-06-15 요구 2) | `SrpCombatResolverTests.GroggyRecovery_ConsumesActivationAndGrantsBreakGuard`, `SrpCombatResolverTests.BreakGuard_KeepsPgAtOneUntilNextActivation`, `SrpCombatResolverTests.GroggyUnit_CannotReact` | 부분 | 순수 로직은 고정. 컨트롤러의 활성화 스킵/행동 중단과 HUD 표시는 PlayMode 미커버 |
+| 적 AI 판단 (`SrpEnemyAi`) | `SrpCombatResolverTests.EnemyAi_PrefersExecutionOfAdjacentBrokenTarget`, `SrpCombatResolverTests.EnemyAi_ShooterReloadsThenFires`, `SrpCombatResolverTests.EnemyAi_MeleeMovesIntoAttackRangeWithoutMutatingState`, `SrpCombatResolverTests.EnemyAi_UsesDamageSkillWhenSingleActionLeft`, `SrpM1AiSimAllEntry` 3종 | 부분 | 판단 로직과 시뮬레이션 임계치는 고정. 런타임 적 차례 자동 진행(코루틴, 입력 차단, 되감기 비움)은 PlayMode 미커버 |
+| 기본 공격 후 AP가 남으면 계속 행동 (`RQ-002`) | 없음 | 미커버 | `SrpGameController.DoAttack`. PlayMode에 공격 후 이동 가능/두 번째 공격 불가 assert 추가 필요 |
 
 `SrpCombatResolverTests`는 이번부터 `SrpM1All` 카테고리에 포함된다.
 
