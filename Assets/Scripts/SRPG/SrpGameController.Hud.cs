@@ -1021,11 +1021,7 @@ public partial class SrpGameController
             UpdateHud();
             return;
         }
-        SpawnWorldFeedback(unit, "\uACBD\uACC4\uD0DC\uC138 \uC900\uBE44", new Color(0.35f, 0.55f, 1f));
-        FlashUnit(unit, new Color(0.35f, 0.55f, 1f));
-        LogLine($"경계태세 준비: {unit.displayName}({unit.id}) | 사거리 {unit.overwatchRange} | 행동 소모");
-        RefreshUnitViews();
-        FinishActivation();
+        AfterOverwatchArm(unit);
     }
 
     SkillListEntry GetOrCreateSkillEntry(int index)

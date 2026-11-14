@@ -29,6 +29,12 @@ public struct SrpSingleBattleResult
     public int defensiveAttackCount;
     public float zocPenaltySum;
     public int zocSampleCount;
+    public int reloadCount;
+    public int skillUseCount;
+    public int overwatchArmCount;
+    public int overwatchShotCount;
+    public int opportunityAttackCount;
+    public int groggySkipCount;
 }
 
 public struct SrpBattleSimRunOutput
@@ -73,6 +79,10 @@ public static class SrpBattleSimRunner
         };
     }
 
+    /// <summary>
+    /// 전투 한 판을 끝까지 돌린다. 라운드/활성화 진행, 행동 실행, 반응(기회공격·경계사격), 승패 판정은
+    /// 런타임과 같은 SrpBattleFlow / SrpTurnOrder / SrpVictory를 쓴다. 이 함수는 정책 호출과 지표 기록만 한다.
+    /// </summary>
     public static SrpSingleBattleResult RunSingle(SrpBattleState state, SrpBattleSimConfig config, int seed)
     {
         var rng = new System.Random(seed);
@@ -85,10 +95,7 @@ public static class SrpBattleSimRunner
         for (int round = 1; round <= Mathf.Max(1, config.maxRounds); round++)
         {
             state.RoundNumber = round;
-            state.RoundQueue.Clear();
-            state.RoundQueue.AddRange(SrpTurnOrder.BuildRoundQueue(state));
-            foreach (var unit in state.Units)
-                SrpSkills.TickSkillResourcesForUnit(unit, state);
+            SrpBattleFlow.StartRound(state);
             if (state.RoundQueue.Count == 0)
             {
                 result.rounds = round;
@@ -96,106 +103,27 @@ public static class SrpBattleSimRunner
                 return result;
             }
 
-            for (int i = 0; i < state.RoundQueue.Count; i++)
+            while (SrpTurnOrder.HasRemainingUnitInRound(state))
             {
-                int unitId = state.RoundQueue[i];
+                int unitId = SrpTurnOrder.AdvanceToNextUnit(state);
                 var actor = FindAliveUnit(state, unitId);
                 if (actor == null)
                     continue;
                 if (SrpTurnOrder.TryConsumeActivationForGroggyRecovery(actor, out _))
-                    continue;
-
-                actor.actionPoints = Mathf.Max(1, actor.maxActionPoints);
-                actor.reactionPoints = Mathf.Max(0, actor.maxReactionPoints);
-                int remainingMove = Mathf.Max(0, actor.moveRange);
-                bool moved = false;
-                bool attacked = false;
-                actor.hasMovedThisActivation = false;
-                actor.hasAttackedThisActivation = false;
-                actor.hasUsedSkillThisActivation = false;
-
-                for (int step = 0; step < 4 && actor.actionPoints > 0; step++)
                 {
-                    var moves = BuildMoveOptions(state, actor, remainingMove);
-                    var attacks = BuildAttackOptions(state, actor);
-                    var ctx = new SrpAiDecisionContext
-                    {
-                        state = state,
-                        actor = actor,
-                        remainingMove = remainingMove,
-                        moved = moved,
-                        attacked = attacked,
-                        moves = moves,
-                        attacks = attacks,
-                        rng = rng,
-                    };
-                    var policy = GetPolicyForOwner(config, actor.owner);
-                    var command = policy.SelectAction(ctx);
-
-                    if (command.actionType == SrpAiActionType.EndTurn)
-                        break;
-
-                    if (command.actionType == SrpAiActionType.Move && !moved)
-                    {
-                        if (!TryMove(state, actor, remainingMove, command.x, command.y, ref result, out int moveCost))
-                            break;
-                        actor.actionPoints = Mathf.Max(0, actor.actionPoints - 1);
-                        remainingMove = Mathf.Max(0, remainingMove - moveCost);
-                        moved = true;
-                        actor.hasMovedThisActivation = true;
-                        continue;
-                    }
-
-                    if (command.actionType == SrpAiActionType.Attack && !attacked)
-                    {
-                        if (!TryAttack(state, actor, command.targetUnitId, ref result))
-                            break;
-                        actor.actionPoints = Mathf.Max(0, actor.actionPoints - 1);
-                        attacked = true;
-                        actor.hasAttackedThisActivation = true;
-                        if (GetWinnerOwner(state) >= 0)
-                            break;
-                        // 기본 공격은 활성화당 1회지만 AP가 남으면 이동/재장전을 이어서 할 수 있다.
-                        continue;
-                    }
-
-                    if (command.actionType == SrpAiActionType.UseSkill)
-                    {
-                        if (!TryUseSkill(state, actor, command, ref result, out bool endsActivation))
-                            break;
-                        actor.actionPoints = Mathf.Max(0, actor.actionPoints - 1);
-                        actor.hasUsedSkillThisActivation = true;
-                        if (endsActivation || GetWinnerOwner(state) >= 0)
-                            break;
-                        continue;
-                    }
-
-                    if (command.actionType == SrpAiActionType.Reload)
-                    {
-                        if (!actor.ReloadAmmo())
-                            break;
-                        actor.actionPoints = Mathf.Max(0, actor.actionPoints - 1);
-                        continue;
-                    }
-
-                    break;
+                    result.groggySkipCount++;
+                    continue;
                 }
 
-                int aliveWinner = GetWinnerOwner(state);
-                if (aliveWinner >= 0)
+                RunActivation(state, config, actor, rng, ref result);
+
+                var victory = SrpVictory.Evaluate(state);
+                if (victory.decided)
                 {
                     result.rounds = round;
-                    result.winnerOwner = aliveWinner;
+                    result.winnerOwner = victory.winnerOwner;
                     return result;
                 }
-            }
-
-            int winner = GetWinnerOwner(state);
-            if (winner >= 0)
-            {
-                result.rounds = round;
-                result.winnerOwner = winner;
-                return result;
             }
         }
 
@@ -204,94 +132,128 @@ public static class SrpBattleSimRunner
         return result;
     }
 
-    static bool TryMove(
+    static void RunActivation(
         SrpBattleState state,
+        SrpBattleSimConfig config,
         SrpUnitRuntime actor,
-        int remainingMove,
-        int targetX,
-        int targetY,
-        ref SrpSingleBattleResult result,
-        out int moveCost)
+        System.Random rng,
+        ref SrpSingleBattleResult result)
     {
-        moveCost = 0;
-        var costs = SrpPathfinder.GetReachableWithCosts(state, actor, remainingMove);
-        var key = new Vector2Int(targetX, targetY);
-        if (!costs.TryGetValue(key, out int cost))
-            return false;
+        int remainingMove = SrpBattleFlow.BeginActivation(state, actor, null);
+        var policy = GetPolicyForOwner(config, actor.owner);
 
-        int baseDistance = Mathf.Abs(targetX - actor.anchorX) + Mathf.Abs(targetY - actor.anchorY);
-        int zocPenalty = Mathf.Max(0, cost - baseDistance);
-        result.zocPenaltySum += zocPenalty;
-        result.zocSampleCount++;
-
-        actor.anchorX = targetX;
-        actor.anchorY = targetY;
-        state.RebuildEngagements();
-        moveCost = cost;
-        return true;
-    }
-
-    static bool TryAttack(SrpBattleState state, SrpUnitRuntime actor, int targetUnitId, ref SrpSingleBattleResult result)
-    {
-        var target = FindAliveUnit(state, targetUnitId);
-        if (target == null)
-            return false;
-        if (!SrpCombatResolver.CanAttack(state, actor, target))
-            return false;
-
-        var attackKind = SrpCombatResolver.ResolveBasicAttackKind(state, actor, target);
-        if (!SrpCombatResolver.SpendAmmoForBasicAttack(attackKind, actor))
-            return false;
-        if (attackKind == SrpBasicAttackKind.Firearm)
-            SrpFirearmAim.TurnShooterTowardTarget(actor, target);
-        var outcome = SrpCombatResolver.ApplyAttack(state, actor, target);
-        RecordDamage(outcome, ref result);
-
-        if (actor.stance == SrpStance.Aggressive) result.aggressiveAttackCount++;
-        if (actor.stance == SrpStance.Defensive) result.defensiveAttackCount++;
-        if (outcome.wasExecution) result.executionCount++;
-        if (outcome.defenderDied)
+        for (int step = 0; step < SrpBattleFlow.MaxAiActionsPerActivation; step++)
         {
-            state.RemoveUnit(target);
-            state.RebuildEngagements();
-        }
-        return true;
-    }
+            if (actor.eliminated || actor.actionPoints <= 0)
+                break;
 
-    static bool TryUseSkill(
-        SrpBattleState state,
-        SrpUnitRuntime actor,
-        SrpAiCommand command,
-        ref SrpSingleBattleResult result,
-        out bool endsActivation)
-    {
-        endsActivation = false;
-        if (string.IsNullOrEmpty(command.skillId) || !state.SkillLookup.TryGetValue(command.skillId, out var data))
-            return false;
-
-        SrpSkillRuntime runtime = null;
-        foreach (var candidate in actor.skillRuntimes)
-        {
-            if (candidate != null && candidate.skillId == command.skillId)
+            var ctx = new SrpAiDecisionContext
             {
-                runtime = candidate;
+                state = state,
+                actor = actor,
+                remainingMove = remainingMove,
+                moved = actor.hasMovedThisActivation,
+                attacked = actor.hasAttackedThisActivation,
+                moves = BuildMoveOptions(state, actor, remainingMove),
+                attacks = BuildAttackOptions(state, actor),
+                rng = rng,
+            };
+            var command = policy.SelectAction(ctx);
+            if (command.actionType == SrpAiActionType.EndTurn)
+                break;
+            // 정책 계약: 이동은 활성화당 1회.
+            if (command.actionType == SrpAiActionType.Move && actor.hasMovedThisActivation)
+                break;
+
+            int fromX = actor.anchorX;
+            int fromY = actor.anchorY;
+            var stance = actor.stance;
+            var stepResult = SrpBattleFlow.ExecuteAiAction(state, actor, ToAction(command), ref remainingMove, null);
+            if (!stepResult.executed)
+                break;
+
+            RecordStep(stepResult, fromX, fromY, command, stance, ref result);
+            if (stepResult.activationEnded || SrpVictory.Evaluate(state).decided)
+                break;
+        }
+    }
+
+    static SrpEnemyAiAction ToAction(SrpAiCommand command)
+    {
+        switch (command.actionType)
+        {
+            case SrpAiActionType.Move:
+                return SrpEnemyAiAction.MoveTo(command.x, command.y);
+            case SrpAiActionType.Attack:
+                return SrpEnemyAiAction.Attack(command.targetUnitId);
+            case SrpAiActionType.Reload:
+                return SrpEnemyAiAction.Reload();
+            case SrpAiActionType.Overwatch:
+                return SrpEnemyAiAction.Overwatch();
+            case SrpAiActionType.UseSkill:
+                return new SrpEnemyAiAction
+                {
+                    type = SrpEnemyAiActionType.UseSkill,
+                    skillId = command.skillId,
+                    targetUnitId = command.targetUnitId,
+                    x = command.x,
+                    y = command.y,
+                };
+            default:
+                return SrpEnemyAiAction.EndTurn();
+        }
+    }
+
+    static void RecordStep(
+        SrpAiStepResult step,
+        int fromX,
+        int fromY,
+        SrpAiCommand command,
+        SrpStance stanceAtAction,
+        ref SrpSingleBattleResult result)
+    {
+        switch (step.type)
+        {
+            case SrpEnemyAiActionType.Move:
+            {
+                int baseDistance = Mathf.Abs(command.x - fromX) + Mathf.Abs(command.y - fromY);
+                result.zocPenaltySum += Mathf.Max(0, step.move.cost - baseDistance);
+                result.zocSampleCount++;
+                RecordReaction(step.move.opportunity, ref result);
+                RecordReaction(step.move.overwatch, ref result);
                 break;
             }
+            case SrpEnemyAiActionType.Attack:
+                RecordDamage(step.attack.outcome, ref result);
+                if (stanceAtAction == SrpStance.Aggressive) result.aggressiveAttackCount++;
+                if (stanceAtAction == SrpStance.Defensive) result.defensiveAttackCount++;
+                if (step.attack.outcome.wasExecution) result.executionCount++;
+                RecordReaction(step.attack.overwatch, ref result);
+                break;
+            case SrpEnemyAiActionType.UseSkill:
+                result.skillUseCount++;
+                result.magicHpDamage += step.skill.targetHpDamage;
+                result.magicPgDamage += step.skill.targetPgDamage;
+                RecordReaction(step.skill.overwatch, ref result);
+                break;
+            case SrpEnemyAiActionType.Reload:
+                result.reloadCount++;
+                break;
+            case SrpEnemyAiActionType.Overwatch:
+                result.overwatchArmCount++;
+                break;
         }
-        if (runtime == null || !SrpSkills.CanUseActiveSkill(data, runtime))
-            return false;
+    }
 
-        var target = FindAliveUnit(state, command.targetUnitId);
-        if (target == null || state.ChebyshevAnchor(actor, target) > data.range)
-            return false;
-
-        int hpBefore = Mathf.Max(0, target.hp);
-        int pgBefore = Mathf.Max(0, target.pg);
-        SrpSkills.ResolveActiveSkill(data, runtime, actor, target.anchorX, target.anchorY, state, null);
-        result.magicHpDamage += Mathf.Max(0, hpBefore - Mathf.Max(0, target.hp));
-        result.magicPgDamage += Mathf.Max(0, pgBefore - Mathf.Max(0, target.pg));
-        endsActivation = data.endsActivation;
-        return true;
+    static void RecordReaction(SrpReactionResult reaction, ref SrpSingleBattleResult result)
+    {
+        if (!reaction.triggered)
+            return;
+        if (reaction.source == SrpAttackSource.Overwatch)
+            result.overwatchShotCount++;
+        else
+            result.opportunityAttackCount++;
+        RecordDamage(reaction.outcome, ref result);
     }
 
     static void RecordDamage(SrpCombatResolver.AttackOutcome outcome, ref SrpSingleBattleResult result)
@@ -364,13 +326,6 @@ public static class SrpBattleSimRunner
         return null;
     }
 
-    /// <summary>런타임과 같은 승패 판정(SrpVictory). 미결이거나 무승부면 -1.</summary>
-    static int GetWinnerOwner(SrpBattleState state)
-    {
-        var result = SrpVictory.Evaluate(state);
-        return result.decided ? result.winnerOwner : -1;
-    }
-
     static void Accumulate(ref SrpSimMetrics metrics, SrpSingleBattleResult result)
     {
         metrics.completedTrials++;
@@ -391,6 +346,13 @@ public static class SrpBattleSimRunner
         metrics.magicPgDamage += result.magicPgDamage;
         metrics.aggressiveAttackCount += result.aggressiveAttackCount;
         metrics.defensiveAttackCount += result.defensiveAttackCount;
+
+        metrics.reloadCount += result.reloadCount;
+        metrics.skillUseCount += result.skillUseCount;
+        metrics.overwatchArmCount += result.overwatchArmCount;
+        metrics.overwatchShotCount += result.overwatchShotCount;
+        metrics.opportunityAttackCount += result.opportunityAttackCount;
+        metrics.groggySkipCount += result.groggySkipCount;
     }
 
     static SrpSimReport BuildReport(SrpBattleSimConfig config, SrpSimMetrics metrics)
@@ -420,6 +382,13 @@ public static class SrpBattleSimRunner
             metrics.zocSampleCount > 0 ? metrics.totalZocPenalty / metrics.zocSampleCount : 0f;
         report.control.aggressiveAttackCount = metrics.aggressiveAttackCount;
         report.control.defensiveAttackCount = metrics.defensiveAttackCount;
+
+        report.actions.reloadsPerBattle = SrpSimThresholds.SafeDiv(metrics.reloadCount, trials);
+        report.actions.skillUsesPerBattle = SrpSimThresholds.SafeDiv(metrics.skillUseCount, trials);
+        report.actions.overwatchArmsPerBattle = SrpSimThresholds.SafeDiv(metrics.overwatchArmCount, trials);
+        report.actions.overwatchShotsPerBattle = SrpSimThresholds.SafeDiv(metrics.overwatchShotCount, trials);
+        report.actions.opportunityAttacksPerBattle = SrpSimThresholds.SafeDiv(metrics.opportunityAttackCount, trials);
+        report.actions.groggySkipsPerBattle = SrpSimThresholds.SafeDiv(metrics.groggySkipCount, trials);
 
         report.sampleSeeds = new List<int>(metrics.sampledSeeds);
         return report;
