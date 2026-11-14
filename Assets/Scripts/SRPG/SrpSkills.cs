@@ -24,6 +24,10 @@ public static class SrpSkills
     public static void OnAttackResolved(SrpUnitRuntime attacker, SrpUnitRuntime defender,
         SrpCombatResolver.AttackOutcome outcome, SrpBattleState state, System.Action<string> log)
     {
+        // 회피/패링으로 무효화된 공격은 "적중"이 아니므로 적중 패시브를 발동하지 않는다.
+        if (outcome.wasDodged || outcome.wasParried)
+            return;
+
         foreach (var sr in attacker.skillRuntimes)
         {
             if (!state.SkillLookup.TryGetValue(sr.skillId, out var data)) continue;
@@ -282,7 +286,12 @@ public static class SrpSkills
                     if (reaction.defenderDied)
                     {
                         state.RemoveUnit(target);
+                        state.RebuildEngagements();
                         log?.Invoke($"사망: {target.displayName}");
+                    }
+                    else if ((hpDmg > 0 || pgDmg > 0) && target != caster)
+                    {
+                        OnTakeDamage(target, state, log);
                     }
                     break;
                 }
@@ -333,7 +342,12 @@ public static class SrpSkills
                     if (target.hp <= 0)
                     {
                         state.RemoveUnit(target);
+                        state.RebuildEngagements();
                         log?.Invoke($"사망: {target.displayName}");
+                    }
+                    else if (dmg > 0 && target != caster)
+                    {
+                        OnTakeDamage(target, state, log);
                     }
                     break;
                 }

@@ -1,5 +1,6 @@
 using NUnit.Framework;
 
+[Category("SrpM1All")]
 public class SrpCombatResolverTests
 {
     [TestCase(TestName = "총기 피해는 실제 HP 피해의 50%를 PG로 파급한다")]
@@ -239,6 +240,77 @@ public class SrpCombatResolverTests
         Assert.That(outcome.bonusPgFromCombatTags, Is.EqualTo(2));
         Assert.That(pgDamage, Is.EqualTo(9));
         Assert.That(outcome.bonusPgFromLowHpVulnerability, Is.EqualTo(2));
+    }
+
+    [TestCase(TestName = "회피된 공격은 공격 적중 패시브를 발동하지 않는다")]
+    public void OnAttackResolved_DodgedAttackDoesNotTriggerOnHitPassive()
+    {
+        var state = CreateState();
+        var attacker = Unit(id: 1, owner: 0, x: 0, y: 0);
+        var defender = Unit(id: 2, owner: 1, x: 3, y: 0);
+        attacker.skillIds.Add("hero_adaptive_heart");
+        attacker.skillRuntimes.Add(new SrpSkillRuntime("hero_adaptive_heart"));
+
+        SrpSkills.OnAttackResolved(attacker, defender, new SrpCombatResolver.AttackOutcome { wasDodged = true }, state, null);
+        Assert.That(attacker.frozenHeart, Is.EqualTo(0), "회피된 공격에 적중 패시브가 발동했습니다.");
+
+        SrpSkills.OnAttackResolved(attacker, defender, new SrpCombatResolver.AttackOutcome { damageToHp = 1 }, state, null);
+        Assert.That(attacker.frozenHeart, Is.EqualTo(3), "적중한 공격에 전장 적응 패시브가 발동하지 않았습니다.");
+    }
+
+    [TestCase(TestName = "스킬 처치 직후 교전 상태에서 사망 유닛이 빠진다")]
+    public void ResolveActiveSkill_KillRebuildsEngagements()
+    {
+        var state = CreateState();
+        var caster = Unit(id: 1, owner: 0, x: 1, y: 1);
+        var target = Unit(id: 2, owner: 1, x: 2, y: 1, hp: 5, pg: 10, maxPg: 10);
+        state.Units.Add(caster);
+        state.Units.Add(target);
+        state.RebuildEngagements();
+        Assert.That(state.CountEngagingEnemies(caster), Is.EqualTo(1), "테스트 전 교전 상태 구성 실패");
+        var skill = DamageSkill(10);
+
+        SrpSkills.ResolveActiveSkill(skill, new SrpSkillRuntime(skill.id), caster, target.anchorX, target.anchorY, state, null);
+
+        Assert.That(target.eliminated, Is.True);
+        Assert.That(state.CountEngagingEnemies(caster), Is.EqualTo(0), "사망한 적이 교전 목록에 남아 있습니다.");
+        Assert.That(state.IsUnitEngaged(caster.id), Is.False);
+    }
+
+    [TestCase(TestName = "스킬 피해도 대상의 피격 패시브를 발동한다")]
+    public void ResolveActiveSkill_DamageTriggersTargetOnTakeDamagePassive()
+    {
+        var state = CreateState();
+        var caster = Unit(id: 1, owner: 0, x: 1, y: 1);
+        var target = Unit(id: 2, owner: 1, x: 2, y: 1, hp: 40, pg: 20, maxPg: 30);
+        target.facing = SrpFacing.West;
+        target.skillIds.Add("tank_line_anchor");
+        target.skillRuntimes.Add(new SrpSkillRuntime("tank_line_anchor"));
+        state.Units.Add(caster);
+        state.Units.Add(target);
+        var skill = DamageSkill(6);
+
+        SrpSkills.ResolveActiveSkill(skill, new SrpSkillRuntime(skill.id), caster, target.anchorX, target.anchorY, state, null);
+
+        Assert.That(target.hp, Is.EqualTo(34));
+        Assert.That(target.pg, Is.EqualTo(19), "스킬 피해 PG-3 뒤 전열 고정 PG+2가 적용되지 않았습니다.");
+    }
+
+    static SrpSkillData DamageSkill(int value)
+    {
+        return new SrpSkillData
+        {
+            id = "test_direct_damage",
+            displayName = "테스트 피해",
+            skillType = SrpSkillType.Active,
+            trigger = SrpSkillTrigger.OnActivate,
+            targetType = SrpTargetType.SingleEnemy,
+            range = 1,
+            effects = new[]
+            {
+                new SrpSkillEffect { type = SrpEffectType.Damage, value = value },
+            },
+        };
     }
 
     static SrpUnitRuntime Unit(
