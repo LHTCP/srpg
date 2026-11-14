@@ -1926,7 +1926,7 @@ public partial class SrpGameController
             stateParts.Add($"탱커 / 교전 수 {_state.CountEngagingEnemies(unit)}");
         var combatTags = (SrpCombatTag)unit.combatTags;
         if (combatTags != SrpCombatTag.None)
-            stateParts.Add($"전투 태그: {SrpCombatTagUtility.BuildSummary(combatTags)}");
+            stateParts.Add($"전투 태그: {SrpCombatTagUtility.BuildSummary(unit, _state.RoundNumber)}");
         if (unit.stance == SrpStance.Defensive && unit.defensiveHitsRound == _state.RoundNumber)
             stateParts.Add($"수비 압박 {unit.defensiveHitsTakenThisRound}");
         if (unit.overwatchArmed)
@@ -2118,6 +2118,9 @@ public partial class SrpGameController
         if (cloneRuntime == null)
             cloneRuntime = new SrpSkillRuntime(_pendingSkillRuntime.skillId);
 
+        if (SrpSkills.IsAreaSkill(_pendingSkillData))
+            return BuildAreaSkillDeltaPreview(clone, cloneCaster, cloneRuntime);
+
         int targetId = target != null ? target.id : cloneCaster.id;
         var beforeTarget = target != null ? target : active;
         int beforeHp = beforeTarget.hp;
@@ -2135,6 +2138,36 @@ public partial class SrpGameController
         if (hpDelta == 0 && pgDelta == 0)
             return "예상 수치 변화: 직접 HP/PG 변화 없음";
         return $"예상 수치 변화: {FormatSignedDelta("HP", hpDelta)} / {FormatSignedDelta("PG", pgDelta)}{dodgeNote}";
+    }
+
+    /// <summary>범위 스킬의 예상 결과: 효과를 받는 유닛 수와 유닛별 HP/PG 변화.</summary>
+    string BuildAreaSkillDeltaPreview(SrpBattleState clone, SrpUnitRuntime cloneCaster, SrpSkillRuntime cloneRuntime)
+    {
+        int size = Mathf.Max(0, _pendingSkillData.areaSize) * 2 + 1;
+        var affected = SrpSkills.GetSkillAffectedUnits(_pendingSkillData, cloneCaster, _hoverTileX, _hoverTileY, clone);
+        if (affected.Count == 0)
+            return $"범위 {size}x{size}: 효과를 받는 대상 없음";
+
+        var beforeHp = new int[affected.Count];
+        var beforePg = new int[affected.Count];
+        bool anyDodge = false;
+        for (int i = 0; i < affected.Count; i++)
+        {
+            beforeHp[i] = affected[i].hp;
+            beforePg[i] = affected[i].pg;
+            anyDodge |= SrpSkills.CanTargetDodgeSkillDamage(_pendingSkillData, cloneCaster, affected[i], clone);
+        }
+
+        SrpSkills.ResolveActiveSkill(_pendingSkillData, cloneRuntime, cloneCaster, _hoverTileX, _hoverTileY, clone, null);
+
+        var parts = new List<string> { $"범위 {size}x{size}: 대상 {affected.Count}명" };
+        for (int i = 0; i < affected.Count; i++)
+        {
+            parts.Add($"{affected[i].displayName}: {FormatSignedDelta("HP", affected[i].hp - beforeHp[i])} / {FormatSignedDelta("PG", affected[i].pg - beforePg[i])}");
+        }
+        if (anyDodge)
+            parts.Add($"회피 시도 가능한 대상 있음: 성공률 {SrpCombatResolver.DodgeChancePercent}%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)");
+        return string.Join("\n", parts);
     }
 
     (string title, string body) BuildInteractionPreview(SrpUnitRuntime active, SrpInteractionPointData point)

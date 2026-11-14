@@ -105,6 +105,8 @@ public static class SrpBattleFlow
             if (unit == null || unit.eliminated)
                 continue;
             SrpSkills.TickSkillResourcesForUnit(unit, state);
+            // 지속시간이 끝난 전투 태그를 지운다.
+            unit.ExpireCombatTags(state.RoundNumber);
         }
         SrpTurnOrder.ResetRoundResources(state);
         state.RebuildEngagements();
@@ -212,15 +214,23 @@ public static class SrpBattleFlow
         ISrpBattleFlowObserver observer)
     {
         var result = new SrpSkillUseResult { executed = true };
-        var target = state.GetOccupant(targetX, targetY);
-        int hpBefore = target != null ? Mathf.Max(0, target.hp) : 0;
-        int pgBefore = target != null ? Mathf.Max(0, target.pg) : 0;
+        // 범위 스킬은 여러 유닛에 닿으므로, 효과 대상 전체의 HP/PG 감소를 합산한다.
+        var affected = SrpSkills.GetSkillAffectedUnits(data, caster, targetX, targetY, state);
+        var hpBefore = new int[affected.Count];
+        var pgBefore = new int[affected.Count];
+        for (int i = 0; i < affected.Count; i++)
+        {
+            hpBefore[i] = Mathf.Max(0, affected[i].hp);
+            pgBefore[i] = Mathf.Max(0, affected[i].pg);
+        }
 
         SrpSkills.ResolveActiveSkill(data, runtime, caster, targetX, targetY, state, RuleLog(observer));
-        if (target != null && target != caster)
+        for (int i = 0; i < affected.Count; i++)
         {
-            result.targetHpDamage = Mathf.Max(0, hpBefore - Mathf.Max(0, target.hp));
-            result.targetPgDamage = Mathf.Max(0, pgBefore - Mathf.Max(0, target.pg));
+            if (affected[i] == caster)
+                continue;
+            result.targetHpDamage += Mathf.Max(0, hpBefore[i] - Mathf.Max(0, affected[i].hp));
+            result.targetPgDamage += Mathf.Max(0, pgBefore[i] - Mathf.Max(0, affected[i].pg));
         }
         caster.hasUsedSkillThisActivation = true;
         caster.actionPoints = Mathf.Max(0, caster.actionPoints - 1);

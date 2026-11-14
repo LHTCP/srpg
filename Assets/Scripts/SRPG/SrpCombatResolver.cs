@@ -30,6 +30,8 @@ public static class SrpCombatResolver
     const int LowHpPgVulnerabilityBonusPercent = 25;
     const int CriticalHpPgVulnerabilityBonusPercent = 50;
     const int ParryCounterPgDamage = 8;
+    // 패링으로 붙는 균형 붕괴는 다음 라운드가 끝날 때까지 유지한다(스킬 태그의 duration 1과 같다).
+    const int ParryBalanceBrokenDurationRounds = 1;
     const int MarkedPgBonus = 2;
     const int BalanceBrokenPgBonus = 4;
     const int KillOrderHpBonus = 2;
@@ -593,11 +595,11 @@ public static class SrpCombatResolver
             outcome.wasParried = true;
             hpDamage = 0;
             pgDamage = 0;
-            ApplyParryReward(attacker, ref outcome);
+            ApplyParryReward(state, attacker, ref outcome);
         }
     }
 
-    static void ApplyParryReward(SrpUnitRuntime attacker, ref AttackOutcome outcome)
+    static void ApplyParryReward(SrpBattleState state, SrpUnitRuntime attacker, ref AttackOutcome outcome)
     {
         if (attacker == null || attacker.eliminated)
             return;
@@ -606,7 +608,9 @@ public static class SrpCombatResolver
             outcome.parryCounterBecameGroggy = true;
         outcome.parryCounterDamageToPg = appliedPg;
 
-        attacker.AddCombatTag(SrpCombatTag.BalanceBroken);
+        attacker.AddCombatTag(
+            SrpCombatTag.BalanceBroken,
+            state != null ? state.RoundNumber + ParryBalanceBrokenDurationRounds : 0);
         outcome.parryAppliedBalanceBreak = true;
     }
 
