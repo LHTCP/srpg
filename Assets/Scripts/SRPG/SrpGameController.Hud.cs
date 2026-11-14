@@ -2126,8 +2126,7 @@ public partial class SrpGameController
         bool targetMayDodge = SrpSkills.CanTargetDodgeSkillDamage(
             _pendingSkillData, cloneCaster, target != null ? clone.FindUnitById(target.id) : null, clone);
         string dodgeNote = targetMayDodge
-            ? $"
-대상 회피 시도: 성공률 {SrpCombatResolver.DodgeChancePercent}%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)"
+            ? $"\n대상 회피 시도: 성공률 {SrpCombatResolver.DodgeChancePercent}%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)"
             : string.Empty;
         SrpSkills.ResolveActiveSkill(_pendingSkillData, cloneRuntime, cloneCaster, _hoverTileX, _hoverTileY, clone, null);
         var afterTarget = clone.FindUnitById(targetId) ?? cloneCaster;
