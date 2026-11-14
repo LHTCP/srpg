@@ -25,6 +25,16 @@ public static class SrpPathfinder
     public static Dictionary<Vector2Int, int> GetReachableWithCosts(
         SrpBattleState state, SrpUnitRuntime u, int maxCost)
     {
+        return GetReachableWithCosts(state, u, maxCost, null);
+    }
+
+    /// <summary>
+    /// 도달 가능 앵커 → 이동 비용 맵. cameFrom 을 넘기면 각 칸의 최단 경로 직전 칸을 함께 기록한다.
+    /// 시작 칸은 cameFrom 에 들어가지 않는다.
+    /// </summary>
+    public static Dictionary<Vector2Int, int> GetReachableWithCosts(
+        SrpBattleState state, SrpUnitRuntime u, int maxCost, Dictionary<Vector2Int, Vector2Int> cameFrom)
+    {
         var result = new Dictionary<Vector2Int, int>();
         if (u.eliminated || maxCost <= 0)
             return result;
@@ -79,6 +89,8 @@ public static class SrpPathfinder
                 if (!dist.TryGetValue(nk, out int oldCost) || nextCost < oldCost)
                 {
                     dist[nk] = nextCost;
+                    if (cameFrom != null)
+                        cameFrom[new Vector2Int(nx, ny)] = new Vector2Int(cur.x, cur.y);
                     open.Add((nx, ny, nextCost));
                 }
             }

@@ -39,98 +39,28 @@ public class SrpRandomAiPolicy : ISrpAiPolicy
     }
 }
 
+/// <summary>
+/// 런타임 적 AI(SrpEnemyAi)와 같은 판단을 쓰는 정책. 시뮬레이션이 실제 AI를 측정하게 한다.
+/// </summary>
 public class SrpHeuristicAiPolicy : ISrpAiPolicy
 {
     public string Name => "Heuristic";
 
     public SrpAiCommand SelectAction(SrpAiDecisionContext ctx)
     {
-        bool canMove = !ctx.moved && ctx.moves.Count > 0 && ctx.actor.actionPoints > 0;
-        bool canAttack = !ctx.attacked && ctx.attacks.Count > 0 && ctx.actor.actionPoints > 0;
-        if (!canMove && !canAttack)
-            return SrpAiCommand.EndTurn();
-
-        if (canAttack)
+        var action = SrpEnemyAi.Decide(ctx.state, ctx.actor, ctx.remainingMove, ctx.attacked);
+        switch (action.type)
         {
-            int bestTarget = PickBestAttackTarget(ctx);
-            return SrpAiCommand.Attack(bestTarget);
+            case SrpEnemyAiActionType.Move:
+                return SrpAiCommand.MoveTo(action.x, action.y);
+            case SrpEnemyAiActionType.Attack:
+                return SrpAiCommand.Attack(action.targetUnitId);
+            case SrpEnemyAiActionType.Reload:
+                return SrpAiCommand.Reload();
+            case SrpEnemyAiActionType.UseSkill:
+                return SrpAiCommand.UseSkill(action.skillId, action.x, action.y, action.targetUnitId);
+            default:
+                return SrpAiCommand.EndTurn();
         }
-
-        if (canMove)
-        {
-            var bestMove = PickBestMove(ctx);
-            return SrpAiCommand.MoveTo(bestMove.x, bestMove.y);
-        }
-
-        return SrpAiCommand.EndTurn();
-    }
-
-    int PickBestAttackTarget(SrpAiDecisionContext ctx)
-    {
-        int bestTargetId = ctx.attacks[0].targetUnitId;
-        int bestScore = int.MinValue;
-        foreach (var atk in ctx.attacks)
-        {
-            var target = FindUnit(ctx.state, atk.targetUnitId);
-            if (target == null) continue;
-
-            int score = 0;
-            score += (target.maxHp - target.hp);
-            score += (target.maxPg - target.pg);
-            if (target.pg <= 0 || target.groggy)
-                score += 50;
-            if (target.weaponClass == SrpWeaponClass.Firearm)
-                score += 5;
-            if (score > bestScore)
-            {
-                bestScore = score;
-                bestTargetId = target.id;
-            }
-        }
-        return bestTargetId;
-    }
-
-    SrpAiMoveOption PickBestMove(SrpAiDecisionContext ctx)
-    {
-        var best = ctx.moves[0];
-        int bestScore = int.MinValue;
-
-        foreach (var move in ctx.moves)
-        {
-            int minDist = int.MaxValue;
-            foreach (var unit in ctx.state.Units)
-            {
-                if (unit.eliminated || unit.owner == ctx.actor.owner)
-                    continue;
-                int d = Manhattan(move.x, move.y, unit.anchorX, unit.anchorY);
-                if (d < minDist)
-                    minDist = d;
-            }
-
-            // 적에게 접근하되 과도한 ZOC 페널티는 피한다.
-            int score = 0;
-            score += (30 - minDist * 4);
-            score -= move.zocPenalty * 3;
-            score -= move.cost;
-            if (score > bestScore)
-            {
-                bestScore = score;
-                best = move;
-            }
-        }
-        return best;
-    }
-
-    static int Manhattan(int x1, int y1, int x2, int y2)
-    {
-        return UnityEngine.Mathf.Abs(x1 - x2) + UnityEngine.Mathf.Abs(y1 - y2);
-    }
-
-    static SrpUnitRuntime FindUnit(SrpBattleState state, int id)
-    {
-        foreach (var unit in state.Units)
-            if (unit.id == id)
-                return unit;
-        return null;
     }
 }

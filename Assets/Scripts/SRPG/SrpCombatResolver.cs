@@ -68,6 +68,7 @@ public static class SrpCombatResolver
         public bool lowHpPgVulnerabilityApplied;
         public bool parryAppliedBalanceBreak;
         public bool parryCounterBecameGroggy;
+        public bool pgBreakGuardApplied;
         public bool wasDodged;
         public bool dodgeFailed;
         public bool wasParried;
@@ -137,7 +138,7 @@ public static class SrpCombatResolver
             return false;
         if (attacker.eliminated || defender.eliminated || attacker.owner == defender.owner)
             return false;
-        if (!defender.HasTag(SrpUnitTags.ParryUser) || defender.reactionPoints <= 0)
+        if (!defender.HasTag(SrpUnitTags.ParryUser) || defender.reactionPoints <= 0 || defender.IsPgBroken)
             return false;
         if (!IsParryableThreat(attacker, attackSkill))
             return false;
@@ -176,7 +177,7 @@ public static class SrpCombatResolver
             return false;
         if (attacker.eliminated || defender.eliminated || attacker.owner == defender.owner)
             return false;
-        if (attacker.reactionPoints <= 0)
+        if (attacker.reactionPoints <= 0 || attacker.IsPgBroken)
             return false;
 
         attacker.reactionPoints = Mathf.Max(0, attacker.reactionPoints - 1);
@@ -292,12 +293,10 @@ public static class SrpCombatResolver
         if (!outcome.wasExecution)
         {
             int prevPg = defender.pg;
-            defender.pg = Mathf.Max(0, defender.pg - pgDamage);
-            if (prevPg > 0 && defender.pg <= 0)
-            {
-                defender.groggy = true;
+            if (defender.ApplyPgDamage(pgDamage, out int appliedPg))
                 outcome.becameGroggy = true;
-            }
+            // 재붕괴 보호로 PG가 1에서 멈춘 경우에만 기록한다.
+            outcome.pgBreakGuardApplied = defender.pgBreakGuard && prevPg > 0 && appliedPg < Mathf.Min(pgDamage, prevPg);
         }
         else
         {
@@ -546,7 +545,7 @@ public static class SrpCombatResolver
         ref int pgDamage,
         ref AttackOutcome outcome)
     {
-        if (state == null || defender.reactionPoints <= 0)
+        if (state == null || defender.reactionPoints <= 0 || defender.IsPgBroken)
             return;
 
         SrpReactionKind reaction = ChooseReaction(state, attacker, defender, attackSkill);
@@ -596,14 +595,9 @@ public static class SrpCombatResolver
         if (attacker == null || attacker.eliminated)
             return;
 
-        int beforePg = attacker.pg;
-        attacker.pg = Mathf.Max(0, attacker.pg - ParryCounterPgDamage);
-        outcome.parryCounterDamageToPg = beforePg - attacker.pg;
-        if (beforePg > 0 && attacker.pg <= 0)
-        {
-            attacker.groggy = true;
+        if (attacker.ApplyPgDamage(ParryCounterPgDamage, out int appliedPg))
             outcome.parryCounterBecameGroggy = true;
-        }
+        outcome.parryCounterDamageToPg = appliedPg;
 
         attacker.AddCombatTag(SrpCombatTag.BalanceBroken);
         outcome.parryAppliedBalanceBreak = true;
@@ -629,7 +623,7 @@ public static class SrpCombatResolver
             return false;
         if (attacker.eliminated || defender.eliminated || attacker.owner == defender.owner)
             return false;
-        if (defender.stance != SrpStance.Aggressive || defender.reactionPoints <= 0)
+        if (defender.stance != SrpStance.Aggressive || defender.reactionPoints <= 0 || defender.IsPgBroken)
             return false;
         if (ResolveBasicAttackKind(state, attacker, defender) == SrpBasicAttackKind.Melee)
             return false;

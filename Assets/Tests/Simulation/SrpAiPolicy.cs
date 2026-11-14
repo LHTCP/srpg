@@ -6,6 +6,8 @@ public enum SrpAiActionType
     EndTurn,
     Move,
     Attack,
+    Reload,
+    UseSkill,
 }
 
 public struct SrpAiMoveOption
@@ -39,6 +41,7 @@ public struct SrpAiCommand
     public int x;
     public int y;
     public int targetUnitId;
+    public string skillId;
 
     public static SrpAiCommand EndTurn()
     {
@@ -60,6 +63,22 @@ public struct SrpAiCommand
         return new SrpAiCommand
         {
             actionType = SrpAiActionType.Attack,
+            targetUnitId = targetUnitId,
+        };
+    }
+    public static SrpAiCommand Reload()
+    {
+        return new SrpAiCommand { actionType = SrpAiActionType.Reload };
+    }
+
+    public static SrpAiCommand UseSkill(string skillId, int x, int y, int targetUnitId)
+    {
+        return new SrpAiCommand
+        {
+            actionType = SrpAiActionType.UseSkill,
+            skillId = skillId,
+            x = x,
+            y = y,
             targetUnitId = targetUnitId,
         };
     }
