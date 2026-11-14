@@ -326,8 +326,13 @@ public class SrpM1ContentTests
         string path = SrpDataIO.SkillsPath;
         string backup = Path.Combine(Path.GetDirectoryName(path), "skills.backup-v0.json");
         string original = File.Exists(path) ? File.ReadAllText(path) : null;
+        // 개발자 PC에 실제 갱신 때 생긴 백업이 있을 수 있다. 사용자가 고친 내장 스킬의 유일한 사본일 수 있으므로 보존한다.
+        byte[] originalBackup = File.Exists(backup) ? File.ReadAllBytes(backup) : null;
         try
         {
+            if (originalBackup != null)
+                File.Delete(backup);
+
             // 버전 필드가 없던 시절의 파일: 강타가 옛 값(27)이고 사용자 스킬이 하나 있다.
             var stale = new SrpSkillDatabase
             {
@@ -379,7 +384,9 @@ public class SrpM1ContentTests
                 File.WriteAllText(path, original);
             else if (File.Exists(path))
                 File.Delete(path);
-            if (File.Exists(backup))
+            if (originalBackup != null)
+                File.WriteAllBytes(backup, originalBackup);
+            else if (File.Exists(backup))
                 File.Delete(backup);
         }
     }
