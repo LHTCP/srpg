@@ -201,12 +201,14 @@ public class SrpMapFileV1
 /// <summary>
 /// 맵 메이커가 편집하지 않는 맵 데이터를 불러오기에서 저장까지 그대로 들고 가는 묶음.
 /// 메이커는 저장할 때 맵 객체를 새로 만들기 때문에, 이 묶음에 담지 않은 값은 저장 시 기본값으로 돌아간다.
-/// 대상: 승리 조건(victory)과 상호작용 포인트(승리 목표 효과 포함). 배치의 지휘관 표시는 메이커가 배치별로 따로 보존한다.
+/// 대상: 승리 조건(victory), 상호작용 포인트(승리 목표 효과 포함), 허용 스킬 목록(allowedSkillIds).
+/// 배치의 지휘관 표시는 메이커가 배치별로 따로 보존하고, 엄폐물과 엄폐 segment는 메이커가 직접 편집한다.
 /// </summary>
 public class SrpMapCarryOver
 {
     public SrpVictoryRuleData victory = new SrpVictoryRuleData();
     public SrpInteractionPointData[] interactionPoints = Array.Empty<SrpInteractionPointData>();
+    public string[] allowedSkillIds = Array.Empty<string>();
 
     public static SrpMapCarryOver Capture(SrpMapFileV1 map)
     {
@@ -216,6 +218,8 @@ public class SrpMapCarryOver
 
         if (map.victory != null)
             carry.victory = map.victory.Clone();
+        if (map.allowedSkillIds != null)
+            carry.allowedSkillIds = (string[])map.allowedSkillIds.Clone();
         if (map.interactionPoints != null)
         {
             var points = new System.Collections.Generic.List<SrpInteractionPointData>();
@@ -236,6 +240,7 @@ public class SrpMapCarryOver
             return;
 
         map.victory = victory != null ? victory.Clone() : new SrpVictoryRuleData();
+        map.allowedSkillIds = allowedSkillIds != null ? (string[])allowedSkillIds.Clone() : Array.Empty<string>();
         var points = new System.Collections.Generic.List<SrpInteractionPointData>();
         if (interactionPoints != null)
         {
@@ -247,5 +252,126 @@ public class SrpMapCarryOver
             }
         }
         map.interactionPoints = points.ToArray();
+    }
+}
+
+/// <summary>
+/// 맵 메이커의 엄폐 편집 규칙(순수 로직). 화면 없이 테스트할 수 있도록 컨트롤러에서 분리했다.
+/// </summary>
+public static class SrpMapCoverEdit
+{
+    /// <summary>
+    /// 칸 안에서 클릭한 위치(칸 중심 기준 -0.5~0.5)로 가장 가까운 가장자리를 고른다.
+    /// 북쪽은 y가 커지는 쪽, 동쪽은 x가 커지는 쪽이다.
+    /// </summary>
+    public static SrpCoverEdge ResolveEdge(float offsetX, float offsetY)
+    {
+        float ax = offsetX < 0f ? -offsetX : offsetX;
+        float ay = offsetY < 0f ? -offsetY : offsetY;
+        if (ax >= ay)
+            return offsetX >= 0f ? SrpCoverEdge.East : SrpCoverEdge.West;
+        return offsetY >= 0f ? SrpCoverEdge.North : SrpCoverEdge.South;
+    }
+
+    /// <summary>칸의 엄폐물을 켜고 끈다. 새로 놓았으면 true, 있던 것을 지웠으면 false.</summary>
+    public static bool ToggleCoverObject(
+        System.Collections.Generic.List<SrpCoverObjectData> objects, int x, int y, bool blocksLineOfSight)
+    {
+        for (int i = objects.Count - 1; i >= 0; i--)
+        {
+            if (objects[i] != null && objects[i].x == x && objects[i].y == y)
+            {
+                objects.RemoveAt(i);
+                return false;
+            }
+        }
+        objects.Add(new SrpCoverObjectData { x = x, y = y, blocksLineOfSight = blocksLineOfSight });
+        return true;
+    }
+
+    /// <summary>
+    /// 칸 가장자리의 엄폐 segment를 켜고 끈다. 새로 놓았으면 true, 같은 칸·같은 가장자리의 것을 지웠으면 false.
+    /// 감쇠 수치는 0으로 두어 전투 규칙의 기본값을 쓴다.
+    /// </summary>
+    public static bool ToggleCoverSegment(
+        System.Collections.Generic.List<SrpCoverSegmentData> segments, int x, int y, SrpCoverEdge edge, bool blocksLineOfSight)
+    {
+        for (int i = segments.Count - 1; i >= 0; i--)
+        {
+            var segment = segments[i];
+            if (segment != null && segment.x == x && segment.y == y && segment.edge == edge)
+            {
+                segments.RemoveAt(i);
+                return false;
+            }
+        }
+        segments.Add(new SrpCoverSegmentData
+        {
+            x = x,
+            y = y,
+            edge = edge,
+            shape = SrpCoverShape.Linear,
+            blocksLineOfSight = blocksLineOfSight,
+        });
+        return true;
+    }
+
+    /// <summary>맵에서 불러온 엄폐 데이터를 편집용 목록으로 복사한다. 맵 크기를 벗어난 것은 뺀다.</summary>
+    public static void Load(
+        SrpMapFileV1 map,
+        System.Collections.Generic.List<SrpCoverObjectData> objects,
+        System.Collections.Generic.List<SrpCoverSegmentData> segments)
+    {
+        objects.Clear();
+        segments.Clear();
+        if (map == null)
+            return;
+
+        if (map.coverObjects != null)
+        {
+            foreach (var coverObject in map.coverObjects)
+            {
+                if (coverObject != null && InBounds(map, coverObject.x, coverObject.y))
+                    objects.Add(coverObject.Clone());
+            }
+        }
+        if (map.coverSegments != null)
+        {
+            foreach (var segment in map.coverSegments)
+            {
+                if (segment != null && InBounds(map, segment.x, segment.y))
+                    segments.Add(segment.Clone());
+            }
+        }
+    }
+
+    /// <summary>편집한 엄폐 데이터를 저장할 맵에 넣는다. 맵 크기를 벗어난 것은 뺀다.</summary>
+    public static void ApplyTo(
+        SrpMapFileV1 map,
+        System.Collections.Generic.List<SrpCoverObjectData> objects,
+        System.Collections.Generic.List<SrpCoverSegmentData> segments)
+    {
+        if (map == null)
+            return;
+
+        var outObjects = new System.Collections.Generic.List<SrpCoverObjectData>();
+        foreach (var coverObject in objects)
+        {
+            if (coverObject != null && InBounds(map, coverObject.x, coverObject.y))
+                outObjects.Add(coverObject.Clone());
+        }
+        var outSegments = new System.Collections.Generic.List<SrpCoverSegmentData>();
+        foreach (var segment in segments)
+        {
+            if (segment != null && InBounds(map, segment.x, segment.y))
+                outSegments.Add(segment.Clone());
+        }
+        map.coverObjects = outObjects.ToArray();
+        map.coverSegments = outSegments.ToArray();
+    }
+
+    static bool InBounds(SrpMapFileV1 map, int x, int y)
+    {
+        return x >= 0 && y >= 0 && x < map.width && y < map.height;
     }
 }

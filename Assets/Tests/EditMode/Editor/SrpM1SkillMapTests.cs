@@ -412,6 +412,120 @@ public class SrpM1SkillMapTests
         };
     }
 
+    // ── 맵 메이커 엄폐 편집 ──────────────────────────────────────────────────
+
+    [TestCase(TestName = "엄폐 벽은 칸 안에서 클릭한 쪽의 가장자리에 놓인다")]
+    public void CoverEdit_ResolveEdgePicksNearestSide()
+    {
+        Assert.That(SrpMapCoverEdit.ResolveEdge(0.4f, 0.1f), Is.EqualTo(SrpCoverEdge.East));
+        Assert.That(SrpMapCoverEdit.ResolveEdge(-0.4f, 0.1f), Is.EqualTo(SrpCoverEdge.West));
+        Assert.That(SrpMapCoverEdit.ResolveEdge(0.1f, 0.4f), Is.EqualTo(SrpCoverEdge.North));
+        Assert.That(SrpMapCoverEdit.ResolveEdge(0.1f, -0.4f), Is.EqualTo(SrpCoverEdge.South));
+    }
+
+    [TestCase(TestName = "엄폐물과 엄폐 벽은 같은 자리를 다시 고르면 지워진다")]
+    public void CoverEdit_ToggleAddsAndRemoves()
+    {
+        var objects = new System.Collections.Generic.List<SrpCoverObjectData>();
+        var segments = new System.Collections.Generic.List<SrpCoverSegmentData>();
+
+        Assert.That(SrpMapCoverEdit.ToggleCoverObject(objects, 2, 3, true), Is.True);
+        Assert.That(objects.Count, Is.EqualTo(1));
+        Assert.That(objects[0].blocksLineOfSight, Is.True);
+        Assert.That(SrpMapCoverEdit.ToggleCoverObject(objects, 2, 3, false), Is.False);
+        Assert.That(objects.Count, Is.EqualTo(0));
+
+        Assert.That(SrpMapCoverEdit.ToggleCoverSegment(segments, 1, 1, SrpCoverEdge.East, false), Is.True);
+        Assert.That(SrpMapCoverEdit.ToggleCoverSegment(segments, 1, 1, SrpCoverEdge.North, true), Is.True, "같은 칸의 다른 가장자리에 벽을 놓을 수 있어야 합니다.");
+        Assert.That(segments.Count, Is.EqualTo(2));
+        Assert.That(SrpMapCoverEdit.ToggleCoverSegment(segments, 1, 1, SrpCoverEdge.East, true), Is.False);
+        Assert.That(segments.Count, Is.EqualTo(1));
+        Assert.That(segments[0].edge, Is.EqualTo(SrpCoverEdge.North));
+    }
+
+    [TestCase(TestName = "메이커는 엄폐 데이터와 허용 스킬 목록을 불러오기에서 저장까지 보존한다")]
+    public void CoverEdit_LoadAndSavePreserveMapData()
+    {
+        var loaded = SrpDefaultMaps.CreateM1QaIntegrated();
+        loaded.allowedSkillIds = new[] { "cleave", "heal_light" };
+        var objects = new System.Collections.Generic.List<SrpCoverObjectData>();
+        var segments = new System.Collections.Generic.List<SrpCoverSegmentData>();
+        SrpMapCoverEdit.Load(loaded, objects, segments);
+        var carry = SrpMapCarryOver.Capture(loaded);
+
+        // 메이커 저장처럼 맵 객체를 새로 만든다.
+        var rebuilt = new SrpMapFileV1 { width = loaded.width, height = loaded.height };
+        carry.ApplyTo(rebuilt);
+        SrpMapCoverEdit.ApplyTo(rebuilt, objects, segments);
+
+        Assert.That(rebuilt.coverObjects.Length, Is.EqualTo(loaded.coverObjects.Length));
+        Assert.That(rebuilt.coverSegments.Length, Is.EqualTo(loaded.coverSegments.Length));
+        Assert.That(rebuilt.coverSegments[0].coverDef, Is.EqualTo(loaded.coverSegments[0].coverDef));
+        Assert.That(rebuilt.coverSegments[0].edge, Is.EqualTo(loaded.coverSegments[0].edge));
+        Assert.That(rebuilt.coverObjects[0], Is.Not.SameAs(loaded.coverObjects[0]));
+        Assert.That(rebuilt.allowedSkillIds, Is.EqualTo(new[] { "cleave", "heal_light" }));
+
+        // 맵을 줄이면 밖으로 나간 엄폐는 저장하지 않는다.
+        var shrunk = new SrpMapFileV1 { width = 3, height = 3 };
+        SrpMapCoverEdit.ApplyTo(shrunk, objects, segments);
+        foreach (var coverObject in shrunk.coverObjects)
+            Assert.That(coverObject.x < 3 && coverObject.y < 3, Is.True);
+        foreach (var segment in shrunk.coverSegments)
+            Assert.That(segment.x < 3 && segment.y < 3, Is.True);
+    }
+
+    [TestCase(TestName = "메이커로 만든 엄폐 맵과 범위 스킬이 저장 형식을 거쳐 전투에서 그대로 동작한다")]
+    public void MakerData_CoverMapAndAreaSkillWorkInBattleAfterJsonRoundTrip()
+    {
+        // 메이커 편집: 5x5 맵, (2,1) 동쪽에 시야 차단 벽, (2,3)에 엄폐물.
+        var objects = new System.Collections.Generic.List<SrpCoverObjectData>();
+        var segments = new System.Collections.Generic.List<SrpCoverSegmentData>();
+        SrpMapCoverEdit.ToggleCoverSegment(segments, 2, 1, SrpMapCoverEdit.ResolveEdge(0.45f, 0f), true);
+        SrpMapCoverEdit.ToggleCoverObject(objects, 2, 3, true);
+        var walk = new bool[25];
+        for (int i = 0; i < walk.Length; i++)
+            walk[i] = true;
+        walk[2 + 3 * 5] = false;
+        var map = new SrpMapFileV1 { width = 5, height = 5, walkable = walk, playerOrder = new[] { 0, 1 } };
+        SrpMapCoverEdit.ApplyTo(map, objects, segments);
+
+        var restored = JsonUtility.FromJson<SrpMapFileV1>(JsonUtility.ToJson(map));
+        var state = SrpBattleState.FromMap(restored);
+
+        Assert.That(state.CoverSegments.Count, Is.EqualTo(1));
+        Assert.That(state.IsCoverTile(2, 3), Is.True);
+        Assert.That(SrpLineOfSight.HasSight(state, 0, 1, 4, 1, SrpSightRule.Terrain), Is.False, "메이커로 놓은 시야 차단 벽이 전투에서 시야를 막지 않았습니다.");
+        Assert.That(SrpLineOfSight.HasSight(state, 0, 0, 4, 0, SrpSightRule.Terrain), Is.True);
+
+        // 스킬 메이커 데이터: 범위 1, 지형 시야 규칙의 적 대상 범위 피해.
+        var skill = JsonUtility.FromJson<SrpSkillData>(JsonUtility.ToJson(new SrpSkillData
+        {
+            id = "maker_blast",
+            skillType = SrpSkillType.Active,
+            trigger = SrpSkillTrigger.OnActivate,
+            targetType = SrpTargetType.AreaEnemy,
+            range = 4,
+            areaSize = 1,
+            sightRule = SrpSightRule.Terrain,
+            effects = new[] { new SrpSkillEffect { type = SrpEffectType.Damage, value = 6 } },
+        }));
+        var caster = Unit(id: 1, owner: 0, x: 0, y: 1);
+        var behindWall = Unit(id: 2, owner: 1, x: 4, y: 1);
+        var open = Unit(id: 3, owner: 1, x: 3, y: 0);
+        state.Units.Add(caster);
+        state.Units.Add(behindWall);
+        state.Units.Add(open);
+
+        var tiles = SrpSkills.GetSkillTargetTiles(skill, caster, state);
+        Assert.That(tiles, Has.No.Member(new Vector2Int(4, 1)), "벽 뒤 칸을 범위 스킬 중심으로 지정할 수 있습니다.");
+        Assert.That(tiles, Has.Member(new Vector2Int(3, 0)));
+
+        // 시야가 닿는 (3,0)을 중심으로 쓰면 범위(3x3)에 든 벽 뒤 유닛도 함께 맞는다.
+        SrpSkills.ResolveActiveSkill(skill, new SrpSkillRuntime(skill.id), caster, 3, 0, state, null);
+        Assert.That(open.hp, Is.LessThan(20));
+        Assert.That(behindWall.hp, Is.LessThan(20));
+    }
+
     // ── 공용 ─────────────────────────────────────────────────────────────────
 
     static void Block(SrpBattleState state, int x, int y)
