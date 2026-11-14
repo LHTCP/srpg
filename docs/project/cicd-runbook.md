@@ -14,17 +14,18 @@
 
 ## Workflow와 트리거
 
-2026-11-14 `.github/workflows/` 기준이다. 빌드와 배포 workflow는 모두 수동 실행(`workflow_dispatch`) 전용이며, push, tag, schedule로 시작되는 workflow는 없다. PR에서 자동 실행되는 것은 `PR 빠른 체크`와 `Windows 패키징 헬스체크`뿐이다.
+2026-11-14 `.github/workflows/` 기준이다. push와 tag로 자동 시작되는 것은 `Windows Delivery 파이프라인` 하나이며, 나머지 빌드와 배포 workflow는 수동 실행(`workflow_dispatch`)으로만 단독 실행된다. schedule로 시작되는 workflow는 없다. PR에서 자동 실행되는 것은 `PR 빠른 체크`와 `Windows 패키징 헬스체크`뿐이다.
 
 | workflow | 파일 | 트리거 | 역할 |
 | -------- | ---- | ------ | ---- |
+| `Windows Delivery 파이프라인` | `windows-delivery.yml` | `main` push(경로 한정), `v<a.b.c>` tag push, 수동 | 빌드 → zip → itch.io 업로드 또는 GitHub Release 생성을 한 run으로 연결 |
 | `PR 빠른 체크` | `pr-fast-checks.yml` | PR 자동, 수동 | PR 기본 검증 |
 | `Windows 패키징 헬스체크` | `windows-packaging-healthcheck.yml` | PR 자동(경로 한정), 수동 | Unity 빌드 없이 zip 패키징과 artifact 업로드 경로 확인 |
 | `Unity EditMode 테스트` | `unity-editmode-tests.yml` | 수동 | EditMode 테스트 실행 |
-| `Windows PC 데모 빌드` | `windows-demo-build.yml` | 수동 | Windows 빌드와 zip artifact 생성 |
+| `Windows PC 데모 빌드` | `windows-demo-build.yml` | 수동, 파이프라인에서 호출 | Windows 빌드와 zip artifact 생성 |
 | `WebGL 무료 Delivery` | `webgl-free-delivery.yml` | 수동 | WebGL 빌드. `main`에서 `deploy_pages=true`일 때만 GitHub Pages 배포 |
-| `itch.io Development 업로드` | `itchio-development-upload.yml` | 수동 | 기존 Windows artifact를 itch.io `development` 채널에 업로드 |
-| `Windows Release asset 업로드` | `windows-release-asset.yml` | 수동 | 기존 Windows artifact를 GitHub Release asset으로 업로드 |
+| `itch.io Development 업로드` | `itchio-development-upload.yml` | 수동, 파이프라인에서 호출 | Windows artifact를 itch.io에 업로드. 수동은 `development`만, `production`은 파이프라인 호출에서만 |
+| `Windows Release asset 업로드` | `windows-release-asset.yml` | 수동, 파이프라인에서 호출 | Windows artifact를 GitHub Release asset으로 업로드 |
 | `Delivery 선행 헬스체크` | `delivery-healthcheck.yml` | 수동 | LFS와 Unity 라이선스 점검을 묶어 실행 |
 | `LFS 서버 헬스체크` | `lfs-healthcheck.yml` | 수동, 다른 workflow에서 호출 | 사설 LFS 서버 접근 확인 |
 | `Unity 라이선스 헬스체크` | `unity-license-healthcheck.yml` | 수동, 다른 workflow에서 호출 | Unity secret 존재와 형식 확인 |
@@ -34,6 +35,19 @@
 `Windows 패키징 헬스체크`는 PR이 `.github/workflows/windows-demo-build.yml`, `.github/workflows/windows-packaging-healthcheck.yml`, `scripts/package-windows-demo.sh` 중 하나를 바꿀 때만 자동 실행된다. 모의 산출물을 쓰므로 통과해도 실제 Unity 빌드 성공을 보장하지 않는다.
 
 패키징 단계별 입력값과 자동화 범위는 [pc-demo-packaging.md](pc-demo-packaging.md)의 `자동화 범위와 트리거`를 본다.
+
+### 파이프라인 실패 시
+
+`Windows Delivery 파이프라인`은 `실행 계획 결정` → `Windows 빌드` → `itch.io 업로드` 또는 `GitHub Release 생성` 순서로 job을 실행한다. 실패한 job에 따라 대응한다.
+
+| 실패한 job | 대응 |
+| ---------- | ---- |
+| `실행 계획 결정` | tag push에서만 실패한다. tag와 `bundleVersion`이 다르다는 뜻이므로 잘못 만든 tag를 지우고, `bundleVersion`을 올린 커밋에 tag를 다시 만든다. |
+| `Windows 빌드` | 아래 `LFS 실패`, `Unity license 실패`, `Windows 빌드 실패` 절을 따른다. 고친 뒤 run을 다시 실행한다. |
+| `itch.io 업로드` | 빌드 artifact는 남아 있다. 실패한 job만 다시 실행하거나, `itch.io Development 업로드`를 수동 실행하면서 이 파이프라인 run의 id와 artifact 이름을 입력한다. 이 workflow는 원본 run의 종류를 검사하지 않으므로 파이프라인 run id를 그대로 받는다. |
+| `GitHub Release 생성` | 실패한 job만 다시 실행한다. `Windows Release asset 업로드` 수동 실행은 원본 run이 `Windows PC 데모 빌드`여야 하므로 파이프라인 run id를 받지 않는다. |
+
+자동 업로드를 급히 멈춰야 하면 repository variable `DELIVERY_ITCHIO_DEVELOPMENT`를 `false`로 설정한다. 이미 올라간 빌드는 내려가지 않으므로 필요하면 itch.io 대시보드에서 직접 처리한다.
 
 ## 빠른 분류
 

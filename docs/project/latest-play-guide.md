@@ -11,7 +11,9 @@
 - 초기 플랫폼: PC/Windows
 - WebGL/모바일: 현재 최신 플레이 경로의 완료조건이 아님
 
-`Windows PC 데모 빌드` workflow는 main 기준 수동 실행으로 시작한다. main merge마다 자동 게시하지 않는 이유는 최신 빌드를 실제 공개해도 되는지, known issue 안내가 필요한지 아직 사람이 판단해야 하기 때문이다.
+`Windows Delivery 파이프라인` workflow가 `main` 병합마다 Windows 빌드를 만들고 itch.io `development` 채널에 올린다(2026-11-14 추가, 첫 실행 전까지 미검증). 빌드 결과가 달라지는 경로가 바뀐 병합에서만 실행된다. 최신 빌드를 공개하면 안 되는 상황이면 repository variable `DELIVERY_ITCHIO_DEVELOPMENT=false`로 자동 업로드를 끄고, known issue는 itch.io 페이지에 사람이 안내한다. 트리거와 스위치는 [pc-demo-packaging.md](pc-demo-packaging.md)의 `자동화 범위와 트리거`를 본다.
+
+`Windows PC 데모 빌드` workflow는 업로드 없이 빌드만 다시 만들 때 쓰는 수동 경로로 남아 있다.
 
 ## 권장 다운로드 경로
 
@@ -67,11 +69,12 @@ itch.io 페이지 <https://lhtcp.itch.io/lhtcp-srpg>는 비개발자와 외부 �
 itch.io에서 다운로드가 보이려면 다음 중 하나가 필요하다.
 
 - 지시자 또는 배포 담당자가 실제 게임 zip을 itch.io 프로젝트 파일로 수동 업로드한다.
-- `itch.io Development 업로드` workflow가 성공한 Windows artifact의 실제 게임 zip을 `lhtcp/lhtcp-srpg:development` 채널에 업로드한다.
+- `Windows Delivery 파이프라인` workflow가 `main` 병합 후 자동으로 빌드해 `lhtcp/lhtcp-srpg:development` 채널에 업로드한다.
+- `itch.io Development 업로드` workflow를 수동 실행해 성공한 Windows artifact의 실제 게임 zip을 `lhtcp/lhtcp-srpg:development` 채널에 업로드한다.
 
 `itch.io Development 업로드` workflow를 실행하기 전에는 `itch.io Delivery 설정 헬스체크` workflow를 수동 실행해 `BUTLER_API_KEY` secret, `ITCHIO_USERNAME` variable, `ITCHIO_GAME` variable이 준비됐는지 확인한다.
 
-`itch.io Development 업로드` workflow는 Windows 빌드를 새로 만들지 않는다. 먼저 `Windows PC 데모 빌드` workflow가 성공해야 하며, 업로드 실행 시 해당 run id와 artifact 이름을 입력한다. artifact 보관 기간이 지나면 다시 Windows 빌드부터 만들어야 한다.
+수동 실행하는 `itch.io Development 업로드` workflow는 Windows 빌드를 새로 만들지 않는다. 먼저 `Windows PC 데모 빌드` workflow가 성공해야 하며, 업로드 실행 시 해당 run id와 artifact 이름을 입력한다. artifact 보관 기간이 지나면 다시 Windows 빌드부터 만들어야 한다.
 
 Windows 빌드 이후 GitHub Actions cache 저장소가 커지면 `Actions 저장소 정리` workflow를 `cache_prefix=Library-Linux-Unity-6000.3.13f1-StandaloneWindows64-`, `keep_count=1`로 실행해 최신 Windows Unity Library cache만 남긴다. 처음에는 `dry_run=true`로 삭제 대상을 확인하고, 문제가 없을 때 `dry_run=false`로 다시 실행한다.
 
@@ -94,7 +97,7 @@ Release가 게시된 뒤의 다운로드 절차:
 
 Release asset은 실제 게임 zip이므로 Actions artifact처럼 두 번 압축 해제할 필요가 없고, 7일 보관 기간도 적용되지 않는다.
 
-배포 담당자는 `Windows PC 데모 빌드` run이 성공한 뒤 `Windows Release asset 업로드` workflow에 run id, artifact 이름, tag(`v<a.b.c>`)를 입력해 올린다. tag, 덮어쓰기, prerelease 정책은 [release-versioning.md](release-versioning.md)의 `GitHub Release asset 정책`을 따른다.
+배포 담당자가 `bundleVersion`과 같은 `v<a.b.c>` tag를 push하면 `Windows Delivery 파이프라인`이 빌드부터 prerelease Release 생성까지 자동으로 처리한다(미검증). 수동으로 올릴 때는 `Windows PC 데모 빌드` run이 성공한 뒤 `Windows Release asset 업로드` workflow에 run id, artifact 이름, tag(`v<a.b.c>`)를 입력해 올린다. tag, 덮어쓰기, prerelease 정책은 [release-versioning.md](release-versioning.md)의 `GitHub Release asset 정책`을 따른다.
 
 ## 최신 버전 판단
 

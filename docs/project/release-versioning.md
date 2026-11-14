@@ -30,8 +30,9 @@ GitHub Release 생성은 수동 workflow `Windows Release asset 업로드`(`.git
 - `release.json` 파일 추가
 - `release.json` 기준 버전 계산과 주입(현재는 `bundleVersion` 기준)
 - 최신 production tag 대비 patch 증가 검증
-- tag push 기준 자동 릴리스(현재는 수동 실행만 지원)
-- itch.io production 업로드 검증
+- itch.io production 업로드 검증(경로는 구현했지만 기본값은 꺼짐, 게시 이력 없음)
+
+tag push 기준 자동 릴리스는 2026-11-14 `Windows Delivery 파이프라인` workflow로 추가했다. `v<a.b.c>` tag를 push하면 tag와 `bundleVersion` 일치를 확인한 뒤 빌드하고 prerelease Release를 만든다. 실행 기록이 없으므로 미검증이다. 트리거와 스위치는 [pc-demo-packaging.md](pc-demo-packaging.md)의 `자동화 범위와 트리거`를 본다.
 
 ## 기준 메타데이터
 

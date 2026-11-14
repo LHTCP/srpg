@@ -1,8 +1,23 @@
 name: Windows PC 데모 빌드
 
 on:
-  # 첫 Windows Delivery 경로는 비용과 실패 원인 파악을 위해 수동 실행으로 시작한다.
+  # 단독으로는 수동 실행만 받는다. main 병합과 tag push 자동 실행은
+  # `Windows Delivery 파이프라인`(windows-delivery.yml)이 이 workflow를 호출해서 처리한다.
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      channel:
+        description: "BUILD_INFO.txt에 기록할 채널(development 또는 production)"
+        type: string
+        required: false
+        default: development
+    outputs:
+      artifact_name:
+        description: "업로드한 Windows zip artifact 이름"
+        value: ${{ jobs.windows-build.outputs.artifact_name }}
+      full_version:
+        description: "a.b.c.build 형식의 전체 버전"
+        value: ${{ jobs.windows-build.outputs.full_version }}
 
 permissions:
   contents: read
@@ -15,6 +30,9 @@ jobs:
   windows-build:
     name: Windows zip artifact 생성
     runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.version.outputs.artifact_name }}
+      full_version: ${{ steps.version.outputs.full_version }}
     steps:
       - name: 저장소 체크아웃
         uses: actions/checkout@v4
@@ -110,7 +128,8 @@ jobs:
           BASE_VERSION: ${{ steps.version.outputs.base_version }}
           FULL_VERSION: ${{ steps.version.outputs.full_version }}
           BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
-          CHANNEL: development
+          # 수동 실행에는 channel 입력이 없으므로 development로 둔다.
+          CHANNEL: ${{ inputs.channel || 'development' }}
           COMMIT_SHA: ${{ github.sha }}
           SHORT_SHA: ${{ steps.version.outputs.short_sha }}
           BRANCH_NAME: ${{ github.ref_name }}
