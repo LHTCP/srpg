@@ -59,6 +59,7 @@
 | [SRPG_TDD.md](srpg/SRPG_TDD.md) | v2 기술 설계 문서 |
 | [SRPG_레거시_코드_분류.md](srpg/SRPG_레거시_코드_분류.md) | 기존 SRPG 코드 분류(Discard/Rework/Keep/New) |
 | [SRPG_다음미팅_논의사항.md](srpg/SRPG_다음미팅_논의사항.md) | v1 시절 의사결정 메모 |
+| [SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md](srpg/SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md) | 기획 대비 구현 갭 분석, 단계별 진행 계획, 기획 질문 목록 |
 | [SRPG_BACKLOG.md](srpg/SRPG_BACKLOG.md) | v2 후속 과제 목록 |
 | [SRPG_PHASE2_CODE_BACKLOG.md](srpg/SRPG_PHASE2_CODE_BACKLOG.md) | 코드 2차 착수용 파일 단위 백로그 |
 | [SRPG_IMPLEMENTATION_DECISIONS.md](srpg/SRPG_IMPLEMENTATION_DECISIONS.md) | 구현 브릿지와 다음 의사결정 후보 |

@@ -9,8 +9,9 @@
 | 1 | [SRPG_README.md](SRPG_README.md) | 현재 상태와 실행/검증 진입점 |
 | 2 | [SRPG_전투규칙_기준서_v2.md](SRPG_전투규칙_기준서_v2.md) | 단일 전투 규칙 기준서 |
 | 3 | [new/SRPG_NEW_DIALOG_POLICY_LOCK.md](new/SRPG_NEW_DIALOG_POLICY_LOCK.md) | 확정 규칙(`RQ-*`)과 미정 항목(`TBD-*`) 잠금표 |
-| 4 | [SRPG_BACKLOG.md](SRPG_BACKLOG.md) | 지금 진행할 스프린트와 후속 과제 |
-| 5 | [SRPG_PHASE2_CODE_BACKLOG.md](SRPG_PHASE2_CODE_BACKLOG.md) | 파일 단위 코드 착수 계획 |
+| 4 | [SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md](SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md) | 기획 대비 구현 갭, 단계별 진행 계획, 기획 질문 목록 |
+| 5 | [SRPG_BACKLOG.md](SRPG_BACKLOG.md) | 지금 진행할 스프린트와 후속 과제 |
+| 6 | [SRPG_PHASE2_CODE_BACKLOG.md](SRPG_PHASE2_CODE_BACKLOG.md) | 파일 단위 코드 착수 계획 |
 
 ## 문서 계층
 
@@ -18,7 +19,7 @@
 | --- | --- | --- |
 | 기준 | `SRPG_전투규칙_기준서_v2.md`, `new/SRPG_NEW_DIALOG_POLICY_LOCK.md` | 규칙 충돌 시 최우선으로 따른다. |
 | 설계 | `SRPG_GDD.md`, `SRPG_TDD.md` | 기준 규칙을 게임/기술 계약으로 풀어 쓴다. |
-| 실행 | `SRPG_BACKLOG.md`, `SRPG_PHASE2_CODE_BACKLOG.md` | 다음 구현 순서와 파일별 작업 단위를 관리한다. |
+| 실행 | `SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md`, `SRPG_BACKLOG.md`, `SRPG_PHASE2_CODE_BACKLOG.md` | 다음 구현 순서와 파일별 작업 단위를 관리한다. |
 | 검증 | `SRPG_GDD_TEST_TRACEABILITY.md`, `SRPG_M1_QA_TEST_RUNNER_CHECKLIST.md`, `SRPG_AI_SIMULATION_GUIDE.md` | 테스트 커버, QA, 시뮬레이션 확인에 사용한다. |
 | 의사결정 | `SRPG_IMPLEMENTATION_DECISIONS.md` | 구현 브릿지와 다음 목표 의사결정 후보를 관리한다. |
 | 구현 지시 | `SRPG_BALANCE_FEEDBACK_EXECUTION_PROMPT_2026-06-15.md` | PG 붕괴/그로기/처단/피해 페이싱 밸런스 후속 구현 프롬프트. |
@@ -26,6 +27,8 @@
 | 원문 | `new/*.txt`, `new/*.md`, PDF/DOCX 변환본 | 기준서가 놓친 맥락 확인에만 사용한다. |
 
 ## 현재 실행 플랜
+
+재개 시점(2026-11-14)의 단계별 계획은 [SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md](SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md)가 우선한다. 1차(구현된 것의 검토와 개선)는 반영됐고, 다음은 2차(그로기 1턴 무방비와 회복)와 3차(플레이 루프 완성)다. 아래 목록은 일시중지 이전에 잡아 둔 후속 후보로, 위 계획의 4~5차에 해당한다.
 
 현재 다음 스프린트는 `SRPG_BACKLOG.md`의 "후속 스프린트 (밸런스/검증, P2)"와 `SRPG_IMPLEMENTATION_DECISIONS.md`의 2026-06-03 의사결정 후보를 따른다. 이미 구현한 항목의 브릿지 수치와 다음 의사결정은 `SRPG_IMPLEMENTATION_DECISIONS.md`를 확인한다.
 

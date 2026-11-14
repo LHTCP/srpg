@@ -1,5 +1,19 @@
 # SRPG 변경 이력
 
+## 2026-11-14
+
+- 재개 시점 갭 분석과 진행 계획
+  - `SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md` 추가: 기준서 v2/밸런스 피드백 대비 구현 상태, 단계별 계획, 기획 질문 Q1~Q10
+  - GDD 미정 수치의 경계태세 표기 정정, 마스터플랜/레거시 코드 분류/밸런스 피드백 프롬프트에 현재 상태 안내 추가
+- 1차 개선(구현된 것의 버그/기획 어긋남 수정)
+  - `SrpSkills.OnAttackResolved`: 회피/패링으로 무효화된 공격에는 공격 적중 패시브를 발동하지 않음
+  - `SrpSkills` 스킬 피해: 처치 직후 교전 상태 재계산, 생존 대상의 피격 패시브 발동
+  - `SrpGameController.CanSetSelectedStance`: AP를 쓴 뒤에는 태세 변경 불가(엄폐/상호작용 뒤 변경 가능하던 문제)
+  - `SrpBattleSimRunner`: 이동/처치 후 교전 상태 재계산
+  - `SrpCombatResolverTests`: `SrpM1All` 카테고리 추가, 테스트 3건 추가
+  - 그로기 회복 브릿지는 시험 구현 결과 전투 고착이 확인돼 반영하지 않음(`SRPG_IMPLEMENTATION_DECISIONS.md` 2026-11-14 절)
+  - 검증: Unity 미실행(라이선스 미활성). 저장소 밖 .NET 하네스로 순수 로직 EditMode 테스트 실행, `scripts/validate-repo.sh` 통과
+
 ## 2026-06-15
 
 - Combat balance review correction
