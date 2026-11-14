@@ -96,6 +96,25 @@ public static class SrpCombatTagUtility
         }
     }
 
+    /// <summary>유닛이 가진 태그와 남은 지속(만료 라운드까지 남은 라운드 수)을 함께 적는다.</summary>
+    public static string BuildSummary(SrpUnitRuntime unit, int currentRound)
+    {
+        if (unit == null || unit.combatTags == 0)
+            return string.Empty;
+
+        var parts = new List<string>();
+        foreach (var tag in new[] { SrpCombatTag.Marked, SrpCombatTag.BalanceBroken, SrpCombatTag.KillOrder })
+        {
+            if (!unit.HasCombatTag(tag))
+                continue;
+            int expireRound = unit.GetCombatTagExpireRound(tag);
+            parts.Add(expireRound > 0
+                ? $"{GetDisplayName(tag)}({Mathf.Max(0, expireRound - currentRound) + 1}R)"
+                : GetDisplayName(tag));
+        }
+        return string.Join("/", parts);
+    }
+
     public static string BuildSummary(SrpCombatTag tags)
     {
         if (tags == SrpCombatTag.None)
@@ -121,6 +140,7 @@ public class SrpUnitRuntime
     public const int DefaultFirearmMaxAmmo = 1;
     public const int DefaultHumanFirearmRange = 3;
     public const int GroggyRecoveryPgPercent = 35;
+    const int CombatTagSlots = 3;
 
     public int id;
     public string templateId;
@@ -152,6 +172,11 @@ public class SrpUnitRuntime
     public int frozenHeart;
     public int tags;
     public int combatTags;
+    /// <summary>
+    /// 전투 태그별 만료 라운드(태그 비트 순서). 0이면 소모 전까지 유지한다.
+    /// 값이 R이면 R라운드가 끝날 때까지 유지하고 R+1라운드 시작에 사라진다.
+    /// </summary>
+    public int[] combatTagExpireRounds = new int[CombatTagSlots];
     public List<string> skillIds = new List<string>();
     public List<SrpSkillRuntime> skillRuntimes = new List<SrpSkillRuntime>();
 
@@ -212,6 +237,7 @@ public class SrpUnitRuntime
             frozenHeart = frozenHeart,
             tags = tags,
             combatTags = combatTags,
+            combatTagExpireRounds = (int[])combatTagExpireRounds.Clone(),
             skillIds = new List<string>(skillIds),
             groggy = groggy,
             pgBreakGuard = pgBreakGuard,
@@ -250,21 +276,66 @@ public class SrpUnitRuntime
         return (combatTags & (int)tag) != 0;
     }
 
-    public void AddCombatTag(SrpCombatTag tag)
+    /// <summary>
+    /// 전투 태그를 부여하거나 갱신한다. expireRound가 0이면 소모 전까지 유지하고,
+    /// 양수면 그 라운드가 끝날 때까지 유지한다. 이미 있는 태그는 만료가 새 값으로 바뀐다.
+    /// </summary>
+    public void AddCombatTag(SrpCombatTag tag, int expireRound = 0)
     {
         combatTags |= (int)tag;
+        SetCombatTagExpireRounds(tag, expireRound > 0 ? expireRound : 0);
     }
 
     public void RemoveCombatTag(SrpCombatTag tag)
     {
         combatTags &= ~(int)tag;
+        SetCombatTagExpireRounds(tag, 0);
     }
 
     public SrpCombatTag ConsumeCombatTags(SrpCombatTag mask)
     {
         var consumed = (SrpCombatTag)(combatTags & (int)mask);
         combatTags &= ~(int)consumed;
+        SetCombatTagExpireRounds(consumed, 0);
         return consumed;
+    }
+
+    /// <summary>태그의 만료 라운드. 0이면 만료 없음(또는 태그 없음).</summary>
+    public int GetCombatTagExpireRound(SrpCombatTag tag)
+    {
+        for (int slot = 0; slot < CombatTagSlots; slot++)
+        {
+            if (((int)tag & (1 << slot)) != 0)
+                return combatTagExpireRounds[slot];
+        }
+        return 0;
+    }
+
+    /// <summary>만료 라운드가 지난 태그를 지운다. 지운 태그를 돌려준다.</summary>
+    public SrpCombatTag ExpireCombatTags(int currentRound)
+    {
+        var expired = SrpCombatTag.None;
+        for (int slot = 0; slot < CombatTagSlots; slot++)
+        {
+            int bit = 1 << slot;
+            if ((combatTags & bit) == 0)
+                continue;
+            int expireRound = combatTagExpireRounds[slot];
+            if (expireRound > 0 && currentRound > expireRound)
+                expired |= (SrpCombatTag)bit;
+        }
+        if (expired != SrpCombatTag.None)
+            RemoveCombatTag(expired);
+        return expired;
+    }
+
+    void SetCombatTagExpireRounds(SrpCombatTag tags, int expireRound)
+    {
+        for (int slot = 0; slot < CombatTagSlots; slot++)
+        {
+            if (((int)tags & (1 << slot)) != 0)
+                combatTagExpireRounds[slot] = expireRound;
+        }
     }
 
     /// <summary>PG 붕괴(그로기 포함) 상태. 다음 활성화에서 회복할 때까지 행동·반응을 하지 못한다.</summary>

@@ -61,6 +61,8 @@ public class SrpSkillData
     public int overclockPowerBonus;
     public bool isParryable;
     public bool requiresParryTelegraph;
+    /// <summary>대상 칸까지의 시야 규칙. 값이 없는 기존 데이터는 None(시야 불필요)으로 읽힌다.</summary>
+    public SrpSightRule sightRule;
     public SrpSkillEffect[] effects = Array.Empty<SrpSkillEffect>();
 }
 

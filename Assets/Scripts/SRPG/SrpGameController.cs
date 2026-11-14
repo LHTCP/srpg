@@ -318,6 +318,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         _hoverTileY = y;
         if (_phase != Phase.UnitActive || !_selectedId.HasValue)
         {
+            ShowSkillAreaHover(x, y);
             UpdateHud();
             return;
         }
@@ -373,6 +374,19 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
             }
         }
         UpdateHud();
+    }
+
+    /// <summary>범위 스킬 대상을 고르는 중이면 마우스를 올린 칸 기준 효과 범위를 표시한다.</summary>
+    void ShowSkillAreaHover(int x, int y)
+    {
+        if (_phase != Phase.SelectingSkillTarget || !SrpSkills.IsAreaSkill(_pendingSkillData))
+            return;
+
+        ClearOverlayLayer(OverlayHover);
+        if (!_skillTargetTiles.Contains(new Vector2Int(x, y)))
+            return;
+        foreach (var tile in SrpSkills.GetSkillAreaTiles(_pendingSkillData, x, y, _state))
+            SetOverlayTile(OverlayHover, tile.x, tile.y, new Color(1f, 0.55f, 0.2f));
     }
 
     public void OnTileHoverExit(int x, int y)

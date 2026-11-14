@@ -286,6 +286,7 @@ public class SrpM1RuleSpecTests
         Assert.AreEqual(beforePg, defender.pg, "패링이 PG 피해를 무효화하지 않았습니다.");
         Assert.AreEqual(12, attacker.pg, "패링 성공 보상 PG 피해가 공격자에게 적용되지 않았습니다.");
         Assert.IsTrue(attacker.HasCombatTag(SrpCombatTag.BalanceBroken), "패링 성공이 공격자에게 균형 붕괴를 부여하지 않았습니다.");
+        Assert.AreEqual(state.RoundNumber + 1, attacker.GetCombatTagExpireRound(SrpCombatTag.BalanceBroken), "패링 균형 붕괴가 다음 라운드 끝까지 유지되도록 기록되지 않았습니다.");
         Assert.AreEqual(8, outcome.parryCounterDamageToPg, "패링 PG 보상 수치가 결과에 기록되지 않았습니다.");
         Assert.IsTrue(outcome.parryAppliedBalanceBreak, "패링 균형 붕괴 보상 플래그가 기록되지 않았습니다.");
     }

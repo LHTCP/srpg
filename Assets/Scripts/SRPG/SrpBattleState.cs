@@ -420,6 +420,19 @@ public class SrpBattleState
         return Walkable[Index(x, y)];
     }
 
+    /// <summary>
+    /// 이 칸이 사선(시야·사격) 중간에서 시야를 막는가. 이동 불가 타일은 막되,
+    /// 시야를 막지 않는 엄폐물(blocksLineOfSight = false)이 놓인 칸은 통과시킨다.
+    /// </summary>
+    public bool BlocksSightTile(int x, int y)
+    {
+        if (!InBounds(x, y))
+            return true;
+        if (Walkable[Index(x, y)])
+            return false;
+        return !TryGetCoverObjectAt(x, y, out var coverObject) || coverObject.blocksLineOfSight;
+    }
+
     public bool IsCoverTile(int x, int y)
     {
         return TryGetCoverObjectAt(x, y, out _);

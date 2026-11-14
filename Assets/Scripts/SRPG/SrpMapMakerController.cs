@@ -19,8 +19,14 @@ public class SrpMapMakerController : MonoBehaviour
     SrpUnitTemplateData[] _allUnits = Array.Empty<SrpUnitTemplateData>();
     SrpSkillData[] _allSkills = Array.Empty<SrpSkillData>();
 
-    enum EditMode { Terrain, PlaceUnit, RemoveUnit }
+    enum EditMode { Terrain, PlaceUnit, RemoveUnit, CoverObject, CoverSegment }
     EditMode _editMode = EditMode.Terrain;
+
+    // 엄폐 편집 데이터. 규칙은 SrpMapCoverEdit(순수 로직)에 있다.
+    readonly List<SrpCoverObjectData> _coverObjects = new List<SrpCoverObjectData>();
+    readonly List<SrpCoverSegmentData> _coverSegments = new List<SrpCoverSegmentData>();
+    readonly List<GameObject> _coverMarkers = new List<GameObject>();
+    bool _coverBlocksLineOfSight = true;
     int _selectedUnitIndex = -1;
     int _placementOwner;
 
@@ -55,6 +61,9 @@ public class SrpMapMakerController : MonoBehaviour
     Button _btnModeTerrain;
     Button _btnModePlace;
     Button _btnModeRemove;
+    Button _btnModeCoverObject;
+    Button _btnModeCoverSegment;
+    Button _btnCoverLineOfSight;
     int _selectedPlacementIndex = -1;
     GameObject _unitSkillPanel;
     readonly List<(GameObject go, Toggle toggle, string skillId)> _unitSkillToggles
@@ -73,6 +82,8 @@ public class SrpMapMakerController : MonoBehaviour
     static readonly Color AccentYellow = new Color(1f, 0.92f, 0.45f);
     static readonly Color WalkColor  = new Color(0.55f, 0.65f, 0.45f);
     static readonly Color BlockColor = new Color(0.35f, 0.3f, 0.28f);
+    static readonly Color CoverSightBlockColor = new Color(0.16f, 0.17f, 0.22f);
+    static readonly Color CoverLowColor = new Color(0.85f, 0.70f, 0.38f);
 
     // ── 생명주기 ──────────────────────────────────────────────────────────────
 
@@ -130,6 +141,8 @@ public class SrpMapMakerController : MonoBehaviour
         for (int i = 0; i < _walkable.Length; i++)
             _walkable[i] = true;
         _placements.Clear();
+        _coverObjects.Clear();
+        _coverSegments.Clear();
         // 그리드를 새로 만들면 새 맵이므로 이전에 불러온 맵의 승리 조건/상호작용 포인트도 비운다.
         _carryOver = new SrpMapCarryOver();
     }
@@ -157,6 +170,7 @@ public class SrpMapMakerController : MonoBehaviour
         }
         RefreshAllTileColors();
         RefreshUnitMarkers();
+        RefreshCoverMarkers();
     }
 
     void ClearGrid()
@@ -166,6 +180,51 @@ public class SrpMapMakerController : MonoBehaviour
         foreach (var kv in _unitMarkers)
             if (kv.Value != null) Destroy(kv.Value);
         _unitMarkers.Clear();
+        foreach (var marker in _coverMarkers)
+            if (marker != null) Destroy(marker);
+        _coverMarkers.Clear();
+    }
+
+    /// <summary>엄폐물(칸 위 상자)과 엄폐 segment(칸 가장자리 벽) 표시를 다시 만든다. 어두운 색은 시야 차단이다.</summary>
+    void RefreshCoverMarkers()
+    {
+        foreach (var marker in _coverMarkers)
+            if (marker != null) Destroy(marker);
+        _coverMarkers.Clear();
+
+        foreach (var coverObject in _coverObjects)
+        {
+            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cube.name = $"coverObject_{coverObject.x}_{coverObject.y}";
+            Destroy(cube.GetComponent<Collider>());
+            float height = coverObject.blocksLineOfSight ? 0.7f : 0.4f;
+            cube.transform.position = new Vector3(coverObject.x * _cellSize, 0.08f + height * 0.5f, coverObject.y * _cellSize);
+            cube.transform.localScale = new Vector3(_cellSize * 0.6f, height, _cellSize * 0.6f);
+            ApplyColor(cube.GetComponent<Renderer>(), coverObject.blocksLineOfSight ? CoverSightBlockColor : CoverLowColor);
+            _coverMarkers.Add(cube);
+        }
+
+        foreach (var segment in _coverSegments)
+        {
+            var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            wall.name = $"coverSegment_{segment.x}_{segment.y}_{segment.edge}";
+            Destroy(wall.GetComponent<Collider>());
+            float height = segment.blocksLineOfSight ? 0.5f : 0.3f;
+            float edgeOffset = _cellSize * 0.45f;
+            float px = segment.x * _cellSize;
+            float pz = segment.y * _cellSize;
+            bool alongX = segment.edge == SrpCoverEdge.North || segment.edge == SrpCoverEdge.South;
+            if (segment.edge == SrpCoverEdge.North) pz += edgeOffset;
+            else if (segment.edge == SrpCoverEdge.South) pz -= edgeOffset;
+            else if (segment.edge == SrpCoverEdge.East) px += edgeOffset;
+            else px -= edgeOffset;
+            wall.transform.position = new Vector3(px, 0.08f + height * 0.5f, pz);
+            wall.transform.localScale = alongX
+                ? new Vector3(_cellSize * 0.9f, height, _cellSize * 0.08f)
+                : new Vector3(_cellSize * 0.08f, height, _cellSize * 0.9f);
+            ApplyColor(wall.GetComponent<Renderer>(), segment.blocksLineOfSight ? CoverSightBlockColor : CoverLowColor);
+            _coverMarkers.Add(wall);
+        }
     }
 
     void RefreshAllTileColors()
@@ -289,6 +348,29 @@ public class SrpMapMakerController : MonoBehaviour
                 RefreshPlacementList();
                 if (_unitSkillPanel != null) _unitSkillPanel.SetActive(false);
                 break;
+
+            case EditMode.CoverObject:
+            {
+                bool added = SrpMapCoverEdit.ToggleCoverObject(_coverObjects, x, y, _coverBlocksLineOfSight);
+                if (added)
+                {
+                    // 기본 맵과 같이 엄폐물이 놓인 칸은 이동 불가로 둔다. 지울 때는 지형을 그대로 둔다.
+                    _walkable[y * _mapWidth + x] = false;
+                    ApplyColor(_tileRenderers[x, y], BlockColor);
+                }
+                RefreshCoverMarkers();
+                SetStatus(added ? $"엄폐물 배치 ({x},{y})" : $"엄폐물 제거 ({x},{y})");
+                break;
+            }
+
+            case EditMode.CoverSegment:
+            {
+                var edge = SrpMapCoverEdit.ResolveEdge(hit.x / _cellSize - x, hit.z / _cellSize - y);
+                bool added = SrpMapCoverEdit.ToggleCoverSegment(_coverSegments, x, y, edge, _coverBlocksLineOfSight);
+                RefreshCoverMarkers();
+                SetStatus(added ? $"엄폐 벽 배치 ({x},{y}) {edge}" : $"엄폐 벽 제거 ({x},{y}) {edge}");
+                break;
+            }
         }
     }
 
@@ -377,6 +459,13 @@ public class SrpMapMakerController : MonoBehaviour
         _btnModeTerrain = MakeButtonInParent(modeRow.transform, "지형", () => SetMode(EditMode.Terrain), BtnActive, 1f);
         _btnModePlace   = MakeButtonInParent(modeRow.transform, "배치", () => SetMode(EditMode.PlaceUnit), BtnNormal, 1f);
         _btnModeRemove  = MakeButtonInParent(modeRow.transform, "제거", () => SetMode(EditMode.RemoveUnit), BtnNormal, 1f);
+
+        // 엄폐 편집: 엄폐물은 칸을 클릭, 엄폐 벽은 칸 안에서 놓을 가장자리 쪽을 클릭한다. 다시 클릭하면 지운다.
+        var coverRow = MakeHRow(form, 48);
+        _btnModeCoverObject  = MakeButtonInParent(coverRow.transform, "엄폐물", () => SetMode(EditMode.CoverObject), BtnNormal, 1f);
+        _btnModeCoverSegment = MakeButtonInParent(coverRow.transform, "엄폐 벽", () => SetMode(EditMode.CoverSegment), BtnNormal, 1f);
+        _btnCoverLineOfSight = MakeButtonInParent(coverRow.transform, "시야 차단: 켬", OnToggleCoverLineOfSight, BtnNormal, 1f);
+        MakeLabelInLayout(form, "엄폐물: 칸 클릭 / 엄폐 벽: 칸의 가장자리 쪽 클릭 / 다시 클릭하면 제거", 16, new Color(0.7f, 0.8f, 0.9f), 22);
 
         MakeSep(form);
 
@@ -602,6 +691,20 @@ public class SrpMapMakerController : MonoBehaviour
         SetBtnColor(_btnModeTerrain, _editMode == EditMode.Terrain ? BtnActive : BtnNormal);
         SetBtnColor(_btnModePlace,   _editMode == EditMode.PlaceUnit ? BtnActive : BtnNormal);
         SetBtnColor(_btnModeRemove,  _editMode == EditMode.RemoveUnit ? BtnActive : BtnNormal);
+        SetBtnColor(_btnModeCoverObject,  _editMode == EditMode.CoverObject ? BtnActive : BtnNormal);
+        SetBtnColor(_btnModeCoverSegment, _editMode == EditMode.CoverSegment ? BtnActive : BtnNormal);
+    }
+
+    /// <summary>새로 놓는 엄폐가 시야(LOS)를 막는지 전환한다. 이미 놓인 엄폐는 바뀌지 않는다.</summary>
+    void OnToggleCoverLineOfSight()
+    {
+        _coverBlocksLineOfSight = !_coverBlocksLineOfSight;
+        if (_btnCoverLineOfSight != null)
+        {
+            var label = _btnCoverLineOfSight.GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null)
+                label.text = _coverBlocksLineOfSight ? "시야 차단: 켬" : "시야 차단: 끔";
+        }
     }
 
     static void SetBtnColor(Button btn, Color c)
@@ -669,6 +772,7 @@ public class SrpMapMakerController : MonoBehaviour
             for (int i = 0; i < _walkable.Length; i++) _walkable[i] = true;
 
         _carryOver = SrpMapCarryOver.Capture(map);
+        SrpMapCoverEdit.Load(map, _coverObjects, _coverSegments);
         _placements.Clear();
         if (map.placements != null)
         {
@@ -757,6 +861,7 @@ public class SrpMapMakerController : MonoBehaviour
             placements = placements.ToArray(),
         };
         _carryOver.ApplyTo(map);
+        SrpMapCoverEdit.ApplyTo(map, _coverObjects, _coverSegments);
         return map;
     }
 

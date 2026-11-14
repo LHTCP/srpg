@@ -75,10 +75,35 @@ public static class SrpSkills
         bool hasDamage = false;
         foreach (var eff in data.effects)
         {
-            if (eff != null && eff.type == SrpEffectType.Damage && eff.value > 0)
+            if (eff == null)
+                continue;
+            // 레거시 Cleave는 공격력 + 값을 기준 피해로 삼아 Damage와 같은 경로를 탄다.
+            if (eff.type == SrpEffectType.Damage && eff.value > 0)
+                hasDamage = true;
+            else if (eff.type == SrpEffectType.Cleave && caster.attackPower + eff.value > 0)
                 hasDamage = true;
         }
         return hasDamage && SrpCombatResolver.CanDefenderDodge(state, caster, target);
+    }
+
+    /// <summary>스킬의 시야 규칙(sightRule)으로 시전자에서 대상 칸까지 시야가 통하는가.</summary>
+    public static bool HasSightToTile(SrpSkillData data, SrpUnitRuntime caster, int x, int y, SrpBattleState state)
+    {
+        if (data == null || caster == null || state == null)
+            return false;
+        var occupant = state.GetOccupant(x, y);
+        return SrpLineOfSight.HasSight(
+            state, caster.anchorX, caster.anchorY, x, y, data.sightRule,
+            caster.id, occupant != null ? occupant.id : -1);
+    }
+
+    /// <summary>시전자가 이 칸을 스킬 대상으로 지정할 수 있는가(사거리와 시야). 대상 유형별 점유 조건은 보지 않는다.</summary>
+    public static bool IsTileInSkillReach(SrpSkillData data, SrpUnitRuntime caster, int x, int y, SrpBattleState state)
+    {
+        if (data == null || caster == null || state == null || !state.InBounds(x, y))
+            return false;
+        int dist = Mathf.Max(Mathf.Abs(x - caster.anchorX), Mathf.Abs(y - caster.anchorY));
+        return dist <= data.range && HasSightToTile(data, caster, x, y, state);
     }
 
     public static List<Vector2Int> GetSkillTargetTiles(SrpSkillData data, SrpUnitRuntime caster, SrpBattleState state)
@@ -92,6 +117,7 @@ public static class SrpSkills
         {
             int dist = Mathf.Max(Mathf.Abs(x - caster.anchorX), Mathf.Abs(y - caster.anchorY));
             if (dist > range) continue;
+            if (!HasSightToTile(data, caster, x, y, state)) continue;
 
             switch (data.targetType)
             {
@@ -125,17 +151,113 @@ public static class SrpSkills
         SrpUnitRuntime caster, int targetX, int targetY,
         SrpBattleState state, System.Action<string> log)
     {
-        SrpUnitRuntime target = state.GetOccupant(targetX, targetY);
-        if (target == null && data.targetType == SrpTargetType.Self)
-            target = caster;
+        var targets = GetSkillAffectedUnits(data, caster, targetX, targetY, state);
 
         EnsureRuntimeInitialized(data, runtime);
-        ApplyEffects(data, runtime, caster, target, state, log);
+        if (targets.Count == 0)
+        {
+            // 대상이 없어도 시전자에게 걸리는 효과(안정도 등)는 적용한다.
+            ApplyEffects(data, runtime, caster, null, state, log);
+        }
+        else
+        {
+            // 시전자 자신에게 걸리는 효과는 대상 수와 무관하게 한 번만 적용한다.
+            for (int i = 0; i < targets.Count; i++)
+                ApplyEffects(data, runtime, caster, targets[i], state, log, applySelfEffects: i == 0);
+        }
         ConsumeOverclockPowerIfNeeded(data, runtime, log);
         SpendSkillResource(data, runtime);
         runtime.cooldownRemaining = data.cooldown;
-        string targetName = target != null ? target.displayName : $"({targetX},{targetY})";
+        string targetName;
+        if (IsAreaSkill(data))
+            targetName = $"({targetX},{targetY}) 범위 {targets.Count}명";
+        else
+            targetName = targets.Count > 0 ? targets[0].displayName : $"({targetX},{targetY})";
         log?.Invoke($"스킬 사용: {caster.displayName} → {data.displayName} → {targetName}");
+    }
+
+    public static bool IsAreaSkill(SrpSkillData data)
+    {
+        return data != null
+            && (data.targetType == SrpTargetType.AreaEnemy || data.targetType == SrpTargetType.AreaAlly);
+    }
+
+    /// <summary>
+    /// 스킬이 덮는 칸. 범위 스킬은 대상 칸을 중심으로 areaSize칸 반경의 정사각형(1이면 3x3)이고,
+    /// 그 밖의 스킬은 대상 칸 하나다. 맵 밖의 칸은 뺀다.
+    /// </summary>
+    public static List<Vector2Int> GetSkillAreaTiles(SrpSkillData data, int centerX, int centerY, SrpBattleState state)
+    {
+        var tiles = new List<Vector2Int>();
+        if (data == null || state == null)
+            return tiles;
+
+        int radius = IsAreaSkill(data) ? Mathf.Max(0, data.areaSize) : 0;
+        for (int y = centerY - radius; y <= centerY + radius; y++)
+        for (int x = centerX - radius; x <= centerX + radius; x++)
+        {
+            if (state.InBounds(x, y))
+                tiles.Add(new Vector2Int(x, y));
+        }
+        return tiles;
+    }
+
+    /// <summary>
+    /// 이 칸을 대상으로 스킬을 쓰면 효과를 받는 유닛. 범위 스킬은 지정한 진영만 받는다
+    /// (AreaEnemy는 적, AreaAlly는 시전자를 포함한 아군). 가까운 순, 같으면 id 순으로 돌려준다.
+    /// </summary>
+    public static List<SrpUnitRuntime> GetSkillAffectedUnits(
+        SrpSkillData data, SrpUnitRuntime caster, int targetX, int targetY, SrpBattleState state)
+    {
+        var units = new List<SrpUnitRuntime>();
+        if (data == null || caster == null || state == null)
+            return units;
+
+        if (!IsAreaSkill(data))
+        {
+            var single = state.GetOccupant(targetX, targetY);
+            if (single == null && data.targetType == SrpTargetType.Self)
+                single = caster;
+            if (single != null)
+                units.Add(single);
+            return units;
+        }
+
+        int radius = Mathf.Max(0, data.areaSize);
+        bool wantsEnemy = data.targetType == SrpTargetType.AreaEnemy;
+        foreach (var unit in state.Units)
+        {
+            if (unit == null || unit.eliminated)
+                continue;
+            if ((unit.owner != caster.owner) != wantsEnemy)
+                continue;
+            if (FootprintDistanceToTile(unit, targetX, targetY) > radius)
+                continue;
+            units.Add(unit);
+        }
+        units.Sort((a, b) =>
+        {
+            int da = FootprintDistanceToTile(a, targetX, targetY);
+            int db = FootprintDistanceToTile(b, targetX, targetY);
+            return da != db ? da.CompareTo(db) : a.id.CompareTo(b.id);
+        });
+        return units;
+    }
+
+    /// <summary>유닛이 차지한 칸 중 대상 칸에 가장 가까운 칸까지의 거리(대각선 포함). 여러 칸 유닛은 한 칸만 걸쳐도 범위에 든다.</summary>
+    static int FootprintDistanceToTile(SrpUnitRuntime unit, int x, int y)
+    {
+        if (unit.footprintOffsets == null || unit.footprintOffsets.Count == 0)
+            return Mathf.Max(Mathf.Abs(unit.anchorX - x), Mathf.Abs(unit.anchorY - y));
+
+        int best = int.MaxValue;
+        foreach (var off in unit.footprintOffsets)
+        {
+            int dist = Mathf.Max(Mathf.Abs(unit.anchorX + off.x - x), Mathf.Abs(unit.anchorY + off.y - y));
+            if (dist < best)
+                best = dist;
+        }
+        return best;
     }
 
     public static void EnsureRuntimeInitialized(SrpSkillData data, SrpSkillRuntime runtime)
@@ -273,17 +395,25 @@ public static class SrpSkills
     }
 
     static void ApplyEffects(SrpSkillData data, SrpSkillRuntime runtime, SrpUnitRuntime caster, SrpUnitRuntime target,
-        SrpBattleState state, System.Action<string> log)
+        SrpBattleState state, System.Action<string> log, bool applySelfEffects = true)
     {
         if (data.effects == null) return;
         foreach (var eff in data.effects)
         {
+            if (eff == null) continue;
+            // 범위 스킬의 두 번째 대상부터는 시전자 자신에게 걸리는 효과를 다시 적용하지 않는다.
+            if (!applySelfEffects && eff.stat == "self"
+                && (eff.type == SrpEffectType.FrozenHeart || eff.type == SrpEffectType.ApplyCombatTag))
+                continue;
+
             switch (eff.type)
             {
                 case SrpEffectType.Damage:
+                case SrpEffectType.Cleave:
                 {
                     if (target == null) break;
-                    int baseDmg = eff.value;
+                    // Cleave는 레거시 효과다. 공격력 + 값을 기준 피해로 삼고 Damage와 같은 방어·반응·태그 규칙을 탄다.
+                    int baseDmg = eff.type == SrpEffectType.Cleave ? caster.attackPower + eff.value : eff.value;
                     int dmg = ApplyOverclockPowerBonus(data, runtime, baseDmg);
                     if (dmg <= 0) break;
                     int pgDmg = Mathf.Max(1, dmg / 2);
@@ -348,26 +478,11 @@ public static class SrpSkills
                         break;
                     if (!SrpCombatTagUtility.TryParse(eff.stat, out var tag) && !SrpCombatTagUtility.TryParse(eff.value.ToString(), out tag))
                         break;
-                    affected.AddCombatTag(tag);
-                    log?.Invoke($"전투 태그: {affected.displayName} | {SrpCombatTagUtility.GetDisplayName(tag)} 부여/갱신");
-                    break;
-                }
-                case SrpEffectType.Cleave:
-                {
-                    if (target == null) break;
-                    int dmg = caster.attackPower + eff.value;
-                    target.hp -= dmg;
-                    log?.Invoke($"강타 피해: {target.displayName} | HP-{dmg}");
-                    if (target.hp <= 0)
-                    {
-                        state.RemoveUnit(target);
-                        state.RebuildEngagements();
-                        log?.Invoke($"사망: {target.displayName}");
-                    }
-                    else if (dmg > 0 && target != caster)
-                    {
-                        OnTakeDamage(target, state, log);
-                    }
+                    // duration N: 부여한 라운드를 빼고 N라운드가 끝날 때까지 유지한다. 0이면 소모 전까지 유지한다.
+                    int expireRound = eff.duration > 0 ? state.RoundNumber + eff.duration : 0;
+                    affected.AddCombatTag(tag, expireRound);
+                    string durationText = expireRound > 0 ? $" | {expireRound}라운드 끝까지" : string.Empty;
+                    log?.Invoke($"전투 태그: {affected.displayName} | {SrpCombatTagUtility.GetDisplayName(tag)} 부여/갱신{durationText}");
                     break;
                 }
             }

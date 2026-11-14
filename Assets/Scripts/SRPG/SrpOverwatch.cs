@@ -264,7 +264,8 @@ public static class SrpFirearmAim
         return true;
     }
 
-    static List<Vector2Int> BuildAimTiles(int startX, int startY, int targetX, int targetY)
+    /// <summary>두 칸을 잇는 사선이 지나는 칸(출발 칸 제외, 도착 칸 포함). 시야 판정(SrpLineOfSight)과 공유한다.</summary>
+    public static List<Vector2Int> BuildAimTiles(int startX, int startY, int targetX, int targetY)
     {
         var tiles = new List<Vector2Int>();
         int dx = targetX - startX;
@@ -288,7 +289,7 @@ public static class SrpFirearmAim
 
     static bool IsLineTileOpen(SrpBattleState state, int shooterId, int exceptUnitId, int x, int y)
     {
-        if (!state.InBounds(x, y) || !state.IsWalkableTile(x, y))
+        if (state.BlocksSightTile(x, y))
             return false;
 
         var occupant = state.GetOccupant(x, y);

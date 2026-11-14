@@ -177,7 +177,7 @@ public static class SrpEnemyAi
             {
                 if (unit == null || unit.eliminated || unit.owner == actor.owner)
                     continue;
-                if (state.ChebyshevAnchor(actor, unit) > data.range)
+                if (!SrpSkills.IsTileInSkillReach(data, actor, unit.anchorX, unit.anchorY, state))
                     continue;
 
                 int score = (unit.maxHp - unit.hp) * 2 + (unit.maxPg - unit.pg);

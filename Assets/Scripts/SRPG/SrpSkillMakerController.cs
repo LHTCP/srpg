@@ -35,6 +35,7 @@ public class SrpSkillMakerController : MonoBehaviour
     TMP_Dropdown _ddType;
     TMP_Dropdown _ddTrigger;
     TMP_Dropdown _ddTarget;
+    TMP_Dropdown _ddSight;
 
     RectTransform _effectListContent;
     readonly List<GameObject> _effectItems = new List<GameObject>();
@@ -213,6 +214,7 @@ public class SrpSkillMakerController : MonoBehaviour
         _ddType    = MakeDropdown(form, "스킬 유형", new[] { "Active", "Passive" });
         _ddTrigger = MakeDropdown(form, "트리거", new[] { "OnActivate", "OnTurnStart", "OnAttackHit", "OnTakeDamage" });
         _ddTarget  = MakeDropdown(form, "대상 유형", new[] { "None", "Self", "SingleEnemy", "SingleAlly", "AreaEnemy", "AreaAlly" });
+        _ddSight   = MakeDropdown(form, "시야 규칙", new[] { "None (시야 불필요)", "Terrain (지형 차단)", "TerrainAndUnits (지형·유닛 차단)" });
 
         MakeSep(form);
         _fldRange    = MakeFieldRow(form, "사거리", "1", TMP_InputField.ContentType.IntegerNumber);
@@ -329,6 +331,7 @@ public class SrpSkillMakerController : MonoBehaviour
         _ddType.value    = (int)s.skillType;
         _ddTrigger.value = (int)s.trigger;
         _ddTarget.value  = (int)s.targetType;
+        _ddSight.value   = Mathf.Clamp((int)s.sightRule, 0, 2);
         RefreshEffectList(s);
     }
 
@@ -354,6 +357,7 @@ public class SrpSkillMakerController : MonoBehaviour
         s.skillType  = (SrpSkillType)_ddType.value;
         s.trigger    = (SrpSkillTrigger)_ddTrigger.value;
         s.targetType = (SrpTargetType)_ddTarget.value;
+        s.sightRule  = (SrpSightRule)_ddSight.value;
         ApplyEffectsFromUi(s);
     }
 
