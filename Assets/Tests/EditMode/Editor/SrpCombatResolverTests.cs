@@ -720,6 +720,43 @@ public class SrpCombatResolverTests
         Assert.That(defender.hp, Is.EqualTo(30));
     }
 
+    [TestCase(TestName = "스킬 예상 피해는 대상이 회피할 수 있는 경우를 알 수 있다")]
+    public void CanTargetDodgeSkillDamage_MatchesSkillDodgeCondition()
+    {
+        var state = CreateState();
+        var caster = Unit(id: 1, owner: 0, x: 0, y: 2, attackPower: 8);
+        var target = Unit(id: 2, owner: 1, x: 2, y: 2, hp: 30, pg: 20, maxPg: 20, stance: SrpStance.Aggressive);
+        target.reactionPoints = 1;
+        state.Units.Add(caster);
+        state.Units.Add(target);
+        var damage = DamageSkill(6);
+        var tagOnly = new SrpSkillData
+        {
+            id = "test_tag_only",
+            effects = new[] { new SrpSkillEffect { type = SrpEffectType.ApplyCombatTag, stat = "marked" } },
+        };
+
+        Assert.That(SrpSkills.CanTargetDodgeSkillDamage(damage, caster, target, state), Is.True,
+            "공격 태세 대상이 비인접 피해 스킬을 회피할 수 있는데 안내 대상에서 빠졌습니다.");
+        Assert.That(SrpSkills.CanTargetDodgeSkillDamage(tagOnly, caster, target, state), Is.False, "피해가 없는 스킬은 회피 안내 대상이 아닙니다.");
+
+        // 예상 계산용 복제본에서는 회피를 굴리지 않아 피해가 그대로 들어간다(안내 문구의 전제).
+        var preview = state.CloneForPreview();
+        var previewTarget = preview.FindUnitById(2);
+        SrpSkills.ResolveActiveSkill(damage, new SrpSkillRuntime(damage.id), preview.FindUnitById(1), previewTarget.anchorX, previewTarget.anchorY, preview, null);
+        Assert.That(previewTarget.hp, Is.LessThan(30));
+        Assert.That(target.hp, Is.EqualTo(30), "예상 계산이 원본 상태를 바꿨습니다.");
+
+        target.reactionPoints = 0;
+        Assert.That(SrpSkills.CanTargetDodgeSkillDamage(damage, caster, target, state), Is.False, "RP가 없으면 회피할 수 없습니다.");
+        target.reactionPoints = 1;
+        target.stance = SrpStance.Defensive;
+        Assert.That(SrpSkills.CanTargetDodgeSkillDamage(damage, caster, target, state), Is.False, "수비 태세는 회피하지 않습니다.");
+        target.stance = SrpStance.Aggressive;
+        target.anchorX = 1;
+        Assert.That(SrpSkills.CanTargetDodgeSkillDamage(damage, caster, target, state), Is.False, "인접 공격은 회피 대상이 아닙니다.");
+    }
+
     /// <summary>다음 회피 판정이 원하는 결과가 되도록 전투 난수 시드를 고른다.</summary>
     static void SeedNextDodge(SrpBattleState state, bool success)
     {

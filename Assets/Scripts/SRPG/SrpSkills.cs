@@ -62,6 +62,25 @@ public static class SrpSkills
         return true;
     }
 
+    /// <summary>
+    /// 이 스킬의 피해를 대상이 회피 반응으로 무효화할 수 있는지. 예상 피해 표시에 쓴다.
+    /// 판정 조건은 실제 해결(SrpCombatResolver.ApplySkillReaction)과 같다.
+    /// </summary>
+    public static bool CanTargetDodgeSkillDamage(
+        SrpSkillData data, SrpUnitRuntime caster, SrpUnitRuntime target, SrpBattleState state)
+    {
+        if (data == null || data.effects == null || caster == null || target == null)
+            return false;
+
+        bool hasDamage = false;
+        foreach (var eff in data.effects)
+        {
+            if (eff != null && eff.type == SrpEffectType.Damage && eff.value > 0)
+                hasDamage = true;
+        }
+        return hasDamage && SrpCombatResolver.CanDefenderDodge(state, caster, target);
+    }
+
     public static List<Vector2Int> GetSkillTargetTiles(SrpSkillData data, SrpUnitRuntime caster, SrpBattleState state)
     {
         var tiles = new List<Vector2Int>();

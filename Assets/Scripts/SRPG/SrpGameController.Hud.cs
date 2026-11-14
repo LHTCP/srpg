@@ -2122,13 +2122,20 @@ public partial class SrpGameController
         var beforeTarget = target != null ? target : active;
         int beforeHp = beforeTarget.hp;
         int beforePg = beforeTarget.pg;
+        // 예상 계산은 회피를 굴리지 않으므로, 대상이 회피를 시도할 수 있으면 수치의 전제를 함께 알린다.
+        bool targetMayDodge = SrpSkills.CanTargetDodgeSkillDamage(
+            _pendingSkillData, cloneCaster, target != null ? clone.FindUnitById(target.id) : null, clone);
+        string dodgeNote = targetMayDodge
+            ? $"
+대상 회피 시도: 성공률 {SrpCombatResolver.DodgeChancePercent}%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)"
+            : string.Empty;
         SrpSkills.ResolveActiveSkill(_pendingSkillData, cloneRuntime, cloneCaster, _hoverTileX, _hoverTileY, clone, null);
         var afterTarget = clone.FindUnitById(targetId) ?? cloneCaster;
         int hpDelta = afterTarget.hp - beforeHp;
         int pgDelta = afterTarget.pg - beforePg;
         if (hpDelta == 0 && pgDelta == 0)
             return "예상 수치 변화: 직접 HP/PG 변화 없음";
-        return $"예상 수치 변화: {FormatSignedDelta("HP", hpDelta)} / {FormatSignedDelta("PG", pgDelta)}";
+        return $"예상 수치 변화: {FormatSignedDelta("HP", hpDelta)} / {FormatSignedDelta("PG", pgDelta)}{dodgeNote}";
     }
 
     (string title, string body) BuildInteractionPreview(SrpUnitRuntime active, SrpInteractionPointData point)

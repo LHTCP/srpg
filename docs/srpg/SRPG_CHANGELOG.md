@@ -2,6 +2,11 @@
 
 ## 2026-11-14
 
+- 스킬 예상 피해의 회피 전제 표시 (PR #101 리뷰 반영)
+  - 예상 계산은 회피를 굴리지 않고 실패로 가정하는데, 기본 공격 예상 창만 이를 알리고 스킬 예상 창은 수치만 보여 줬다. 회피 가능한 피해 스킬(비인접, 대상이 공격 태세이고 RP 있음)의 예상 창에도 "대상 회피 시도: 성공률 50%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)"을 표시한다
+  - `SrpSkills.CanTargetDodgeSkillDamage` 추가(순수 로직), `SrpCombatResolverTests.CanTargetDodgeSkillDamage_MatchesSkillDodgeCondition` 추가
+  - 검증: Unity 미실행. .NET 하네스 137개 중 135개 통과(실패 2개는 컨트롤러 의존), Unity DLL 참조 컴파일 오류 0. 기본 스킬 중 비인접 피해 스킬이 없어 화면 확인은 스킬 메이커로 만든 스킬이 필요하다
+
 - 4차: 방어·피해 수치 확정 (기획 결정 Q5, Q8, Q9 반영)
   - Q5: 수비 태세와 수비 지속 완충의 HP 감쇠를 없애고 PG 감쇠를 1 → 2로 올렸다. Guard 반응(HP-2/PG-2)과 탱커 다중 교전(HP-1/PG-1)은 유지. 쓰이지 않은 상시 PG 감쇠는 총기 파급 PG를 줄인다(`SrpCombatResolver`)
   - Q8: 스킬 피해는 전부 중대 HP 피해로 확정. `강타` HP 피해 기준값 27 → 18(`SrpDefaultSkills`)
