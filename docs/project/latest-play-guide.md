@@ -79,6 +79,23 @@ Windows 빌드 이후 GitHub Actions cache 저장소가 커지면 `Actions 저�
 
 수동 업로드 절차는 [itchio-manual-publishing-checklist.md](itchio-manual-publishing-checklist.md)를 따른다. butler 자동화 설계는 [butler-automation-design.md](butler-automation-design.md)를 따른다.
 
+## GitHub Release에서 받기
+
+현재 게시된 GitHub Release는 없다(2026-11-14 확인). 따라서 지금은 이 경로로 받을 수 있는 파일이 없고, 외부 테스터에게는 itch.io 페이지를 안내한다.
+
+Release를 만드는 수동 workflow `Windows Release asset 업로드`는 추가했지만 아직 실행한 적이 없다. 기본 브랜치에 merge된 뒤 첫 실행으로 확인하기 전까지 아래 절차는 미검증이다.
+
+Release가 게시된 뒤의 다운로드 절차:
+
+1. <https://github.com/LHTCP/srpg/releases>를 연다.
+2. 받을 버전의 Release에서 `Assets`를 펼친다.
+3. `srpg-demo-windows-<version>-<short-sha>.zip`을 다운로드한다. `Source code` 항목은 게임 빌드가 아니다.
+4. zip을 압축 해제하고 Windows 실행 파일을 실행한다.
+
+Release asset은 실제 게임 zip이므로 Actions artifact처럼 두 번 압축 해제할 필요가 없고, 7일 보관 기간도 적용되지 않는다.
+
+배포 담당자는 `Windows PC 데모 빌드` run이 성공한 뒤 `Windows Release asset 업로드` workflow에 run id, artifact 이름, tag(`v<a.b.c>`)를 입력해 올린다. tag, 덮어쓰기, prerelease 정책은 [release-versioning.md](release-versioning.md)의 `GitHub Release asset 정책`을 따른다.
+
 ## 최신 버전 판단
 
 최신 development 빌드는 다음 순서로 판단한다.
@@ -102,3 +119,4 @@ Windows 빌드 이후 GitHub Actions cache 저장소가 커지면 `Actions 저�
 - [itchio-manual-publishing-checklist.md](itchio-manual-publishing-checklist.md): itch.io 수동 게시 절차
 - [butler-automation-design.md](butler-automation-design.md): itch.io 자동 업로드 설계
 - [release-checklist.md](release-checklist.md): 배포 전후 검증 기준
+- [release-versioning.md](release-versioning.md): 버전, tag, GitHub Release asset 정책

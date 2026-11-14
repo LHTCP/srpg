@@ -10,19 +10,21 @@
 
 ## 현재 상태
 
-이 문서는 조사 결과와 추천 순서를 정리한 문서다. 아직 이 저장소에 itch.io 업로드 workflow, butler workflow, WebGL itch.io 업로드 workflow가 구현된 것은 아니다.
+이 문서는 조사 결과와 추천 순서를 정리한 문서다. 조사 이후 butler 기반 `development` 수동 업로드 workflow와 itch.io 설정 헬스체크 workflow가 저장소에 추가되었다. production 업로드 workflow와 WebGL itch.io 업로드 workflow는 아직 구현되지 않았다. 구현 상세는 [butler-automation-design.md](butler-automation-design.md)를 따른다.
 
 현재 확정된 사실:
 
 - itch.io 프로젝트 페이지는 <https://lhtcp.itch.io/lhtcp-srpg>다.
 - Windows PC zip delivery 완성이 최우선이다.
+- `Windows PC 데모 빌드` workflow(`.github/workflows/windows-demo-build.yml`)가 Windows zip artifact를 생성하며, `main`에서 성공한 실행 기록이 있다.
+- `itch.io Delivery 설정 헬스체크` workflow(`.github/workflows/itchio-delivery-healthcheck.yml`)가 있다. 2026-11-14 `gh run list` 확인 기준 실행 기록은 2건이며, `main` 실행 1건은 실패했고 수정 브랜치 `ci/fix-butler-healthcheck` 실행 1건은 성공했다. 수정이 `main`에 병합된 뒤 `main`에서 성공한 실행 기록은 아직 없다.
+- `itch.io Development 업로드` workflow(`.github/workflows/itchio-development-upload.yml`)가 있다. `workflow_dispatch` 수동 실행 전용이며, 기존 Windows artifact를 butler로 `development` 채널에 올린다. 2026-11-14 확인 기준 실행 기록이 0건이므로 실제 업로드 성공 여부는 미검증이다.
 
 아직 구현 전인 설계 후보:
 
-- WebGL/HTML5 즉시 플레이 PoC
-- butler 기반 수동 업로드 workflow
-- development/production 채널 운영
-- `a.b.c.<github.run_number>` 버전 강제
+- WebGL/HTML5 즉시 플레이 PoC(itch.io HTML Game 업로드 포함)
+- production 채널 업로드 workflow와, production 업로드를 GitHub Release에 대응시키는 연결
+- `release.json` 추가와 production patch 증가 강제. `a.b.c.<github.run_number>` 형식 자체는 `Windows PC 데모 빌드` workflow가 `ProjectSettings.asset`의 `bundleVersion`과 run number로 이미 계산한다.
 
 권장 순서는 다음과 같다.
 
@@ -32,7 +34,7 @@
 4. 페이지 최소 메타데이터와 실행 안내를 채운다.
 5. 로컬 Unity WebGL 빌드가 가능한지 PoC로 확인한다.
 6. WebGL 빌드가 작고 안정적이면 HTML Game/iframe 플레이를 development 채널에 붙인다.
-7. 첫 게시가 안정화되면 butler 수동 workflow를 검토한다.
+7. 첫 게시가 안정화되면 butler 수동 workflow를 검토한다. (`development` 채널용 수동 workflow는 구현되어 있다. 위 현재 상태 참고)
 
 ## 공식 문서 기준 요약
 
@@ -43,7 +45,7 @@ itch.io의 butler는 게임 빌드를 빠르고 안정적으로 업로드하기 
 이번 프로젝트에서는 butler를 즉시 필수 자동화로 두지 않고, 다음 단계의 후보로 둔다.
 
 - 수동 로컬 업로드: 사람이 `butler push`를 실행한다.
-- 수동 GitHub Actions 업로드: `workflow_dispatch`에서만 실행한다.
+- 수동 GitHub Actions 업로드: `workflow_dispatch`에서만 실행한다. `development` 채널은 `itch.io Development 업로드` workflow로 구현되어 있다.
 - 자동 main 배포: 초기에는 하지 않는다.
 
 기준 명령 후보:

@@ -35,6 +35,8 @@
 
 Windows 빌드, WebGL 빌드, itch.io 업로드처럼 외부 의존성이 걸린 workflow를 실행하기 전에는 `Delivery 선행 헬스체크` workflow를 먼저 수동 실행한다. 이 workflow는 LFS 서버 접근과 Unity 라이선스 secret 점검을 병렬로 실행한 뒤, 마지막 `헬스체크 보고서` job에서 결과를 모은다.
 
+itch.io 업로드(butler) 실패는 [butler-automation-design.md의 실패 대응 표](butler-automation-design.md#실패-대응)를 먼저 확인한다.
+
 ```mermaid
 flowchart LR
     entry["Delivery 선행 헬스체크"] --> lfs["LFS 헬스체크"]
@@ -85,7 +87,7 @@ Object does not exist on the server
 - secret이 없다면 `Settings > Secrets and variables > Actions > Repository secrets`에 `LFS_ACCOUNT_ID`, `LFS_ACCOUNT_PASSWORD`를 추가한다.
 - `actions/checkout`에서 `lfs: true`로 너무 이른 LFS pull이 발생한다면 checkout 이후 별도 `git lfs pull` step으로 분리한다.
 - 인증은 가능하지만 다운로드가 실패하면 커스텀 LFS 서버의 계정 권한, 토큰 만료, 방화벽, IP 차단, 트래픽 한도를 확인한다.
-- GitHub Actions에서 LFS를 받지 않는 방향이 필요하면 LFS-free CI 이슈를 열고, 테스트·빌드가 대용량 에셋 없이 가능한지 분리 검토한다.
+- GitHub Actions에서 LFS를 받지 않는 방향이 필요하면 LFS-free CI 이슈를 열고, 테스트·빌드가 대용량 에셋 없이 가능한지 분리 검토한다. 조사 결과는 [lfs-free-ci-research.md](lfs-free-ci-research.md)를 본다.
 
 ### 에스컬레이션 기준
 
@@ -165,6 +167,7 @@ RunFinished: Failed
 - 실패가 컴파일 단계인지, 테스트 assertion 단계인지 구분한다.
 - Unity Editor log와 test result XML이 artifact로 업로드됐는지 확인한다.
 - 로컬 Unity Editor의 Test Runner에서 같은 EditMode/PlayMode 테스트가 재현되는지 확인한다.
+- 테스트 묶음·카테고리와 로컬 실행 방법은 [unity-test-suites.md](unity-test-suites.md)를 따른다.
 - 최근 PR에서 테스트 대상 로직, asmdef, package, scene, prefab, ProjectSettings 변경이 있었는지 확인한다.
 
 ### 조치
@@ -301,6 +304,7 @@ Cache size is over the limit
 - cache 삭제 workflow는 먼저 `dry_run=true`로 삭제 대상을 확인하고, 의도한 prefix만 잡히면 `dry_run=false`로 실행한다.
 - Delivery 차단을 풀기 위해 cache 한도를 올리는 것은 유료 전환 리스크가 있으므로, 먼저 오래된 cache 삭제를 우선한다.
 - cache 정책을 바꾸는 PR에는 실행 시간 개선 기대와 비용/용량 리스크를 함께 적는다.
+- cache key 구조와 target별 분리 기준, GameCI/actions 버전 근거는 [gameci-cache-research.md](gameci-cache-research.md)를 따른다.
 
 ### 에스컬레이션 기준
 
@@ -344,5 +348,6 @@ Cache size is over the limit
 ## 관련 문서
 
 - [github-governance.md](github-governance.md): GitHub Actions 비용·브랜치 보호 운영 기준
+- [release-versioning.md](release-versioning.md): 버전·채널 운영 원칙과 GitHub Release asset 정책
 - [workflow.md](workflow.md): PR, 셀프리뷰, 스크립트 작성 기준
 - [setup.md](setup.md): 로컬 개발 환경과 재현성 기준

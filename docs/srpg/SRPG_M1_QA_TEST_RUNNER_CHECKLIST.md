@@ -27,6 +27,8 @@
 
 ## 자동화 QA 체크 (기존 테스트 유지)
 
+테스트 묶음·카테고리·실행 방법과 최소 smoke 기준은 [../project/unity-test-suites.md](../project/unity-test-suites.md)를 따른다.
+
 - [ ] `SrpM1CoreTests` 통과
 - [ ] `SrpM1RuleSpecTests` 통과
 - [ ] `SrpM1PlayModeTests` 통과

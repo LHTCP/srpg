@@ -14,18 +14,21 @@
 
 ## 현재 상태
 
-이 문서는 수동 게시를 위한 체크리스트다. Windows zip 산출물은 GitHub Actions `Windows PC 데모 빌드` workflow에서 생성할 수 있다. itch.io 업로드, butler 자동화, production 릴리즈컷 자동화는 별도 단계다.
+이 문서는 수동 게시를 위한 체크리스트다. Windows zip 산출물은 GitHub Actions `Windows PC 데모 빌드` workflow에서 생성할 수 있다. butler 기반 `development` 수동 업로드 workflow는 저장소에 추가되어 있으며, production 릴리즈컷 자동화는 별도 단계다.
 
 현재 확정된 사실:
 
 - itch.io 프로젝트 페이지는 <https://lhtcp.itch.io/lhtcp-srpg>다.
 - 첫 게시 절차는 수동 검증을 전제로 한다.
 - 게시할 파일은 GitHub Actions artifact zip 안의 내부 실제 게임 zip이다.
+- `itch.io Delivery 설정 헬스체크` workflow(`.github/workflows/itchio-delivery-healthcheck.yml`)가 있다. 2026-11-14 `gh run list` 확인 기준 실행 기록은 2건이며, `main` 실행 1건은 실패했고 수정 브랜치 `ci/fix-butler-healthcheck` 실행 1건은 성공했다. 수정이 `main`에 병합된 뒤 `main`에서 성공한 실행 기록은 아직 없다.
+- `itch.io Development 업로드` workflow(`.github/workflows/itchio-development-upload.yml`)가 있다. `workflow_dispatch` 수동 실행 전용이며, 기존 Windows artifact를 butler로 `development` 채널에 올린다. 2026-11-14 확인 기준 실행 기록이 0건이므로 실제 업로드 성공 여부는 미검증이다.
 
 아직 구현 전인 설계 후보:
 
-- development/production 채널 자동 업로드
-- production patch 증가 자동 검증
+- production 채널 업로드 workflow
+- main merge 기준 development 자동 업로드
+- `release.json` 추가와 production patch 증가 자동 검증
 
 ## 게시 전 준비
 
