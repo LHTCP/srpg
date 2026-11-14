@@ -81,6 +81,26 @@ public static class SrpSkills
         return hasDamage && SrpCombatResolver.CanDefenderDodge(state, caster, target);
     }
 
+    /// <summary>스킬의 시야 규칙(sightRule)으로 시전자에서 대상 칸까지 시야가 통하는가.</summary>
+    public static bool HasSightToTile(SrpSkillData data, SrpUnitRuntime caster, int x, int y, SrpBattleState state)
+    {
+        if (data == null || caster == null || state == null)
+            return false;
+        var occupant = state.GetOccupant(x, y);
+        return SrpLineOfSight.HasSight(
+            state, caster.anchorX, caster.anchorY, x, y, data.sightRule,
+            caster.id, occupant != null ? occupant.id : -1);
+    }
+
+    /// <summary>시전자가 이 칸을 스킬 대상으로 지정할 수 있는가(사거리와 시야). 대상 유형별 점유 조건은 보지 않는다.</summary>
+    public static bool IsTileInSkillReach(SrpSkillData data, SrpUnitRuntime caster, int x, int y, SrpBattleState state)
+    {
+        if (data == null || caster == null || state == null || !state.InBounds(x, y))
+            return false;
+        int dist = Mathf.Max(Mathf.Abs(x - caster.anchorX), Mathf.Abs(y - caster.anchorY));
+        return dist <= data.range && HasSightToTile(data, caster, x, y, state);
+    }
+
     public static List<Vector2Int> GetSkillTargetTiles(SrpSkillData data, SrpUnitRuntime caster, SrpBattleState state)
     {
         var tiles = new List<Vector2Int>();
@@ -92,6 +112,7 @@ public static class SrpSkills
         {
             int dist = Mathf.Max(Mathf.Abs(x - caster.anchorX), Mathf.Abs(y - caster.anchorY));
             if (dist > range) continue;
+            if (!HasSightToTile(data, caster, x, y, state)) continue;
 
             switch (data.targetType)
             {

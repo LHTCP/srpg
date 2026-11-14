@@ -352,7 +352,7 @@ public static class SrpBattleFlow
                 var target = state.FindUnitById(action.targetUnitId);
                 if (target == null || target.eliminated
                     || !TryGetUsableSkill(state, unit, action.skillId, out var data, out var runtime)
-                    || state.ChebyshevAnchor(unit, target) > data.range)
+                    || !SrpSkills.IsTileInSkillReach(data, unit, target.anchorX, target.anchorY, state))
                     return step;
                 step.skill = UseSkill(state, unit, data, runtime, target.anchorX, target.anchorY, observer);
                 step.executed = true;

@@ -202,7 +202,7 @@ public static class SrpDefaultSkills
             {
                 id = "tactical_mark",
                 displayName = "전술 표식",
-                description = "사거리 3 내 적 하나에게 표식을 부여한다. 다음 아군 공격의 PG 압박을 높인다.",
+                description = "사거리 3 내 시야가 닿는 적 하나에게 표식을 부여한다. 다음 아군 공격의 PG 압박을 높인다.",
                 skillType = SrpSkillType.Active,
                 trigger = SrpSkillTrigger.OnActivate,
                 targetType = SrpTargetType.SingleEnemy,
@@ -210,6 +210,7 @@ public static class SrpDefaultSkills
                 areaSize = 0,
                 endsActivation = false,
                 cooldown = 1,
+                sightRule = SrpSightRule.Terrain,
                 effects = new[]
                 {
                     new SrpSkillEffect
@@ -225,7 +226,7 @@ public static class SrpDefaultSkills
             {
                 id = "balance_hex",
                 displayName = "균형 교란",
-                description = "사거리 3 내 적 하나에게 균형 붕괴를 부여한다. 다음 아군 공격의 PG 피해가 크게 오른다.",
+                description = "사거리 3 내 시야가 닿는 적 하나에게 균형 붕괴를 부여한다. 다음 아군 공격의 PG 피해가 크게 오른다.",
                 skillType = SrpSkillType.Active,
                 trigger = SrpSkillTrigger.OnActivate,
                 targetType = SrpTargetType.SingleEnemy,
@@ -235,6 +236,7 @@ public static class SrpDefaultSkills
                 cooldown = 2,
                 maxCharges = 1,
                 chargeRecoveryTurns = 2,
+                sightRule = SrpSightRule.Terrain,
                 effects = new[]
                 {
                     new SrpSkillEffect
@@ -250,7 +252,7 @@ public static class SrpDefaultSkills
             {
                 id = "kill_order",
                 displayName = "사살 지시",
-                description = "사거리 4 내 적 하나에게 사살 지시를 부여한다. 다음 아군 공격의 HP/PG 압박이 오른다.",
+                description = "사거리 4 내 시야가 닿는 적 하나에게 사살 지시를 부여한다. 다음 아군 공격의 HP/PG 압박이 오른다.",
                 skillType = SrpSkillType.Active,
                 trigger = SrpSkillTrigger.OnActivate,
                 targetType = SrpTargetType.SingleEnemy,
@@ -258,6 +260,7 @@ public static class SrpDefaultSkills
                 areaSize = 0,
                 endsActivation = false,
                 cooldown = 2,
+                sightRule = SrpSightRule.Terrain,
                 effects = new[]
                 {
                     new SrpSkillEffect
