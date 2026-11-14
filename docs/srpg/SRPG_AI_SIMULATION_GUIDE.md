@@ -51,3 +51,10 @@
 - 무승부율 과다이면 `maxRounds` 또는 정책 조합을 점검한다.
 - 총기/근접 분기 실패면 `SrpCombatResolver`의 무기별 분배식과 태세 보정을 확인한다.
 - ZOC 수치 이상이면 `SrpPathfinder.GetReachableWithCosts`의 진입 비용 계산을 확인한다.
+
+## 2026-11-14 정책 변경
+
+- `SrpHeuristicAiPolicy`는 런타임 적 AI(`Assets/Scripts/SRPG/SrpEnemyAi.cs`)와 같은 판단을 쓴다. 시뮬레이션 결과가 실제 전투에서 적이 하는 행동을 반영한다.
+- 시뮬레이션 러너는 재장전, 단일 적 대상 피해 스킬, 공격 후 남은 AP 행동, 그로기 회복 스킵, 라운드 시작 스킬 자원 틱을 반영한다. 경계태세, 기회공격, 엄폐, 태그/회복 스킬은 아직 반영하지 않는다.
+- Heuristic 미러전은 난수가 없어 같은 한 판을 반복한다. 승률은 참고하지 말고 종료 라운드만 본다.
+- 최근 측정값은 `SRPG_IMPLEMENTATION_DECISIONS.md`의 2026-11-14 절을 본다.
