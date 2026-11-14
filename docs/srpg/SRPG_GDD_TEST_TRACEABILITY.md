@@ -1,5 +1,17 @@
 # SRPG GDD-테스트 추적 매핑표 (v2)
 
+## 2026-11-14 update - 1차 개선 추적
+
+| Item | Tests | Status | Notes |
+| --- | --- | --- | --- |
+| 공격 적중 패시브는 회피/패링된 공격에 발동하지 않음 (`RQ-015`) | `SrpCombatResolverTests.OnAttackResolved_DodgedAttackDoesNotTriggerOnHitPassive` | 완전 | `전장 적응`/`노출 처벌`의 "공격 적중 시" 조건 |
+| 스킬 처치 직후 교전 상태 갱신 (`RQ-010`) | `SrpCombatResolverTests.ResolveActiveSkill_KillRebuildsEngagements` | 완전 | 수비 지속 완충/탱커 다중 교전/이탈 비용이 사망 유닛을 세지 않음 |
+| 스킬 피해의 피격 패시브 발동 (`RQ-015`) | `SrpCombatResolverTests.ResolveActiveSkill_DamageTriggersTargetOnTakeDamagePassive` | 완전 | `전열 고정` PG +2 |
+| AP 사용 후 태세 변경 불가 (`RQ-005`) | 없음 | 미커버 | `SrpGameController.CanSetSelectedStance`. PlayMode에 엄폐/상호작용 후 태세 변경 거부 assert 추가 필요 |
+| 그로기 1턴 무방비/회복 (밸런스 피드백 2026-06-15 요구 2) | 없음 | 미커버 | 미구현. `SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md` 2차 |
+
+`SrpCombatResolverTests`는 이번부터 `SrpM1All` 카테고리에 포함된다.
+
 ## 2026-06-15 update - HUD drawer and cover semantics traceability
 
 | Item | Tests | Status | Notes |

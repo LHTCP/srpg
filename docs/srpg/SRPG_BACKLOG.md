@@ -1,5 +1,20 @@
 # SRPG v2 백로그
 
+## 2026-11-14 update - 재개 시점 갭 분석과 1차 개선
+
+- [x] 기획 대비 구현 갭 분석과 단계별 진행 계획 작성: [SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md](SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md)
+- [x] 1차 개선(이미 구현된 것의 버그/기획 어긋남 수정)
+  - 회피/패링으로 무효화된 공격에는 공격 적중 패시브를 발동하지 않는다.
+  - 스킬 처치 직후 교전 상태를 다시 계산한다.
+  - 스킬 피해도 대상의 피격 패시브(`전열 고정`)를 발동한다.
+  - AP를 쓴 뒤(엄폐/상호작용 포함)에는 태세를 바꿀 수 없다.
+  - AI 시뮬레이션이 이동/처치 후 교전 상태를 다시 계산한다.
+  - `SrpCombatResolverTests`를 `SrpM1All` 카테고리에 포함한다.
+  - 검증: Unity 미실행. 저장소 밖 .NET 하네스로 순수 로직 EditMode 테스트 98개 중 96개 통과, 2개는 컨트롤러 의존이라 하네스에서 실행 불가.
+- [ ] 2차: 그로기 1턴 무방비 + 회복 (밸런스 피드백 2026-06-15 요구 2). 기획 질문 Q1, Q2 결정 후 진행.
+- [ ] 3차: 플레이 루프 완성(런타임 적 AI, 공격 후 행동 규칙, 승리 조건/상호작용 효과).
+- [ ] 4차 이후와 기획 질문 목록은 위 계획 문서를 따른다.
+
 ## 2026-06-15 update - tactical HUD drawer and cover semantics review
 
 - [x] Basic attack / execution model correction.
@@ -279,6 +294,7 @@
 - [x] `M1OpeningPrototype` AI 시뮬레이션 기반 6~10턴 종료 밀도 검증
   - EditMode AI matrix 관찰 테스트 `Run_M1OpeningPrototype_Ai_Policy_Matrix_For_BalanceObservation` 추가
   - 정책별 평균 종료 라운드: Heuristic vs Random `8.31`, Random vs Heuristic `7.65`, Heuristic vs Heuristic `8.00`
+  - (2026-11-14 재측정, 06-15 처단/거리 기반 공격 보정 이후 코드 기준: `8.55` / `7.16` / `5.00`. Heuristic 미러전은 owner1 승률 `1.000`이다.)
   - 핵심 정책 케이스가 6~10라운드 목표에 들어와 프리셋 적 수/HP/PG/배치 간격은 이번 차수에서 변경하지 않음
   - Random vs Random은 평균 `15.64`라운드/무승부 `0.827`로 관찰용 경향으로만 유지하고 밸런스 게이트에서 제외
 - [x] `M1OpeningPrototype` 후속 실플레이 표본 기록

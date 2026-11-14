@@ -1,5 +1,7 @@
 # SRPG 레거시 코드 분류 (v1 전환 기준)
 
+> 현재 상태(2026-11-14): v0 → v1 전환 시점의 분류 기록이다. 이후 v2에서 달라진 점이 있다. `frozenHeart`는 폐기되지 않고 안정도(FH) 오버클럭 비용으로 쓰인다(`RQ-012`). `SrpEffectType.Cleave`는 코드에 남아 있다. D절의 신규 파일 중 `SrpTurnOrder.cs`, `SrpOverwatch.cs`만 만들어졌고 태세/방향/반응/LOS는 `SrpUnitRuntime.cs`, `SrpCombatResolver.cs`, `SrpOverwatch.cs`(`SrpFirearmAim`) 안에 구현됐다. 현재 파일 맵은 `Assets/Scripts/SRPG/AGENTS.md`를 본다.
+
 ## 목적
 
 v0 코드베이스에서 무엇을 버리고, 무엇을 고쳐 쓰고, 무엇을 유지할지 명확히 정의한다.

@@ -4,6 +4,8 @@
 - `docs/srpg/SRPG_전투규칙_기준서_v2.md`
 - `docs/srpg/new/SRPG_NEW_DIALOG_POLICY_LOCK.md`
 
+> 현재 상태(2026-11-14): 이 문서의 P1~P5(문서 우선 개편)는 완료됐고 코드 2차 이후 작업이 진행 중이다. 아래 "1차 범위는 문서만 수정" 원칙은 당시 기준이다. 지금의 진행 계획은 [SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md](SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md)를 따른다.
+
 ## 1. 목적
 
 본 문서는 신규 대화 원본(06~23) 기반 개편을 문서 우선으로 완수하기 위한 실행 기준이다.

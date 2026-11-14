@@ -1032,7 +1032,9 @@ public partial class SrpGameController : MonoBehaviour
             && !unit.hasAttackedThisActivation
             && !unit.hasUsedSkillThisActivation
             && !unit.hasReloadedThisActivation
-            && !unit.overwatchArmed;
+            && !unit.overwatchArmed
+            // 엄폐/상호작용처럼 전용 플래그가 없는 AP 행동 뒤에도 태세를 바꿀 수 없게 한다.
+            && unit.actionPoints >= unit.maxActionPoints;
     }
 
     bool TrySetSelectedStance(SrpStance stance, bool logFailure)

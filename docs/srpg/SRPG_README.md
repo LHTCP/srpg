@@ -44,6 +44,8 @@
   - 완료: 기본 전투 진입값, `SrpgBattle` 씬 직접 실행 기본값, 로비 첫 선택을 `M1OpeningPrototype`으로 교체, `M1QaIntegrated`는 로비 후순위 QA 선택지와 코드/테스트용 deprecated 프리셋으로 유지
   - 검증: Unity EditMode `76 passed / 0 failed`, PlayMode `6 passed / 0 failed`
   - 다음 후보: 첫 전투 실제 플레이/AI 시뮬레이션 후 적 수, 배치 간격, 태그/패링/총기 파급 수치 보정
+- 이후(2026-06-07 ~ 06-15): 전투 UX 피드백 레이어, 행동 순서 패널, overlay/preview 문법, 전술 HUD drawer, 엄폐 오브젝트/segment 분리, 거리 기반 기본 공격/처단 정정까지 완료. 세부는 `SRPG_BACKLOG.md` 상단 update 절과 `SRPG_CHANGELOG.md`를 본다.
+- 재개(2026-11-14): 기획 대비 갭 분석과 단계별 계획을 `SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md`에 정리하고 1차 개선을 반영했다. 다음 단계와 기획 질문은 그 문서를 따른다.
 
 ## 작업 처리 기준
 
@@ -84,6 +86,7 @@
 
 ## 관련 문서
 
+- `SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md`
 - `SRPG_BACKLOG.md`
 - `SRPG_PHASE2_CODE_BACKLOG.md`
 - `SRPG_IMPLEMENTATION_DECISIONS.md`

@@ -429,3 +429,29 @@
 - HUD 검수 캡처는 두 계층으로 둔다.
   - camera-render 캡처는 전장/오버레이 표본용이다.
   - ScreenCapture/GameView 캡처는 ScreenSpaceOverlay HUD 검수용이며 skill drawer, secondary drawer, log expanded/collapsed 상태를 남긴다. 캡처 직전 visible body/collapsed state assertion을 둬 파일명과 실제 UI 상태가 어긋나지 않게 한다.
+
+## 2026-11-14 그로기 회복 브릿지 시험 결과 (미반영)
+
+밸런스 피드백(2026-06-15) 요구 2를 지시서대로 시험 구현해 AI 시뮬레이션으로 확인한 뒤, 코드에는 반영하지 않았다.
+
+### 시험한 규칙
+
+- PG 붕괴(`groggy` 또는 `pg <= 0`) 유닛은 다음 활성화를 소모하고 `groggy=false`, PG를 `ceil(maxPg * 0.35)`로 회복한다.
+- 그로기 중에는 가드/회피/패링/기회공격/경계사격을 하지 못한다.
+
+### 결과 (`SrpM1AiSimAllEntry`, 케이스당 300판)
+
+| 케이스 | 현행 | 회복 35% | 회복 100% |
+| --- | --- | --- | --- |
+| `M1QaIntegrated` Heuristic vs Random 평균 라운드 | 6.54 | 9.00 | 10.32 |
+| `M1QaIntegrated` Random vs Heuristic 평균 라운드 | 8.45 | 12.98 | 15.69 |
+| `M1QaIntegrated` Heuristic vs Heuristic | 7.00라운드, 무승부 0% | 24.00라운드, 무승부 100% | 19.00라운드, 무승부 0% |
+| `M1OpeningPrototype` Heuristic vs Random 평균 라운드 | 8.57 | 11.07 | 13.29 |
+| `M1OpeningPrototype` Heuristic vs Heuristic | 5.00라운드 | 11.00라운드 | 16.00라운드, 무승부 100% |
+
+### 판단
+
+- 근접 한 방(PG 피해 = 공격력 + 4)이 회복된 PG를 다시 0으로 만든다. 공격자 한 명이 대상을 매 라운드 재붕괴시키고 대상은 계속 행동을 잃는다. 처단은 대상의 다음 활성화 전에 두 번째 공격자가 닿아야만 성립한다.
+- 회복량만 올려서는 해결되지 않는다. 근접 PG 페이싱(요구 5)과 재붕괴 방지 규칙을 함께 정해야 한다.
+- 시뮬레이션은 재장전·스킬을 쓰지 않으므로 수치 자체는 참고용이다. 고착이 생긴다는 방향만 근거로 삼는다.
+- 결정 필요 항목은 `SRPG_GAP_ANALYSIS_AND_PLAN_2026-11-14.md`의 Q1, Q2.
