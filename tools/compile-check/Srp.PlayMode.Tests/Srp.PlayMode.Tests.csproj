@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Assets/Tests/PlayMode/Srp.PlayMode.Tests.asmdef를 흉내 낸다.
+    asmdef의 optionalUnityReferences: TestAssemblies 때문에 UNITY_INCLUDE_TESTS가 있을 때만 컴파일되고,
+    테스트 러너와 nunit을 참조한다. 그래서 editor 변형에만 들어간다.
+  -->
+  <PropertyGroup>
+    <SrpAsmdef>Tests/PlayMode/Srp.PlayMode.Tests.asmdef</SrpAsmdef>
+    <SrpAsmdefExpected>{"name":"Srp.PlayMode.Tests","references":["Srp.Runtime"],"optionalUnityReferences":["TestAssemblies"],"includePlatforms":[],"excludePlatforms":[],"allowUnsafeCode":false,"overrideReferences":false,"precompiledReferences":[],"autoReferenced":false,"defineConstraints":[],"versionDefines":[],"noEngineReferences":false}</SrpAsmdefExpected>
+    <SrpVariants>editor</SrpVariants>
+    <SrpTestAssemblies>true</SrpTestAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(SrpAssets)/Tests/PlayMode/**/*.cs" />
+    <!-- asmdef의 references -->
+    <ProjectReference Include="../Srp.Runtime/Srp.Runtime.csproj" />
+  </ItemGroup>
+</Project>

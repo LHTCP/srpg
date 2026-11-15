@@ -51,6 +51,11 @@ TestResults/
 tools/logic-tests/bin/
 tools/logic-tests/obj/
 
+# 어셈블리별 컴파일 확인 (tools/compile-check): 프로젝트 파일은 Unity 생성물이 아니므로 추적하고, 빌드 산출물만 뺀다.
+!tools/compile-check/**/*.csproj
+tools/compile-check/bin/
+tools/compile-check/obj/
+
 # OS
 .DS_Store
 Thumbs.db

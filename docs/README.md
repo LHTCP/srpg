@@ -19,7 +19,7 @@
 | [project/release-versioning.md](project/release-versioning.md) | development/production 채널과 `a.b.c.<build>` 버전 운영 원칙, GitHub Release asset 정책 |
 | [project/cicd-runbook.md](project/cicd-runbook.md) | CI/CD 테스트·빌드·배포 실패 대응 Runbook |
 | [project/unity-test-suites.md](project/unity-test-suites.md) | Unity 테스트 묶음·카테고리·최소 smoke 실행 기준 |
-| [project/logic-tests.md](project/logic-tests.md) | Unity 없이 .NET으로 전투 로직 테스트 실행(PR CI 포함) |
+| [project/logic-tests.md](project/logic-tests.md) | Unity 없이 .NET으로 하는 검증: 전투 로직 테스트(PR CI 포함), 어셈블리별 컴파일 확인(로컬 전용) |
 | [project/pc-demo-packaging.md](project/pc-demo-packaging.md) | Windows PC 데모 zip 패키징 구조·파일명·smoke test 기준 |
 | [project/itchio-deployment-research.md](project/itchio-deployment-research.md) | itch.io 게시·임베드 방식 조사와 채널·버전 원칙 |
 | [project/itchio-manual-publishing-checklist.md](project/itchio-manual-publishing-checklist.md) | itch.io 수동 게시 체크리스트와 게시 기록 템플릿 |

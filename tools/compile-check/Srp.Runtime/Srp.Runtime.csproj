@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Assets/Scripts/SRPG/Srp.Runtime.asmdef를 흉내 낸다.
+    게임 런타임 전체(전투 로직, 컨트롤러, HUD, 렌더링, 메이커, 로비)이며 에디터와 플레이어 양쪽에 들어간다.
+    공통 참조와 확인은 ../Directory.Build.props, ../Directory.Build.targets에 있다.
+  -->
+  <PropertyGroup>
+    <SrpAsmdef>Scripts/SRPG/Srp.Runtime.asmdef</SrpAsmdef>
+    <SrpAsmdefExpected>{"name":"Srp.Runtime","references":["Unity.TextMeshPro","UnityEngine.UI"],"includePlatforms":[],"excludePlatforms":[],"allowUnsafeCode":false,"overrideReferences":false,"precompiledReferences":[],"autoReferenced":true,"defineConstraints":[],"versionDefines":[],"noEngineReferences":false}</SrpAsmdefExpected>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(SrpAssets)/Scripts/SRPG/**/*.cs" />
+    <!-- asmdef의 references -->
+    <SrpDll Include="$(SrpScriptAssemblies)/Unity.TextMeshPro.dll;$(SrpScriptAssemblies)/UnityEngine.UI.dll" />
+  </ItemGroup>
+</Project>

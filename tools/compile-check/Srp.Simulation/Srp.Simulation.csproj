@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Assets/Tests/Simulation/Srp.Simulation.asmdef를 흉내 낸다.
+    AI 시뮬레이션 코드이며 플랫폼 제한이 없어 플레이어 빌드에도 들어간다.
+    asmdef가 Srp.Runtime만 참조하므로 Unity.TextMeshPro 같은 다른 패키지는 보이지 않는다.
+  -->
+  <PropertyGroup>
+    <SrpAsmdef>Tests/Simulation/Srp.Simulation.asmdef</SrpAsmdef>
+    <SrpAsmdefExpected>{"name":"Srp.Simulation","references":["Srp.Runtime"],"includePlatforms":[],"excludePlatforms":[],"allowUnsafeCode":false,"overrideReferences":false,"precompiledReferences":[],"autoReferenced":true,"defineConstraints":[],"versionDefines":[],"noEngineReferences":false}</SrpAsmdefExpected>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(SrpAssets)/Tests/Simulation/**/*.cs" />
+    <!-- asmdef의 references -->
+    <ProjectReference Include="../Srp.Runtime/Srp.Runtime.csproj" />
+  </ItemGroup>
+</Project>
