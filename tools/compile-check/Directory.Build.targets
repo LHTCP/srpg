@@ -90,6 +90,15 @@
     <SrpRequiredFile Include="@(SrpDll->Distinct())" />
   </ItemGroup>
 
+  <!--
+    소스는 가장 가까운 asmdef의 것이다. 이 어셈블리의 폴더 안에 다른 asmdef·asmref 폴더가 생기면 그 아래 소스는 뺀다.
+    그 폴더를 맡는 프로젝트가 아직 없으면 실행 스크립트의 소스 대조에서 드러난다.
+  -->
+  <ItemGroup Condition="'$(SrpAsmdef)' != ''">
+    <_SrpOtherAsmdefFile Include="@(SrpAsmdefFile)" Exclude="$(SrpAssets)/$(SrpAsmdef)" />
+    <Compile Remove="@(_SrpOtherAsmdefFile->'%(RootDir)%(Directory)**/*.cs')" />
+  </ItemGroup>
+
   <Target Name="SrpCheckInputs" BeforeTargets="ResolveAssemblyReferences;CoreCompile">
     <Error Code="SRPCC01" Condition="'$(SrpVariant)' != 'editor' and '$(SrpVariant)' != 'player'"
            Text="SrpVariant는 editor 또는 player여야 합니다(현재 '$(SrpVariant)'). bash ./scripts/run-compile-check.sh로 실행하세요." />
@@ -101,7 +110,7 @@
            Text="$(MSBuildProjectName)은 $(SrpVariant) 변형에 들어가지 않는 어셈블리입니다(SrpVariants=$(SrpVariants))." />
 
     <Error Code="SRPCC04" Condition="'@(Compile)' == ''"
-           Text="$(MSBuildProjectName): 컴파일할 소스가 0개입니다. 소스 경로가 맞는지 확인하세요(Assets=$(SrpAssets))." />
+           Text="$(MSBuildProjectName): 컴파일할 소스가 0개입니다. 소스 경로가 맞는지 확인하세요(Assets=$(SrpAssets)). 이 어셈블리에 들어갈 스크립트가 정말 하나도 없게 됐다면 tools/compile-check에서 이 프로젝트와 이 프로젝트를 가리키는 참조를 빼세요." />
 
     <ItemGroup>
       <_SrpMissingFile Include="@(SrpRequiredFile)" Condition="!Exists('%(FullPath)')" />
@@ -119,7 +128,8 @@
       <_SrpAsmdefText>$([System.IO.File]::ReadAllText('$(_SrpAsmdefPath)'))</_SrpAsmdefText>
       <_SrpAsmdefActual>$([System.Text.RegularExpressions.Regex]::Replace($(_SrpAsmdefText), '\s', ''))</_SrpAsmdefActual>
     </PropertyGroup>
-    <Error Code="SRPCC07" Condition="'$(SrpAsmdef)' != '' and '$(_SrpAsmdefActual)' != '$(SrpAsmdefExpected)'"
+    <!-- 조건식의 != 는 대소문자를 가리지 않는다. Equals로 글자 그대로 견준다. -->
+    <Error Code="SRPCC07" Condition="'$(SrpAsmdef)' != '' and !$(_SrpAsmdefActual.Equals($(SrpAsmdefExpected)))"
            Text="$(MSBuildProjectName): Assets/$(SrpAsmdef) 내용이 이 프로젝트가 흉내 내는 상태와 다릅니다. asmdef를 바꿨다면 tools/compile-check/$(MSBuildProjectName)/$(MSBuildProjectName).csproj의 참조·변형을 같은 뜻으로 고치고 SrpAsmdefExpected를 다음 값으로 바꾸세요: $(_SrpAsmdefActual)" />
   </Target>
 
@@ -145,5 +155,17 @@
       <_SrpOutputPath>@(IntermediateAssembly->'%(FullPath)')</_SrpOutputPath>
     </PropertyGroup>
     <WriteLinesToFile File="$(SrpReportFile)" Lines="output=$(_SrpOutputPath)" Overwrite="false" />
+  </Target>
+
+  <!--
+    컴파일하지 않고 이 프로젝트의 소스 목록만 남긴다. 실행 스크립트가 이번 실행에서 컴파일하지 않은 어셈블리
+    (player 변형만 돌릴 때의 에디터 전용 어셈블리, 앞의 확인에서 멈춘 어셈블리)까지 넣어 소스 대조를 할 때 쓴다.
+  -->
+  <Target Name="SrpListSources">
+    <ItemGroup Condition="'@(Compile)' != ''">
+      <_SrpSourceListLine Include="source=$([MSBuild]::MakeRelative('$(SrpSourceRootFull)', '%(Compile.FullPath)'))" />
+    </ItemGroup>
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(SrpSourceListFile)'))" />
+    <WriteLinesToFile File="$(SrpSourceListFile)" Lines="@(_SrpSourceListLine)" Overwrite="true" />
   </Target>
 </Project>

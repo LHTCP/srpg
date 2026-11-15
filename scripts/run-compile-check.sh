@@ -18,9 +18,9 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tool_dir="$repo_root/tools/compile-check"
 out_dir="$tool_dir/obj"
 
-# 변형별 어셈블리. 참조되는 쪽이 먼저 오도록 적는다. tools/compile-check의 프로젝트 폴더와 같아야 한다.
-editor_assemblies="Srp.Runtime Srp.Simulation Srp.PlayMode.Tests Assembly-CSharp Assembly-CSharp-Editor"
-player_assemblies="Srp.Runtime Srp.Simulation Assembly-CSharp"
+# 어셈블리 목록. 참조되는 쪽이 먼저 오도록 적는다. tools/compile-check의 프로젝트 폴더와 같아야 한다.
+# 어느 변형에 들어가는지는 여기 적지 않는다. 각 csproj의 SrpVariants가 정한다(적지 않으면 두 변형 모두).
+assemblies="Srp.Runtime Srp.Simulation Srp.PlayMode.Tests Assembly-CSharp Assembly-CSharp-Editor"
 
 # 소스가 쓰는 전처리 기호 중 변형별 정의 여부를 정해 둔 것(tools/compile-check/Directory.Build.targets의 DefineConstants).
 # 여기에 없는 기호를 소스가 쓰면 그 구간을 Unity와 다르게 컴파일하게 되므로 실패로 알린다.
@@ -89,6 +89,38 @@ resolve_unity_data() {
   return 1
 }
 
+# 그 어셈블리가 들어가는 변형("editor;player" 꼴). csproj가 SrpVariants를 적지 않았으면 두 변형 모두다
+# (tools/compile-check/Directory.Build.props의 기본값과 같다).
+variants_of() {
+  local declared
+  declared="$(sed -n 's#.*<SrpVariants>\([^<]*\)</SrpVariants>.*#\1#p' "$tool_dir/$1/$1.csproj" | awk 'NR == 1')"
+  printf '%s\n' "${declared:-editor;player}"
+}
+
+# 그 변형에 들어가는 어셈블리를 목록의 순서대로 한 줄씩 출력한다.
+assemblies_of() {
+  local name
+  for name in $assemblies; do
+    case ";$(variants_of "$name");" in
+      *";$1;"*) printf '%s\n' "$name" ;;
+    esac
+  done
+}
+
+# stdin의 줄을 들여 써서 출력한다. 많으면 앞부분만 보이고 나머지는 개수로 알린다.
+say_list() {
+  local line count=0 limit=20
+  while IFS= read -r line; do
+    count=$((count + 1))
+    if [[ "$count" -le "$limit" ]]; then
+      say "    $line"
+    fi
+  done
+  if [[ "$count" -gt "$limit" ]]; then
+    say "    … 외 $((count - limit))개"
+  fi
+}
+
 # 그 폴더가 속한 git 저장소의 메인 체크아웃 루트를 출력한다. 워크트리에는 Library가 없어서 필요하다.
 main_checkout_of() {
   local root="$1" common_dir
@@ -104,9 +136,10 @@ library_arg="${SRPG_UNITY_LIBRARY:-}"
 source_arg=""
 show_warnings=0
 
+# 값을 받는 옵션에 빈 값이 오면 멈춘다. 빈 값을 "지정하지 않음"으로 넘기면 엉뚱한 대상을 확인하고 통과할 수 있다.
 need_value() {
   if [[ $# -lt 2 || -z "$2" ]]; then
-    warn "$1 뒤에 값이 필요합니다."
+    warn "${1%%=*} 뒤에 값이 필요합니다."
     exit "$exit_fail"
   fi
 }
@@ -114,13 +147,13 @@ need_value() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --variant) need_value "$@"; variant_arg="$2"; shift 2 ;;
-    --variant=*) variant_arg="${1#*=}"; shift ;;
+    --variant=*) need_value "$1" "${1#*=}"; variant_arg="${1#*=}"; shift ;;
     --unity) need_value "$@"; unity_arg="$2"; shift 2 ;;
-    --unity=*) unity_arg="${1#*=}"; shift ;;
+    --unity=*) need_value "$1" "${1#*=}"; unity_arg="${1#*=}"; shift ;;
     --library) need_value "$@"; library_arg="$2"; shift 2 ;;
-    --library=*) library_arg="${1#*=}"; shift ;;
+    --library=*) need_value "$1" "${1#*=}"; library_arg="${1#*=}"; shift ;;
     --source) need_value "$@"; source_arg="$2"; shift 2 ;;
-    --source=*) source_arg="${1#*=}"; shift ;;
+    --source=*) need_value "$1" "${1#*=}"; source_arg="${1#*=}"; shift ;;
     --warnings) show_warnings=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *)
@@ -288,7 +321,7 @@ if [[ -f "$lock_file" ]]; then
     fi
   done <<EOF
 $(tr -d '\r' <"$lock_file" | awk '
-  /^    "[^"]+":[[:space:]]*\{/ { split($0, part, "\""); name = part[2]; next }
+  /^    "[^"]+":[ \t]*\{/ { split($0, part, "\""); name = part[2]; next }
   /^      "version":/ { split($0, part, "\""); version = part[4]; next }
   /^      "source":/ {
     split($0, part, "\"")
@@ -367,14 +400,23 @@ esac
 for project_file in "$tool_dir"/*/*.csproj; do
   [[ -f "$project_file" ]] || continue
   project_name="$(basename "$project_file" .csproj)"
-  case " $editor_assemblies " in
+  case " $assemblies " in
     *" $project_name "*) ;;
     *) die "tools/compile-check/$project_name 프로젝트가 scripts/run-compile-check.sh의 어셈블리 목록에 없습니다." ;;
   esac
 done
-for assembly in $editor_assemblies; do
+for assembly in $assemblies; do
   if [[ ! -f "$tool_dir/$assembly/$assembly.csproj" ]]; then
     die "어셈블리 목록의 $assembly 에 해당하는 프로젝트 파일이 없습니다: tools/compile-check/$assembly/$assembly.csproj"
+  fi
+  case "$(variants_of "$assembly")" in
+    editor|player|"editor;player"|"player;editor") ;;
+    *) die "tools/compile-check/$assembly/$assembly.csproj의 SrpVariants를 해석하지 못했습니다: $(variants_of "$assembly")" ;;
+  esac
+done
+for variant in $variants; do
+  if [[ -z "$(assemblies_of "$variant")" ]]; then
+    die "$variant 변형에 들어가는 어셈블리가 하나도 없습니다. tools/compile-check의 csproj에 적힌 SrpVariants를 확인하세요."
   fi
 done
 
@@ -384,9 +426,18 @@ if [[ -z "$expected_sources" ]]; then
 fi
 
 # 소스가 쓰는 전처리 기호. 문자열이나 주석 안의 '#if'는 줄 앞부분 조건으로 걸러 낸다.
+# grep은 그런 줄이 없으면 1, 읽지 못하면 2 이상으로 끝난다. 읽기 실패를 "쓰는 기호 없음"으로 넘기지 않고 멈춘다.
+directive_status=0
+directive_lines="$(
+  cd "$source_root" \
+    && LC_ALL=C grep -rhE --include='*.cs' '^[^[:alnum:]"/]*#[[:space:]]*(if|elif)[[:space:](!]' Assets
+)" || directive_status=$?
+case "$directive_status" in
+  0|1) ;;
+  *) die "소스의 전처리 지시문을 읽지 못했습니다(grep 종료 코드 $directive_status)." ;;
+esac
 used_symbols="$(
-  cd "$source_root" && find Assets -type f -name '*.cs' -print0 \
-    | LC_ALL=C xargs -0 grep -hE '^[^[:alnum:]"/]*#[[:space:]]*(if|elif)[[:space:](!]' 2>/dev/null \
+  printf '%s\n' "$directive_lines" \
     | LC_ALL=C sed -e 's#//.*$##' -e 's/^[^#]*#[[:space:]]*[a-z]*//' \
     | LC_ALL=C grep -oE '[A-Za-z_][A-Za-z0-9_]*' \
     | LC_ALL=C sort -u || true
@@ -453,6 +504,20 @@ print_diagnostics() {
 deps_of() {
   grep -oE 'ProjectReference Include="[^"]+"' "$tool_dir/$1/$1.csproj" \
     | sed -E 's#.*/([^/"]+)\.csproj"#\1#' || true
+}
+
+# 컴파일하지 않고 그 프로젝트의 소스 목록만 파일로 받는다(Directory.Build.targets의 SrpListSources).
+# 이번 실행에서 컴파일하지 않은 어셈블리를 소스 대조에 넣을 때 쓴다. 성공하면 0을 돌려준다.
+list_sources() {
+  local assembly="$1"
+  local list_file="$out_dir/sources/$assembly.txt"
+  local status=0
+  mkdir -p "$out_dir/sources"
+  rm -f "$list_file"
+  dotnet msbuild "$(to_native "$tool_dir/$assembly/$assembly.csproj")" -nologo -v:quiet -t:SrpListSources \
+    "-p:SrpVariant=editor" "-p:SrpSourceListFile=$(to_native "$list_file")" "${msbuild_props[@]}" \
+    >"$out_dir/sources/$assembly.console.log" 2>&1 || status=$?
+  [[ "$status" -eq 0 && -f "$list_file" ]]
 }
 
 max_shown_errors=20  # 어셈블리 하나에서 화면에 보일 오류 줄 수. 문법 오류 하나가 수십 줄로 번지기 때문이다.
@@ -558,62 +623,72 @@ check_assembly() {
 for variant in $variants; do
   if [[ "$variant" == "editor" ]]; then
     say "editor 변형 — 에디터에서 컴파일되는 구성 (UNITY_EDITOR, UNITY_INCLUDE_TESTS 정의, UnityEditor 참조)"
-    assemblies="$editor_assemblies"
   else
     say "player 변형 — 플레이어 빌드 구성 (두 기호 없음, UnityEditor·테스트 어셈블리 없음)"
-    assemblies="$player_assemblies"
   fi
-  for assembly in $assemblies; do
+  for assembly in $(assemblies_of "$variant"); do
     check_assembly "$variant" "$assembly"
   done
 done
 
 # ---------------------------------------------------------------------------
-# 소스 대조: Assets의 .cs가 빠짐없이, 한 번씩만 컴파일됐는가 (editor 변형 기준)
+# 소스 대조: Assets의 .cs가 빠짐없이, 어셈블리 한 곳씩에만 들어갔는가.
+# 어느 변형을 골랐든 모든 어셈블리를 놓고 본다. 이번에 컴파일한 어셈블리는 컴파일러에 넘어간 목록(보고 파일)을 쓰고,
+# 컴파일하지 않은 어셈블리(player만 돌릴 때의 에디터 전용 어셈블리, 앞의 확인에서 멈춘 어셈블리)는
+# 프로젝트를 평가해 얻은 소스 목록을 쓴다.
 # ---------------------------------------------------------------------------
 coverage_failed=0
-case " $variants " in
-  *" editor "*)
-    reports_complete=1
-    for assembly in $editor_assemblies; do
-      [[ -f "$out_dir/editor/$assembly.report.txt" ]] || reports_complete=0
-    done
-    if [[ "$reports_complete" -eq 1 ]]; then
-      compiled_sources="$(
-        for assembly in $editor_assemblies; do
-          tr -d '\r' <"$out_dir/editor/$assembly.report.txt" | sed -n 's/^source=//p'
-        done | tr '\\' '/' | LC_ALL=C sort
-      )"
-      duplicated="$(printf '%s\n' "$compiled_sources" | uniq -d)"
-      not_compiled="$(comm -23 <(printf '%s\n' "$expected_sources") <(printf '%s\n' "$compiled_sources" | uniq))"
-      unexpected="$(comm -13 <(printf '%s\n' "$expected_sources") <(printf '%s\n' "$compiled_sources" | uniq))"
-      if [[ -n "$not_compiled" ]]; then
-        coverage_failed=1
-        say "소스 대조 실패: 어느 프로젝트도 컴파일하지 않은 .cs가 있습니다. 새 asmdef 폴더나 Plugins 같은 firstpass 폴더라면"
-        say "  tools/compile-check에 그 어셈블리의 프로젝트를 더하고 이 스크립트의 어셈블리 목록에 넣으세요:"
-        printf '%s\n' "$not_compiled" | while IFS= read -r line; do say "    $line"; done
-      fi
-      if [[ -n "$duplicated" ]]; then
-        coverage_failed=1
-        say "소스 대조 실패: 두 프로젝트가 같은 .cs를 컴파일했습니다(asmdef 폴더가 겹쳤는지 확인):"
-        printf '%s\n' "$duplicated" | while IFS= read -r line; do say "    $line"; done
-      fi
-      if [[ -n "$unexpected" ]]; then
-        coverage_failed=1
-        say "소스 대조 실패: Assets의 .cs가 아닌 파일이 컴파일됐습니다:"
-        printf '%s\n' "$unexpected" | while IFS= read -r line; do say "    $line"; done
-      fi
-      if [[ "$coverage_failed" -eq 0 ]]; then
-        say "소스 대조: Assets의 .cs $(count_lines "$expected_sources")개가 editor 변형에서 빠짐없이 한 번씩 컴파일됨"
-      fi
-    else
-      say "소스 대조: 컴파일 단계까지 가지 못한 어셈블리가 있어 하지 못했습니다."
+assigned_sources=""
+listed_only=""
+listing_failed=""
+for assembly in $assemblies; do
+  source_file=""
+  for variant in $variants; do
+    if [[ -f "$out_dir/$variant/$assembly.report.txt" ]]; then
+      source_file="$out_dir/$variant/$assembly.report.txt"
+      break
     fi
-    ;;
-  *)
-    say "소스 대조: editor 변형을 돌릴 때만 합니다(이번에는 하지 않음)."
-    ;;
-esac
+  done
+  if [[ -z "$source_file" ]]; then
+    if list_sources "$assembly"; then
+      source_file="$out_dir/sources/$assembly.txt"
+      listed_only="${listed_only:+$listed_only, }$assembly"
+    else
+      listing_failed="${listing_failed:+$listing_failed, }$assembly"
+      continue
+    fi
+  fi
+  assigned_sources="$assigned_sources$(tr -d '\r' <"$source_file" | sed -n 's/^source=//p' | tr '\\' '/')"$'\n'
+done
+# sort, uniq, comm은 같은 로캘에서 돌아야 한다. 로캘이 다르면 comm이 "정렬되지 않았다"며 실패한다.
+assigned_sources="$(printf '%s' "$assigned_sources" | sed '/^$/d' | LC_ALL=C sort)"
+duplicated="$(printf '%s\n' "$assigned_sources" | LC_ALL=C uniq -d)"
+not_assigned="$(LC_ALL=C comm -23 <(printf '%s\n' "$expected_sources") <(printf '%s\n' "$assigned_sources" | LC_ALL=C uniq))"
+unexpected="$(LC_ALL=C comm -13 <(printf '%s\n' "$expected_sources") <(printf '%s\n' "$assigned_sources" | LC_ALL=C uniq))"
+if [[ -n "$listing_failed" ]]; then
+  coverage_failed=1
+  say "소스 대조 실패: 소스 목록을 얻지 못한 어셈블리가 있습니다: $listing_failed"
+  say "  로그: $(to_native "$out_dir")/sources/<어셈블리>.console.log"
+fi
+if [[ -n "$not_assigned" ]]; then
+  coverage_failed=1
+  say "소스 대조 실패: 어느 프로젝트에도 들어가지 않아 컴파일되지 않는 .cs가 있습니다. 새 asmdef 폴더나 Plugins 같은 firstpass 폴더라면"
+  say "  tools/compile-check에 그 어셈블리의 프로젝트를 더하고 이 스크립트의 어셈블리 목록에 넣으세요:"
+  printf '%s\n' "$not_assigned" | say_list
+fi
+if [[ -n "$duplicated" ]]; then
+  coverage_failed=1
+  say "소스 대조 실패: 두 프로젝트에 같은 .cs가 들어갔습니다(asmdef 폴더가 겹쳤는지 확인):"
+  printf '%s\n' "$duplicated" | say_list
+fi
+if [[ -n "$unexpected" ]]; then
+  coverage_failed=1
+  say "소스 대조 실패: Assets의 .cs가 아닌 파일이 소스에 들어갔습니다:"
+  printf '%s\n' "$unexpected" | say_list
+fi
+if [[ "$coverage_failed" -eq 0 ]]; then
+  say "소스 대조: Assets의 .cs $(count_lines "$expected_sources")개가 빠짐없이 어셈블리 한 곳씩에 들어감${listed_only:+ (이번에 컴파일하지 않아 목록만 본 어셈블리: $listed_only)}"
+fi
 
 # ---------------------------------------------------------------------------
 # 결과
@@ -622,13 +697,7 @@ passed_text=""
 total_warnings=0
 incomplete=0
 for variant in $variants; do
-  if [[ "$variant" == "editor" ]]; then
-    expected_assemblies="$editor_assemblies"
-  else
-    expected_assemblies="$player_assemblies"
-  fi
-  # shellcheck disable=SC2086  # 목록을 낱말로 나누려고 일부러 따옴표를 뺀다
-  expected_count="$(printf '%s\n' $expected_assemblies | wc -l | tr -d '[:space:]')"
+  expected_count="$(count_lines "$(assemblies_of "$variant")")"
   variant_line="$(printf '%s' "$passed" | awk -v v="$variant" '
     $1 == v { assemblies++; files += $3; warnings += $4 }
     END { printf "%d %d %d", assemblies, files, warnings }')"

@@ -139,8 +139,9 @@ PR CI에는 넣지 않는다. GitHub runner에는 Unity DLL과 `Library`가 없�
 - 어셈블리마다 컴파일한 파일 수를 출력한다. 0개면 실패다.
 - 필요한 참조 DLL이 없으면 컴파일 전에 실패한다.
 - 매번 이전 산출물을 지우고 처음부터 컴파일하며, 컴파일러가 DLL을 실제로 만들었는지 확인한다.
-- 소스 대조: `Assets`의 `.cs`가 `editor` 변형에서 빠짐없이 한 번씩 컴파일됐는지 본다. 새 asmdef 폴더나 `Assets/Plugins` 같은 firstpass 폴더가 생기면 여기서 걸린다.
+- 소스 대조: `Assets`의 `.cs`가 빠짐없이 어셈블리 한 곳씩에만 들어갔는지 본다. 새 asmdef 폴더(다른 asmdef 폴더 안에 생긴 것 포함)나 `Assets/Plugins` 같은 firstpass 폴더가 생기면 여기서 걸린다. `--variant`로 한 변형만 돌려도 모든 어셈블리를 놓고 본다. 그때 컴파일하지 않는 어셈블리는 소스 목록만 확인한다.
 - asmdef 대조: asmdef 내용이 프로젝트 파일이 흉내 내는 상태와 다르면 실패한다.
+- 통과로 기록된 어셈블리 수가 그 변형의 어셈블리 목록과 같아야 통과다. 실패가 없다는 것만으로 통과시키지 않는다.
 - 전처리 기호: 소스가 `#if`에 `UNITY_EDITOR`, `UNITY_INCLUDE_TESTS` 말고 다른 기호를 쓰면 실패한다. 그 기호의 정의 여부를 정해 두지 않았기 때문이다.
 - Unity 설치나 `Library`가 없으면 무엇이 없는지 출력하고 종료 코드 2로 끝낸다. 이때는 "오류 0"을 출력하지 않는다.
 
@@ -153,6 +154,7 @@ PR CI에는 넣지 않는다. GitHub runner에는 Unity DLL과 `Library`가 없�
 고쳐야 하는 때:
 
 - asmdef를 고쳤다: 그 어셈블리의 csproj에서 참조를 같은 뜻으로 고치고, `SrpAsmdefExpected`를 오류 메시지가 알려 주는 값으로 바꾼다.
-- asmdef 폴더를 새로 만들었다: 같은 이름의 프로젝트 폴더와 csproj를 더하고 `scripts/run-compile-check.sh`의 어셈블리 목록에 넣는다.
+- asmdef 폴더를 새로 만들었다: 같은 이름의 프로젝트 폴더와 csproj를 더하고 `scripts/run-compile-check.sh`의 어셈블리 목록(`assemblies`)에 참조되는 쪽이 먼저 오도록 넣는다. 에디터나 테스트에만 있는 어셈블리면 csproj에 `SrpVariants`를 `editor`로 적는다. 적지 않으면 두 변형 모두에서 컴파일한다.
+- 어떤 어셈블리에 들어갈 스크립트가 하나도 없게 됐다(예: asmdef 밖의 스크립트를 모두 지워 `Assembly-CSharp`가 빔): 소스 0개는 실패이므로, 그 프로젝트와 그 프로젝트를 가리키는 참조, 스크립트의 목록 항목을 뺀다.
 - 새 전처리 기호를 쓴다: `Directory.Build.targets`의 `DefineConstants`에서 변형별 정의 여부를 정하고 스크립트의 `known_symbols`에 더한다.
 - Unity 버전을 올렸다: Unity에서 프로젝트를 열어 `Library`를 갱신한 뒤 응답 파일과 참조 구성을 다시 대조한다. 기본 라이브러리 폴더 이름(`NetStandard/ref/2.1.0` 등)이 바뀌었다면 참조 DLL 누락으로 실패하므로 `Directory.Build.targets`를 고친다.
