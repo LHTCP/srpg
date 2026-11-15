@@ -787,7 +787,7 @@ public static class SrpDefaultMaps
     /// <summary>
     /// 추가 조건 검증 랩(8차 추가). 전령 호위 상황으로 추가 승리/패배 조건 네 종류를 한 맵에서 확인한다.
     /// - 승리 조건: 전령이 동쪽 출구 (10,3)에 도달(P0), 중앙 거점 (5,3) 주변 3x3을 3라운드 유지(P0),
-    ///   8라운드 버티기(P1. P0에게는 제한 라운드다).
+    ///   9라운드 버티기(P1. P0에게는 제한 라운드다).
     /// - 패배 조건: 전령을 잃으면 P0 패배.
     /// - 지휘관 처치와 상호작용 목표는 쓰지 않는다. 스킬 없이 기본 행동만으로 조건을 본다.
     /// 수치와 배치는 조건 확인용 임시값(브릿지)이다.
@@ -942,7 +942,7 @@ public static class SrpDefaultMaps
                     },
                     new SrpVictoryConditionData
                     {
-                        type = SrpVictoryConditionTypes.SurviveRounds, owner = 1, value = 8,
+                        type = SrpVictoryConditionTypes.SurviveRounds, owner = 1, value = 9,
                     },
                 },
                 defeatConditions = new[]

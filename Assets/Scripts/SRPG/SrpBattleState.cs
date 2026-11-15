@@ -332,6 +332,7 @@ public class SrpBattleState
             reactionPoints = t.maxReactionPoints > 0 ? t.maxReactionPoints : 1,
             speed = t.speed > 0 ? t.speed : 10,
             weaponClass = weaponClass,
+            firearmType = t.firearmType,
             stance = t.stance,
             facing = t.facing,
             moveRange = t.moveRange,

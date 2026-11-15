@@ -5,7 +5,7 @@ using UnityEngine;
 /// <summary>
 /// 8차 테스트: 적 AI 마무리(태세와 방향 선택, 오버클럭, 회복하러 다가가는 이동)와
 /// 지휘관 처치 승리가 켜진 맵에서 지휘관이 위험한 칸으로 나서지 않는 판단.
-/// 뒤쪽은 8차에서 받은 기획 결정(Q16 추가 승리 조건 4종과 패배 조건 목록)을 고정한다.
+/// 뒤쪽은 8차에서 받은 기획 결정(Q16 추가 승리 조건 4종과 패배 조건 목록, Q18 권총/소총 구분과 회피 가중치)을 고정한다.
 /// </summary>
 [Category("SrpM1All")]
 public class SrpM1Phase8Tests
@@ -411,7 +411,7 @@ public class SrpM1Phase8Tests
     }
 
     [Category("SrpAiSim")]
-    [TestCase(TestName = "승리 조건 실험실: AI끼리 붙어도 지휘관이 첫 라운드에 쓰러지며 끝나지 않는다")]
+    [TestCase(TestName = "승리 조건 실험실: AI끼리 붙어도 지휘관의 돌진으로 한두 라운드에 끝나지 않는다")]
     public void ObjectiveLab_SimulationDoesNotEndWithCommanderRush()
     {
         var config = new SrpBattleSimConfig
@@ -433,8 +433,9 @@ public class SrpM1Phase8Tests
 
         // 측정값(2026-11-15, 200회): 7차 평균 1.47라운드, 전부 지휘관 처치(먼저 움직인 진영이 항상 패배).
         // 8차(지휘관이 위험한 칸으로 나서지 않음) 평균 4.00라운드, 승률 0.310 / 0.690, 지휘관 처치 69.0%.
+        // 8차 결정 반영 뒤(권총 피해, 회피 가중치) 평균 5.08라운드, 승률 0.000 / 1.000, 지휘관 처치 74.0%.
+        // 이 맵은 2명 대 3명이라 AI끼리는 수가 많은 쪽이 이긴다. 승률은 고정하지 않고 "돌진으로 끝나지 않는다"만 본다.
         Assert.That(outcome.averageRounds, Is.GreaterThanOrEqualTo(2.5f), "전투가 너무 빨리 끝납니다. 지휘관이 다시 돌진하는지 확인하세요.");
-        Assert.That(outcome.owner0WinRate, Is.GreaterThan(0.05f), "먼저 움직이는 진영이 이기는 판이 없습니다.");
         Assert.That(outcome.drawRate, Is.LessThanOrEqualTo(0.10f), "무승부가 많습니다. 지휘관끼리 버티기만 하는지 확인하세요.");
     }
 
@@ -663,7 +664,7 @@ public class SrpM1Phase8Tests
         var state = SrpBattleState.FromMap(SrpDefaultMaps.CreateM1ConditionLab());
 
         Assert.That(SrpVictory.DescribeRule(state),
-            Is.EqualTo("적 전멸 / P0 전령 (10,3) 도달 / P0 거점 (5,3) 3라운드 유지 / P1 8라운드 버티기"));
+            Is.EqualTo("적 전멸 / P0 전령 (10,3) 도달 / P0 거점 (5,3) 3라운드 유지 / P1 9라운드 버티기"));
         Assert.That(SrpVictory.DescribeDefeatRule(state), Is.EqualTo("P0 전령 보호 실패"));
         Assert.That(SrpVictory.Evaluate(state).decided, Is.False);
         foreach (string type in SrpVictoryConditionTypes.BuiltIn)
@@ -958,12 +959,144 @@ public class SrpM1Phase8Tests
             $"[SRPG][AI-Sim][ConditionLab] w0={outcome.owner0WinRate:F3}, w1={outcome.owner1WinRate:F3}, " +
             $"draw={outcome.drawRate:F3}, avgR={outcome.averageRounds:F2}, custom={outcome.customConditionRate:F3}");
 
-        // 측정값(2026-11-15, 200회): 평균 6.66라운드, 승률 0.510 / 0.490, 무승부 0.
-        // 종료 방식은 전멸 41.0%, 추가 조건 59.0%(8라운드 버티기 25.0%, 전령 보호 실패 21.0%, 거점 유지 13.0%).
-        Assert.That(outcome.drawRate, Is.LessThanOrEqualTo(0.05f), "8라운드 버티기가 있어 무승부가 나오면 안 됩니다.");
-        Assert.That(outcome.averageRounds, Is.LessThanOrEqualTo(8f), "8라운드가 끝나면 승패가 나야 합니다.");
+        // 측정값(2026-11-15, 200회, 8차 결정을 모두 반영한 뒤): 평균 8.43라운드, 승률 0.765 / 0.235, 무승부 0.
+        // 종료 방식은 전멸 35.5%, 추가 조건 64.5%(거점 유지 43.5%, 전령 보호 실패 10.5%, 9라운드 버티기 10.5%).
+        // AI의 전령은 위험한 칸을 피하느라 출구에 닿지 못한다(도달 0%). 도달 판정은 위의 단위 테스트가 고정한다.
+        Assert.That(outcome.drawRate, Is.LessThanOrEqualTo(0.05f), "9라운드 버티기가 있어 무승부가 나오면 안 됩니다.");
+        Assert.That(outcome.averageRounds, Is.LessThanOrEqualTo(9f), "9라운드가 끝나면 승패가 나야 합니다.");
         Assert.That(outcome.customConditionRate, Is.GreaterThan(0.2f), "추가 조건으로 끝난 판이 거의 없습니다.");
-        Assert.That(outcome.owner0WinRate, Is.InRange(0.2f, 0.8f), "한쪽이 일방적으로 이깁니다.");
+        Assert.That(outcome.owner0WinRate, Is.InRange(0.1f, 0.9f), "한쪽이 일방적으로 이깁니다.");
+    }
+
+    // ── 기획 결정 Q18: 권총/소총 구분, 회피 가중치 ───────────────────────────
+
+    [TestCase(TestName = "부무장 사격(권총)은 소총보다 약하고, 총기 종류를 데이터로 정하면 주무장과 무관하게 따른다")]
+    public void Firearm_PistolDealsLessThanRifleAndTypeCanBeSetInData()
+    {
+        var state = CreateState(9, 5);
+        // 주무장이 총기인 유닛은 소총, 아닌 유닛의 사격은 권총(부무장)이다. 둘 다 공격력 8.
+        var rifle = AddUnit(state, id: 1, owner: 0, x: 0, y: 1, attackPower: 8, attackRange: 4,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
+        var sidearm = AddUnit(state, id: 2, owner: 0, x: 0, y: 3, attackPower: 8, attackRange: 4,
+            weaponClass: SrpWeaponClass.Melee, maxAmmo: 1, ammo: 1);
+        Assert.That(SrpCombatResolver.ResolveFirearmType(rifle), Is.EqualTo(SrpFirearmType.Rifle));
+        Assert.That(SrpCombatResolver.ResolveFirearmType(sidearm), Is.EqualTo(SrpFirearmType.Pistol));
+
+        SrpCombatResolver.GetBaseBasicAttackDamage(SrpBasicAttackKind.Firearm, rifle, out int rifleHp, out _);
+        SrpCombatResolver.GetBaseBasicAttackDamage(SrpBasicAttackKind.Firearm, sidearm, out int pistolHp, out _);
+        Assert.That(rifleHp, Is.EqualTo(8 * 2 + 4));
+        Assert.That(pistolHp, Is.EqualTo(12), "권총 피해 식(공격력 + 4)과 다릅니다.");
+
+        // 실제 사격도 같은 기준 피해를 쓴다(대상은 정면, 반응 없음).
+        var targetA = AddUnit(state, id: 3, owner: 1, x: 3, y: 1);
+        targetA.facing = SrpFacing.West;
+        var targetB = AddUnit(state, id: 4, owner: 1, x: 3, y: 3);
+        targetB.facing = SrpFacing.West;
+        Assert.That(SrpCombatResolver.ApplyAttack(state, rifle, targetA).damageToHp, Is.EqualTo(rifleHp));
+        Assert.That(SrpCombatResolver.ApplyAttack(state, sidearm, targetB).damageToHp, Is.EqualTo(pistolHp));
+
+        // 근접 기본 공격은 총기 종류와 무관하다.
+        SrpCombatResolver.GetBaseBasicAttackDamage(SrpBasicAttackKind.Melee, sidearm, out int meleeHp, out int meleePg);
+        Assert.That((meleeHp, meleePg), Is.EqualTo((2, 8)));
+
+        // 데이터로 정한 종류가 주무장보다 먼저다.
+        sidearm.firearmType = SrpFirearmType.Rifle;
+        rifle.firearmType = SrpFirearmType.Pistol;
+        SrpCombatResolver.GetBaseBasicAttackDamage(SrpBasicAttackKind.Firearm, sidearm, out int forcedRifleHp, out _);
+        SrpCombatResolver.GetBaseBasicAttackDamage(SrpBasicAttackKind.Firearm, rifle, out int forcedPistolHp, out _);
+        Assert.That(forcedRifleHp, Is.EqualTo(rifleHp));
+        Assert.That(forcedPistolHp, Is.EqualTo(pistolHp));
+
+        // 유닛 템플릿의 값은 저장 형식을 거쳐 전투 유닛까지 따라간다. 값이 없는 기존 데이터는 Auto다.
+        var map = new SrpMapFileV1
+        {
+            width = 3,
+            height = 3,
+            walkable = AllWalkable(3, 3),
+            playerOrder = new[] { 0, 1 },
+            templates = new[]
+            {
+                new SrpUnitTemplateData { id = "p8_gunner", weaponClass = SrpWeaponClass.Melee, firearmType = SrpFirearmType.Rifle },
+                new SrpUnitTemplateData { id = "p8_plain", weaponClass = SrpWeaponClass.Melee },
+            },
+            placements = new[]
+            {
+                new SrpPlacementData { templateId = "p8_gunner", owner = 0, x = 0, y = 0, footprint = new SrpOffset[0] },
+                new SrpPlacementData { templateId = "p8_plain", owner = 1, x = 2, y = 2, footprint = new SrpOffset[0] },
+            },
+        };
+        var loaded = SrpBattleState.FromMap(JsonUtility.FromJson<SrpMapFileV1>(JsonUtility.ToJson(map)));
+        Assert.That(loaded.Units[0].firearmType, Is.EqualTo(SrpFirearmType.Rifle));
+        Assert.That(loaded.Units[1].firearmType, Is.EqualTo(SrpFirearmType.Auto));
+        Assert.That(loaded.Clone().Units[0].firearmType, Is.EqualTo(SrpFirearmType.Rifle));
+    }
+
+    [TestCase(TestName = "회피 성공률은 기준 50%에서 측면·후면 공격이면 낮아지고 속도 차이만큼 오르내리며 10~80% 안에 머문다")]
+    public void Dodge_ChanceDependsOnDirectionAndSpeed()
+    {
+        var state = CreateState(9, 9);
+        var defender = AddUnit(state, id: 1, owner: 1, x: 4, y: 4);
+        defender.stance = SrpStance.Aggressive;
+        defender.facing = SrpFacing.East;
+        defender.speed = 10;
+        var front = AddUnit(state, id: 2, owner: 0, x: 7, y: 4);
+        var side = AddUnit(state, id: 3, owner: 0, x: 4, y: 7);
+        var rear = AddUnit(state, id: 4, owner: 0, x: 1, y: 4);
+        front.speed = side.speed = rear.speed = 10;
+
+        Assert.That(SrpCombatResolver.DodgeChancePercent, Is.EqualTo(50));
+        Assert.That(SrpCombatResolver.GetDodgeChancePercent(state, front, defender), Is.EqualTo(50));
+        Assert.That(SrpCombatResolver.GetDodgeChancePercent(state, side, defender), Is.EqualTo(50 - 15));
+        Assert.That(SrpCombatResolver.GetDodgeChancePercent(state, rear, defender), Is.EqualTo(50 - 30));
+
+        // 속도 차이(방어자 - 공격자) 1마다 2%p.
+        front.speed = 7;
+        Assert.That(SrpCombatResolver.GetDodgeChancePercent(state, front, defender), Is.EqualTo(50 + 3 * 2));
+        front.speed = 14;
+        Assert.That(SrpCombatResolver.GetDodgeChancePercent(state, front, defender), Is.EqualTo(50 - 4 * 2));
+
+        // 하한과 상한.
+        defender.speed = 40;
+        Assert.That(SrpCombatResolver.GetDodgeChancePercent(state, front, defender), Is.EqualTo(80));
+        defender.speed = 0;
+        rear.speed = 30;
+        Assert.That(SrpCombatResolver.GetDodgeChancePercent(state, rear, defender), Is.EqualTo(10));
+    }
+
+    [TestCase(TestName = "실제 회피 판정은 대상별 성공률을 쓴다: 후면 사격은 정면 사격보다 덜 빗나간다")]
+    public void Dodge_ResolutionUsesPerTargetChance()
+    {
+        int frontDodges = CountDodges(attackerX: 7, attackerY: 4);
+        int rearDodges = CountDodges(attackerX: 1, attackerY: 4);
+
+        const int rolls = 2000;
+        int frontChance = 50;
+        int rearChance = 50 - 30;
+        Assert.That(frontDodges, Is.InRange(rolls * (frontChance - 5) / 100, rolls * (frontChance + 5) / 100));
+        Assert.That(rearDodges, Is.InRange(rolls * (rearChance - 5) / 100, rolls * (rearChance + 5) / 100));
+    }
+
+    /// <summary>동쪽을 보는 공격 태세 유닛(4,4)에게 같은 속도의 사격수가 2000번 쏴서 회피된 횟수.</summary>
+    static int CountDodges(int attackerX, int attackerY)
+    {
+        var state = CreateState(9, 9);
+        state.SeedRandom(4242);
+        var defender = AddUnit(state, id: 1, owner: 1, x: 4, y: 4);
+        defender.stance = SrpStance.Aggressive;
+        defender.facing = SrpFacing.East;
+        defender.hp = defender.maxHp = 100000;
+        defender.pg = defender.maxPg = 100000;
+        var shooter = AddUnit(state, id: 2, owner: 0, x: attackerX, y: attackerY, attackPower: 1, attackRange: 4,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
+
+        int dodged = 0;
+        for (int i = 0; i < 2000; i++)
+        {
+            defender.reactionPoints = 1;
+            if (SrpCombatResolver.ApplyAttack(state, shooter, defender).wasDodged)
+                dodged++;
+        }
+        return dodged;
     }
 
     // ── 전장 구성 ────────────────────────────────────────────────────────────

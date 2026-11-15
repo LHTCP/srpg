@@ -26,6 +26,8 @@ public class SrpUnitTemplateData
     public int maxReactionPoints = 1;
     public int speed = 10;
     public SrpWeaponClass weaponClass = SrpWeaponClass.Melee;
+    /// <summary>사격에 쓰는 총기의 종류. 비워 두면(Auto) 주무장이 총기일 때 소총, 아니면 권총(부무장)이다.</summary>
+    public SrpFirearmType firearmType = SrpFirearmType.Auto;
     public SrpStance stance = SrpStance.Aggressive;
     public SrpFacing facing = SrpFacing.South;
 

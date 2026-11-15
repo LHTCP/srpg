@@ -8,6 +8,8 @@ public static class SrpCombatResolver
     const int ExecutionBonusDamage = 6;
     // 총기 HP 피해 = 공격력 x 2 + 4. 근접은 HP 공격력/4(최소 1), PG 공격력(공격 태세 +1).
     const int FirearmHpFlatBonus = 4;
+    // 권총(부무장) 사격의 HP 피해: 공격력 + 4. 소총(공격력 x 2 + 4)보다 약하다. 브릿지 값(Q18).
+    const int PistolHpFlatBonus = 4;
     // 상시 감쇠(수비 태세, 수비 지속 완충)는 PG 전용이다. HP 감쇠는 RP를 쓰는 Guard,
     // 탱커 특성(다중 교전, 완벽한 수비), 엄폐에만 둔다(RQ-004, 계획 문서 Q5).
     const int DefensiveStanceGrd = 2;
@@ -19,6 +21,12 @@ public static class SrpCombatResolver
     const int CoverDef = 2;
     const int CoverGrd = 1;
     const int DodgeSuccessChancePercent = 50;
+    // 회피 가중치(TBD-003, 브릿지 값, Q18). 기준 성공률에 방향과 속도 차이를 더하고 하한/상한 안으로 자른다.
+    const int DodgeSidePenaltyPercent = 15;
+    const int DodgeRearPenaltyPercent = 30;
+    const int DodgeSpeedWeightPercent = 2;
+    const int DodgeMinChancePercent = 10;
+    const int DodgeMaxChancePercent = 80;
     const int SideAttackHpBonus = 1;
     const int SideAttackPgBonus = 1;
     const int BackAttackHpBonus = 2;
@@ -272,9 +280,19 @@ public static class SrpCombatResolver
         return o;
     }
 
+    /// <summary>유닛이 사격에 쓰는 총기의 종류. Auto면 주무장이 총기일 때 소총, 아니면 권총(부무장)이다.</summary>
+    public static SrpFirearmType ResolveFirearmType(SrpUnitRuntime unit)
+    {
+        if (unit == null)
+            return SrpFirearmType.Rifle;
+        if (unit.firearmType != SrpFirearmType.Auto)
+            return unit.firearmType;
+        return unit.weaponClass == SrpWeaponClass.Firearm ? SrpFirearmType.Rifle : SrpFirearmType.Pistol;
+    }
+
     /// <summary>
     /// 기본 공격의 기준 피해(방향·방어·반응·태그 적용 전). 실제 해결(ApplyAttack)과 적 AI의 가치 비교가 같이 쓴다.
-    /// 총기: HP 공격력 x 2 + 4. 근접: HP 공격력/4(최소 1), PG 공격력. 공격 태세면 PG +1.
+    /// 총기: 소총은 HP 공격력 x 2 + 4, 권총은 HP 공격력 + 4. 근접: HP 공격력/4(최소 1), PG 공격력. 공격 태세면 PG +1.
     /// </summary>
     public static void GetBaseBasicAttackDamage(
         SrpBasicAttackKind attackKind,
@@ -286,7 +304,9 @@ public static class SrpCombatResolver
         switch (attackKind)
         {
             case SrpBasicAttackKind.Firearm:
-                hpDamage = raw * 2 + FirearmHpFlatBonus;
+                hpDamage = ResolveFirearmType(attacker) == SrpFirearmType.Pistol
+                    ? raw + PistolHpFlatBonus
+                    : raw * 2 + FirearmHpFlatBonus;
                 pgDamage = 0;
                 break;
             case SrpBasicAttackKind.Melee:
@@ -667,8 +687,25 @@ public static class SrpCombatResolver
         return state.ChebyshevAnchor(attacker, defender) > 1;
     }
 
-    /// <summary>회피 성공률(%). HUD 예상 표시에 쓴다.</summary>
+    /// <summary>회피의 기준 성공률(%). 정면에서, 속도가 같은 상대에게 받는 공격의 성공률이다.</summary>
     public static int DodgeChancePercent => DodgeSuccessChancePercent;
+
+    /// <summary>
+    /// attacker의 공격을 defender가 회피할 확률(%). 실제 판정과 HUD 예상 표시가 같이 쓴다.
+    /// 기준 성공률에서 측면 공격은 -15, 후면 공격은 -30을 하고, 속도 차이(방어자 - 공격자) 1마다 2를 더한 뒤
+    /// 10~80 안으로 자른다. 회피를 시도할 수 있는지는 CanDefenderDodge가 따로 본다.
+    /// </summary>
+    public static int GetDodgeChancePercent(SrpBattleState state, SrpUnitRuntime attacker, SrpUnitRuntime defender)
+    {
+        int chance = DodgeSuccessChancePercent;
+        if (attacker == null || defender == null)
+            return chance;
+
+        if (!IsAttackerInDefenderFrontArc(attacker, defender))
+            chance -= IsAttackerBehindDefender(attacker, defender) ? DodgeRearPenaltyPercent : DodgeSidePenaltyPercent;
+        chance += (defender.speed - attacker.speed) * DodgeSpeedWeightPercent;
+        return Mathf.Clamp(chance, DodgeMinChancePercent, DodgeMaxChancePercent);
+    }
 
     static bool DoesDodgeSucceed(SrpBattleState state, SrpUnitRuntime attacker, SrpUnitRuntime defender)
     {
@@ -678,7 +715,7 @@ public static class SrpCombatResolver
         if (state.IsPreview)
             return false;
 
-        return state.NextRandomPercent() < DodgeSuccessChancePercent;
+        return state.NextRandomPercent() < GetDodgeChancePercent(state, attacker, defender);
     }
 
     static void ApplyDirectionalVulnerability(
