@@ -1,5 +1,16 @@
 # SRPG GDD-테스트 추적 매핑표 (v2)
 
+## 2026-11-15 update - 8차 추적
+
+| Item | Tests | Status | Notes |
+| --- | --- | --- | --- |
+| 적 AI의 태세 선택과 태세 변경 시점 (`RQ-006`, 기준서 §4) | `SrpM1Phase8Tests.EnemyAi_PicksAggressiveStanceAgainstRangedThreatBeforeActing`, `EnemyAi_PicksDefensiveStanceWhenEngagedTankOrUnthreatened`, `CanChangeStance_OnlyBeforeFirstAction` | 부분 | 조건(`SrpBattleFlow.CanChangeStance`)은 플레이어 조작과 공유한다. 컨트롤러의 태세 버튼 잠금은 PlayMode로만 확인 가능 |
+| 적 AI의 방향 선택 (`RQ-007`, 기준서 §5) | `SrpM1Phase8Tests.EnemyAi_TurnsToFaceThreatBeforeActingInPlace`, `EnemyAi_KeepsFacingOnTieAndAvoidsExposingBack`, `EnemyAi_FacesFromDestinationWhenMoveSpendsLastAp`, `EnemyAi_DoesNotPreTurnBeforeFirearmAttack` | 부분 | 정면/후면 판정은 피해 규칙과 같은 함수를 쓴다. 가중치는 판단용 임시값 |
+| 적 AI의 오버클럭 사용 (`RQ-012`, 기준서 §8) | `SrpM1Phase8Tests.EnemyAi_OverclocksSkillForPowerBeforeUsingIt`, `EnemyAi_OverclocksToReviveSkillOnCooldownOnlyWhenItBecomesUsable` | 부분 | 판단 중 상태를 바꾸지 않는 것까지 고정. 런타임 연출은 PlayMode 미커버 |
+| 적 AI가 회복하러 다가가는 이동 (`RQ-021`) | `SrpM1Phase8Tests.EnemyAi_MovesIntoRangeToHealBadlyWoundedAlly`, `EnemyAi_HealApproachYieldsToAttackAndNeedsSpareAp` | 부분 | 이동 뒤 같은 차례에 회복할 수 있을 때만. 가산은 판단용 임시값 |
+| 적 AI 지휘관의 위험 판단 (기준서 §12, §13) | `SrpM1Phase8Tests.EnemyAi_CommanderDoesNotAdvanceIntoLethalTile`, `EnemyAi_CommanderDangerCheckOnlyAppliesWhileHolding`, `ObjectiveLab_SimulationDoesNotEndWithCommanderRush` | 부분 | 기준 피해 합으로 어림한다. 물러나는 판단은 없다 |
+| AI 시뮬레이션이 태세·방향 변경과 오버클럭을 사용 | `SrpM1Phase8Tests.Simulation_UsesStanceFacingAndOverclock`, `SrpM1AiSimAllEntry` 3종 | 부분 | 리포트의 `actions.stanceChangesPerBattle`/`facingChangesPerBattle`/`overclocksPerBattle`로 확인. 임계치는 7차와 같다 |
+
 ## 2026-11-15 update - 7차 기획 결정 추적
 
 | Item | Tests | Status | Notes |
