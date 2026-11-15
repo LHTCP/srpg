@@ -35,6 +35,10 @@ public struct SrpSingleBattleResult
     public int overwatchShotCount;
     public int opportunityAttackCount;
     public int groggySkipCount;
+    public int coverCount;
+    public int interactionCount;
+    /// <summary>승패가 난 방식. 무승부나 라운드 상한이면 None 또는 Draw.</summary>
+    public SrpVictoryReason reason;
 }
 
 public struct SrpBattleSimRunOutput
@@ -124,6 +128,7 @@ public static class SrpBattleSimRunner
                 {
                     result.rounds = round;
                     result.winnerOwner = victory.winnerOwner;
+                    result.reason = victory.reason;
                     return result;
                 }
             }
@@ -192,6 +197,10 @@ public static class SrpBattleSimRunner
                 return SrpEnemyAiAction.Reload();
             case SrpAiActionType.Overwatch:
                 return SrpEnemyAiAction.Overwatch();
+            case SrpAiActionType.TakeCover:
+                return SrpEnemyAiAction.TakeCover();
+            case SrpAiActionType.Interact:
+                return SrpEnemyAiAction.Interact();
             case SrpAiActionType.UseSkill:
                 return new SrpEnemyAiAction
                 {
@@ -243,6 +252,12 @@ public static class SrpBattleSimRunner
                 break;
             case SrpEnemyAiActionType.Overwatch:
                 result.overwatchArmCount++;
+                break;
+            case SrpEnemyAiActionType.TakeCover:
+                result.coverCount++;
+                break;
+            case SrpEnemyAiActionType.Interact:
+                result.interactionCount++;
                 break;
         }
     }
@@ -355,6 +370,27 @@ public static class SrpBattleSimRunner
         metrics.overwatchShotCount += result.overwatchShotCount;
         metrics.opportunityAttackCount += result.opportunityAttackCount;
         metrics.groggySkipCount += result.groggySkipCount;
+        metrics.coverCount += result.coverCount;
+        metrics.interactionCount += result.interactionCount;
+
+        if (result.winnerOwner >= 0)
+        {
+            switch (result.reason)
+            {
+                case SrpVictoryReason.Annihilation:
+                    metrics.annihilationCount++;
+                    break;
+                case SrpVictoryReason.CommanderKilled:
+                    metrics.commanderKillCount++;
+                    break;
+                case SrpVictoryReason.ObjectiveSecured:
+                    metrics.objectiveCount++;
+                    break;
+                case SrpVictoryReason.Custom:
+                    metrics.customConditionCount++;
+                    break;
+            }
+        }
     }
 
     static SrpSimReport BuildReport(SrpBattleSimConfig config, SrpSimMetrics metrics)
@@ -373,6 +409,10 @@ public static class SrpBattleSimRunner
         report.outcome.owner1WinRate = SrpSimThresholds.SafeDiv(metrics.owner1Wins, trials);
         report.outcome.drawRate = SrpSimThresholds.SafeDiv(metrics.drawCount, trials);
         report.outcome.averageRounds = metrics.totalRounds / (float)trials;
+        report.outcome.annihilationRate = SrpSimThresholds.SafeDiv(metrics.annihilationCount, trials);
+        report.outcome.commanderKillRate = SrpSimThresholds.SafeDiv(metrics.commanderKillCount, trials);
+        report.outcome.objectiveRate = SrpSimThresholds.SafeDiv(metrics.objectiveCount, trials);
+        report.outcome.customConditionRate = SrpSimThresholds.SafeDiv(metrics.customConditionCount, trials);
 
         int firearmTotal = metrics.firearmHpDamage + metrics.firearmPgDamage;
         int meleeTotal = metrics.meleeHpDamage + metrics.meleePgDamage;
@@ -391,6 +431,8 @@ public static class SrpBattleSimRunner
         report.actions.overwatchShotsPerBattle = SrpSimThresholds.SafeDiv(metrics.overwatchShotCount, trials);
         report.actions.opportunityAttacksPerBattle = SrpSimThresholds.SafeDiv(metrics.opportunityAttackCount, trials);
         report.actions.groggySkipsPerBattle = SrpSimThresholds.SafeDiv(metrics.groggySkipCount, trials);
+        report.actions.coversPerBattle = SrpSimThresholds.SafeDiv(metrics.coverCount, trials);
+        report.actions.interactionsPerBattle = SrpSimThresholds.SafeDiv(metrics.interactionCount, trials);
 
         report.sampleSeeds = new List<int>(metrics.sampledSeeds);
         return report;

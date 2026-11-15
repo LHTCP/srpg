@@ -31,6 +31,13 @@ public class SrpSimMetrics
     public int overwatchShotCount;
     public int opportunityAttackCount;
     public int groggySkipCount;
+    public int coverCount;
+    public int interactionCount;
+
+    public int annihilationCount;
+    public int commanderKillCount;
+    public int objectiveCount;
+    public int customConditionCount;
 
     public List<int> sampledSeeds = new List<int>();
 }
@@ -53,6 +60,12 @@ public class SrpSimOutcomeSummary
     public float owner1WinRate;
     public float drawRate;
     public float averageRounds;
+    /// <summary>전체 판 중 각 방식으로 끝난 비율. 무승부와 라운드 상한은 어디에도 들지 않는다.</summary>
+    public float annihilationRate;
+    public float commanderKillRate;
+    public float objectiveRate;
+    /// <summary>맵이 추가로 건 조건(victory.conditions)으로 끝난 비율.</summary>
+    public float customConditionRate;
 }
 
 [Serializable]
@@ -81,6 +94,8 @@ public class SrpSimActionSummary
     public float overwatchShotsPerBattle;
     public float opportunityAttacksPerBattle;
     public float groggySkipsPerBattle;
+    public float coversPerBattle;
+    public float interactionsPerBattle;
 }
 
 [Serializable]

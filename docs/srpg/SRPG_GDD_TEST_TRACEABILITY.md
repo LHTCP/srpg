@@ -1,5 +1,27 @@
 # SRPG GDD-테스트 추적 매핑표 (v2)
 
+## 2026-11-15 update - 7차 기획 결정 추적
+
+| Item | Tests | Status | Notes |
+| --- | --- | --- | --- |
+| 교전 인접은 대각선 포함 (`RQ-010`, 기준서 §5, 계획 문서 Q4) | `SrpM1Phase7Tests.Engagement_IncludesDiagonalAdjacency`, `Move_AwayFromDiagonalEnemyCostsExitAndTriggersOpportunityAttack`, `Move_AroundSameEnemyKeepsEngagement` | 부분 | 교전 표시와 이동 미리보기는 화면 확인이 필요하다 |
+| 패링 대상은 스킬의 패링 가능 표시만으로 판정 (`RQ-008`, 기준서 §6, 계획 문서 Q6) | `SrpM1Phase7Tests.Parry_DependsOnSkillFlagNotWeaponClass` | 완전 | 정면, 인접, 패링 가능자, RP 조건은 `SrpM1RuleSpecTests.ParryCondition_*`가 고정 |
+| 적 AI 사격수의 엄폐 + 경계태세 버티기 (기준서 §3.5, 계획 문서 Q15) | `SrpM1Phase7Tests.EnemyAi_ShooterHoldsCoverWithOverwatchInsteadOfAdvancing`, `EnemyAi_ShooterAdvancesWhenHoldingHasNoPayoff` | 부분 | 사람 상대 체감은 Unity 확인이 필요하다 |
+| 맵마다 다른 승리 조건의 추가 (기준서 §12, 계획 문서 Q13) | `SrpM1Phase7Tests.Victory_MapCanAddRegisteredCondition`, `Victory_AddedConditionRanksAfterBuiltInsAndCanDefeat`, `Victory_UnknownConditionIsSkippedButPreserved` | 부분 | 구조만 고정. 실제 추가 조건은 아직 없고 적 AI도 추가 조건을 모른다 |
+| 경계사격 발동 범위 안내 문구 (기준서 §3.5, 계획 문서 Q14) | 없음 | 미커버 | HUD 문구만 바꿨다. 화면 확인 항목은 계획 문서 14절 |
+
+## 2026-11-15 update - 7차 추적
+
+| Item | Tests | Status | Notes |
+| --- | --- | --- | --- |
+| 적 AI의 범위·태그·회복 스킬 사용 (`RQ-019`, `RQ-021`) | `SrpM1Phase7Tests.EnemyAi_AreaSkillTargetsTileCoveringMostEnemies`, `EnemyAi_TagSkillThenAttackConsumesTag`, `EnemyAi_TagSkillIsNotWastedWhenAttackIsWorthMore`, `EnemyAi_EndingSkillIsUsedAfterAttack`, `EnemyAi_HealsBadlyWoundedAllyBeforeMoving`, `EnemyAi_UsesAreaPgRecoveryOnlyWhenItRestoresPg` | 부분 | 판단과 실행(`SrpBattleFlow.ExecuteAiAction`)은 고정. 가중치는 판단용 임시값. 런타임 연출은 PlayMode 미커버 |
+| 적 AI의 엄폐 사용 (`RQ-004`, 기준서 §3.1) | `SrpM1Phase7Tests.EnemyAi_ShooterTakesCoverAfterFiring`, `EnemyAi_DoesNotTakeCoverWithoutRangedThreat`, `EnemyAi_IdleMeleeUnitTakesCover` | 부분 | 엄폐 유지 시점은 계획 문서 Q7. 컨트롤러의 엄폐 후처리(`AfterTakeCover`)는 PlayMode로만 확인 가능 |
+| 적 AI의 승리 조건 공략과 방어 (기준서 §12, §13) | `SrpM1Phase7Tests.EnemyAi_MovesToObjectiveAndSecuresIt`, `EnemyAi_IgnoresObjectiveItCannotWinWith`, `EnemyAi_PrioritizesEnemyThreateningObjective`, `EnemyAi_PrioritizesEnemyCommander`, `EnemyAi_CommanderHoldsPositionWhileAlliesRemain` | 부분 | 맵이 켠 조건만 본다. 목표 옆 칸 점거, 지휘관 후퇴 판단은 없다 |
+| AI 행동 실행 규칙: 스킬 활성화당 1회, 대상 칸 검증, 엄폐·상호작용 조건 (`RQ-002`) | `SrpM1Phase7Tests.ExecuteAiAction_RejectsInvalidSkillCoverAndInteraction` | 완전 | 실행할 수 없는 행동은 상태를 바꾸지 않는다 |
+| AI 시뮬레이션이 엄폐·승리 목표·지휘관 처치를 사용 | `SrpM1Phase7Tests.Simulation_UsesCoverObjectiveAndCommanderKill`, `SrpM1ContentTests.BarricadeAssault_SimulationFinishesDecisively`, `SrpM1AiSimAllEntry` 3종 | 부분 | 리포트의 `actions.coversPerBattle`/`interactionsPerBattle`, `outcome`의 종료 방식 비율로 확인. 임계치는 6차와 같다 |
+| 맵 메이커 저장 시 유닛 DB에 없는 템플릿 유지 | `SrpM1Phase7Tests.MakerSave_KeepsTemplatesMissingFromUnitDb`, `MakerSave_ResolveTemplatesUsesOnlyPlacedIds` | 부분 | 순수 로직(`SrpMapCarryOver.ResolveTemplates`)은 고정. 메이커 화면에서의 불러오기/저장은 미확인 |
+| 오버클럭 강화가 HP/PG 회복 강화 효과에 적용 (`RQ-012`) | `SrpM1Phase7Tests.ArcaneScreen_OverclockPowerBonusAppliesToPgRecovery`, `OverclockPowerBonus_DoesNotChangeNonRecoveryStatEffects` | 완전 | `전장 장막` PG 4 → 6. 회복이 아닌 능력치 증감에는 붙지 않는다 |
+
 ## 2026-11-14 update - 1차 개선 추적
 
 | Item | Tests | Status | Notes |

@@ -111,40 +111,44 @@ public static class SrpSkills
         var tiles = new List<Vector2Int>();
         if (data == null) return tiles;
 
-        int range = data.range;
         for (int y = 0; y < state.Height; y++)
         for (int x = 0; x < state.Width; x++)
         {
-            int dist = Mathf.Max(Mathf.Abs(x - caster.anchorX), Mathf.Abs(y - caster.anchorY));
-            if (dist > range) continue;
-            if (!HasSightToTile(data, caster, x, y, state)) continue;
-
-            switch (data.targetType)
-            {
-                case SrpTargetType.Self:
-                    if (x == caster.anchorX && y == caster.anchorY)
-                        tiles.Add(new Vector2Int(x, y));
-                    break;
-
-                case SrpTargetType.SingleEnemy:
-                    var occ = state.GetOccupant(x, y);
-                    if (occ != null && !occ.eliminated && occ.owner != caster.owner)
-                        tiles.Add(new Vector2Int(x, y));
-                    break;
-
-                case SrpTargetType.SingleAlly:
-                    var ally = state.GetOccupant(x, y);
-                    if (ally != null && !ally.eliminated && ally.owner == caster.owner)
-                        tiles.Add(new Vector2Int(x, y));
-                    break;
-
-                case SrpTargetType.AreaEnemy:
-                case SrpTargetType.AreaAlly:
-                    tiles.Add(new Vector2Int(x, y));
-                    break;
-            }
+            if (CanTargetTile(data, caster, x, y, state))
+                tiles.Add(new Vector2Int(x, y));
         }
         return tiles;
+    }
+
+    /// <summary>
+    /// 시전자가 이 칸을 스킬 대상으로 고를 수 있는가. 사거리·시야에 더해 대상 유형별 조건을 본다
+    /// (자기 대상은 자기 칸, 단일 대상은 그 칸에 맞는 진영의 유닛, 범위는 칸만 닿으면 된다).
+    /// </summary>
+    public static bool CanTargetTile(SrpSkillData data, SrpUnitRuntime caster, int x, int y, SrpBattleState state)
+    {
+        if (!IsTileInSkillReach(data, caster, x, y, state))
+            return false;
+
+        switch (data.targetType)
+        {
+            case SrpTargetType.Self:
+                return x == caster.anchorX && y == caster.anchorY;
+
+            case SrpTargetType.SingleEnemy:
+                var occ = state.GetOccupant(x, y);
+                return occ != null && !occ.eliminated && occ.owner != caster.owner;
+
+            case SrpTargetType.SingleAlly:
+                var ally = state.GetOccupant(x, y);
+                return ally != null && !ally.eliminated && ally.owner == caster.owner;
+
+            case SrpTargetType.AreaEnemy:
+            case SrpTargetType.AreaAlly:
+                return true;
+
+            default:
+                return false;
+        }
     }
 
     public static void ResolveActiveSkill(SrpSkillData data, SrpSkillRuntime runtime,
@@ -467,8 +471,13 @@ public static class SrpSkills
                 {
                     if (target == null) break;
                     int delta = eff.type == SrpEffectType.BuffStat ? eff.value : -eff.value;
+                    // 오버클럭 강화("다음 사용 피해/회복 +N")는 HP/PG를 회복하는 강화 효과에도 붙는다.
+                    int baseDelta = delta;
+                    if (IsRecoveryStatEffect(eff))
+                        delta = ApplyOverclockPowerBonus(data, runtime, delta);
                     ApplyStatDelta(target, eff.stat, delta);
-                    log?.Invoke($"스탯 변화: {target.displayName} | {eff.stat} {(delta >= 0 ? "+" : "")}{delta}");
+                    string statOverclockText = delta != baseDelta ? $" | 오버클럭 +{data.overclockPowerBonus}" : string.Empty;
+                    log?.Invoke($"스탯 변화: {target.displayName} | {eff.stat} {(delta >= 0 ? "+" : "")}{delta}{statOverclockText}");
                     break;
                 }
                 case SrpEffectType.ApplyCombatTag:
@@ -487,6 +496,14 @@ public static class SrpSkills
                 }
             }
         }
+    }
+
+    /// <summary>HP 또는 PG를 올리는 강화 효과(회복)인가. 오버클럭 강화와 적 AI의 회복 스킬 판단이 쓴다.</summary>
+    public static bool IsRecoveryStatEffect(SrpSkillEffect eff)
+    {
+        if (eff == null || eff.type != SrpEffectType.BuffStat || eff.value <= 0)
+            return false;
+        return eff.stat == "hp" || eff.stat == "pg" || eff.stat == "posture";
     }
 
     static void LogSkillReaction(

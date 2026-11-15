@@ -61,6 +61,10 @@ public class SrpHeuristicAiPolicy : ISrpAiPolicy
                 return SrpAiCommand.UseSkill(action.skillId, action.x, action.y, action.targetUnitId);
             case SrpEnemyAiActionType.Overwatch:
                 return SrpAiCommand.Overwatch();
+            case SrpEnemyAiActionType.TakeCover:
+                return SrpAiCommand.TakeCover();
+            case SrpEnemyAiActionType.Interact:
+                return SrpAiCommand.Interact();
             default:
                 return SrpAiCommand.EndTurn();
         }

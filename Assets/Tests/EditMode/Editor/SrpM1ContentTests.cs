@@ -150,7 +150,9 @@ public class SrpM1ContentTests
             $"draw={outcome.drawRate:F3}, avgR={outcome.averageRounds:F2}");
 
         Assert.That(outcome.drawRate, Is.LessThanOrEqualTo(0.10f), "무승부가 많습니다. 방벽 틈에서 전투가 고착됐을 수 있습니다.");
-        // 측정값(2026-11-15, 200회): 평균 약 6.4라운드, 플레이어 진영 승률 약 0.7, 무승부 0.
+        // 측정값(2026-11-15, 200회): 6차 평균 6.46라운드, 플레이어 진영 승률 0.705.
+        // 7차(AI가 범위·태그·회복 스킬, 엄폐, 봉화대, 지휘관 방어를 쓴다) 평균 6.53라운드, 승률 0.580, 무승부 0.
+        // 7차 기획 결정 반영(교전 대각선 포함, AI 사격수의 엄폐 + 경계태세 버티기) 평균 6.85라운드, 승률 0.700, 무승부 0.
         Assert.That(outcome.averageRounds, Is.InRange(4.5f, 12f), "전투 길이가 범위를 벗어났습니다.");
         Assert.That(outcome.owner0WinRate, Is.InRange(0.35f, 0.9f), "한쪽이 일방적으로 이깁니다.");
     }

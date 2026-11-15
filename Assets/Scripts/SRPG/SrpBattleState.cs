@@ -723,11 +723,15 @@ public class SrpBattleState
         return true;
     }
 
+    /// <summary>
+    /// 이 칸이 적과 맞닿아 있는가(대각선 포함 8방향).
+    /// 교전·이탈 비용·기회공격의 인접 기준이며 근접 공격 범위와 같다.
+    /// </summary>
     public bool IsEnemyAdjacentToTile(int tileX, int tileY, int moverOwner)
     {
-        int[] dx = { 1, -1, 0, 0 };
-        int[] dy = { 0, 0, 1, -1 };
-        for (int i = 0; i < 4; i++)
+        int[] dx = { 1, -1, 0, 0, 1, 1, -1, -1 };
+        int[] dy = { 0, 0, 1, -1, 1, -1, 1, -1 };
+        for (int i = 0; i < 8; i++)
         {
             int nx = tileX + dx[i];
             int ny = tileY + dy[i];
@@ -753,7 +757,7 @@ public class SrpBattleState
                 if (b == null || b.eliminated || a.owner == b.owner)
                     continue;
 
-                if (!AreOrthogonallyAdjacent(a, b))
+                if (!AreAdjacent(a, b))
                     continue;
 
                 AddEngagement(a.id, b.id);
@@ -792,7 +796,8 @@ public class SrpBattleState
             list.Add(enemyId);
     }
 
-    static bool AreOrthogonallyAdjacent(SrpUnitRuntime a, SrpUnitRuntime b)
+    /// <summary>두 유닛이 차지한 칸 중 맞닿은 칸이 있는가(대각선 포함).</summary>
+    static bool AreAdjacent(SrpUnitRuntime a, SrpUnitRuntime b)
     {
         foreach (var ao in a.footprintOffsets)
         {
@@ -802,7 +807,7 @@ public class SrpBattleState
             {
                 int bx = b.anchorX + bo.x;
                 int by = b.anchorY + bo.y;
-                if (Mathf.Abs(ax - bx) + Mathf.Abs(ay - by) == 1)
+                if (Mathf.Max(Mathf.Abs(ax - bx), Mathf.Abs(ay - by)) == 1)
                     return true;
             }
         }

@@ -2026,7 +2026,7 @@ public partial class SrpGameController
             case SrpActionPreviewKind.BasicAttack:
                 return ("일반 공격 Preview", $"인접 대상: 근접 공격/처단 | 비인접 대상: 총기 공격\n총기 사거리 {active.attackRange} | 공격 가능 대상 {_attackIds.Count}명\n탄약 없음이어도 인접 근접 공격은 가능합니다.");
             case SrpActionPreviewKind.Overwatch:
-                return ("경계태세 Preview", $"사거리 {Mathf.Max(0, active.attackRange)} | 대상 조건: 이동하는 적\n{DescribeOverwatchArmStatus(SrpOverwatch.GetArmStatus(active))}\n경계사격 반응 가능 범위를 표시합니다.");
+                return ("경계태세 Preview", $"사거리 {Mathf.Max(0, active.attackRange)} | 대상 조건: 행동하는 적(이동·기본 공격·대상 지정 스킬)\n{DescribeOverwatchArmStatus(SrpOverwatch.GetArmStatus(active))}\n경계사격 반응 가능 범위를 표시합니다.");
             case SrpActionPreviewKind.Cover:
                 return ("엄폐 Preview", _state.HasAdjacentCover(active) ? "대상 조건: 인접 엄폐물\nAP-1 | 원거리 피해 완충 가능" : "현재 위치에서 사용할 수 있는 엄폐가 없습니다.");
             case SrpActionPreviewKind.Interaction:

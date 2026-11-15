@@ -9,6 +9,8 @@ public enum SrpAiActionType
     Reload,
     UseSkill,
     Overwatch,
+    TakeCover,
+    Interact,
 }
 
 public struct SrpAiMoveOption
@@ -75,6 +77,16 @@ public struct SrpAiCommand
     public static SrpAiCommand Overwatch()
     {
         return new SrpAiCommand { actionType = SrpAiActionType.Overwatch };
+    }
+
+    public static SrpAiCommand TakeCover()
+    {
+        return new SrpAiCommand { actionType = SrpAiActionType.TakeCover };
+    }
+
+    public static SrpAiCommand Interact()
+    {
+        return new SrpAiCommand { actionType = SrpAiActionType.Interact };
     }
 
     public static SrpAiCommand UseSkill(string skillId, int x, int y, int targetUnitId)

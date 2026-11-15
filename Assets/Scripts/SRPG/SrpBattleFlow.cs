@@ -80,6 +80,11 @@ public struct SrpAiStepResult
     public SrpMoveResult move;
     public SrpBasicAttackResult attack;
     public SrpSkillUseResult skill;
+    /// <summary>엄폐 행동이 쓴 엄폐물/엄폐 벽의 칸.</summary>
+    public int coverX;
+    public int coverY;
+    /// <summary>상호작용 행동이 활성화한 포인트.</summary>
+    public SrpInteractionPointData interaction;
     public bool activationEnded;
 }
 
@@ -254,6 +259,30 @@ public static class SrpBattleFlow
         return true;
     }
 
+    /// <summary>엄폐할 수 있는가: AP가 있고, 아직 엄폐 중이 아니며, 옆에 엄폐물이나 엄폐 벽이 있다.</summary>
+    public static bool CanTakeCover(SrpBattleState state, SrpUnitRuntime unit)
+    {
+        return state != null
+            && unit != null
+            && !unit.eliminated
+            && unit.actionPoints > 0
+            && !unit.coverActive
+            && state.HasAdjacentCover(unit);
+    }
+
+    /// <summary>엄폐 1회(AP 1). 엄폐는 이동하기 전까지 유지된다. 엄폐할 수 없으면 false이고 상태는 그대로다.</summary>
+    public static bool TakeCover(SrpBattleState state, SrpUnitRuntime unit, out int coverX, out int coverY)
+    {
+        coverX = 0;
+        coverY = 0;
+        if (!CanTakeCover(state, unit) || !state.TryGetAdjacentCover(unit, out coverX, out coverY))
+            return false;
+
+        unit.SetCover(state.RoundNumber, coverX, coverY);
+        unit.actionPoints = Mathf.Max(0, unit.actionPoints - 1);
+        return true;
+    }
+
     /// <summary>교전에서 벗어난 유닛에게, 직전에 교전하던 적 한 명이 기회공격을 한다.</summary>
     public static SrpReactionResult ResolveOpportunityAttack(
         SrpBattleState state,
@@ -359,12 +388,12 @@ public static class SrpBattleFlow
             }
             case SrpEnemyAiActionType.UseSkill:
             {
-                var target = state.FindUnitById(action.targetUnitId);
-                if (target == null || target.eliminated
+                // 대상은 칸으로 받는다(범위 스킬은 빈 칸을 중심으로 쓸 수 있다). 스킬은 활성화당 1회다.
+                if (unit.hasUsedSkillThisActivation
                     || !TryGetUsableSkill(state, unit, action.skillId, out var data, out var runtime)
-                    || !SrpSkills.IsTileInSkillReach(data, unit, target.anchorX, target.anchorY, state))
+                    || !SrpSkills.CanTargetTile(data, unit, action.x, action.y, state))
                     return step;
-                step.skill = UseSkill(state, unit, data, runtime, target.anchorX, target.anchorY, observer);
+                step.skill = UseSkill(state, unit, data, runtime, action.x, action.y, observer);
                 step.executed = true;
                 step.activationEnded = step.skill.activationEnded;
                 return step;
@@ -374,6 +403,16 @@ public static class SrpBattleFlow
                 // 경계태세 예약은 그 활성화의 마지막 행동이다.
                 step.executed = SrpOverwatch.Arm(state, unit);
                 step.activationEnded = step.executed;
+                return step;
+            }
+            case SrpEnemyAiActionType.TakeCover:
+            {
+                step.executed = TakeCover(state, unit, out step.coverX, out step.coverY);
+                return step;
+            }
+            case SrpEnemyAiActionType.Interact:
+            {
+                step.executed = state.TryResolveInteractionAction(unit, out step.interaction);
                 return step;
             }
             default:
