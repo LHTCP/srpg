@@ -33,6 +33,9 @@ public class SrpSimMetrics
     public int groggySkipCount;
     public int coverCount;
     public int interactionCount;
+    public int overclockCount;
+    public int stanceChangeCount;
+    public int facingChangeCount;
 
     public int annihilationCount;
     public int commanderKillCount;
@@ -96,6 +99,9 @@ public class SrpSimActionSummary
     public float groggySkipsPerBattle;
     public float coversPerBattle;
     public float interactionsPerBattle;
+    public float overclocksPerBattle;
+    public float stanceChangesPerBattle;
+    public float facingChangesPerBattle;
 }
 
 [Serializable]

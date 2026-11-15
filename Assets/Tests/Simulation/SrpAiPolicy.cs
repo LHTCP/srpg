@@ -11,6 +11,9 @@ public enum SrpAiActionType
     Overwatch,
     TakeCover,
     Interact,
+    Overclock,
+    SetStance,
+    SetFacing,
 }
 
 public struct SrpAiMoveOption
@@ -45,6 +48,8 @@ public struct SrpAiCommand
     public int y;
     public int targetUnitId;
     public string skillId;
+    public SrpStance stance;
+    public SrpFacing facing;
 
     public static SrpAiCommand EndTurn()
     {
@@ -87,6 +92,21 @@ public struct SrpAiCommand
     public static SrpAiCommand Interact()
     {
         return new SrpAiCommand { actionType = SrpAiActionType.Interact };
+    }
+
+    public static SrpAiCommand Overclock(string skillId)
+    {
+        return new SrpAiCommand { actionType = SrpAiActionType.Overclock, skillId = skillId };
+    }
+
+    public static SrpAiCommand SetStance(SrpStance stance)
+    {
+        return new SrpAiCommand { actionType = SrpAiActionType.SetStance, stance = stance };
+    }
+
+    public static SrpAiCommand SetFacing(SrpFacing facing)
+    {
+        return new SrpAiCommand { actionType = SrpAiActionType.SetFacing, facing = facing };
     }
 
     public static SrpAiCommand UseSkill(string skillId, int x, int y, int targetUnitId)

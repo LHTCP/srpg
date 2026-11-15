@@ -48,7 +48,7 @@ public class SrpHeuristicAiPolicy : ISrpAiPolicy
 
     public SrpAiCommand SelectAction(SrpAiDecisionContext ctx)
     {
-        var action = SrpEnemyAi.Decide(ctx.state, ctx.actor, ctx.remainingMove, ctx.attacked);
+        var action = SrpEnemyAi.DecideStep(ctx.state, ctx.actor, ctx.remainingMove, ctx.attacked);
         switch (action.type)
         {
             case SrpEnemyAiActionType.Move:
@@ -65,6 +65,12 @@ public class SrpHeuristicAiPolicy : ISrpAiPolicy
                 return SrpAiCommand.TakeCover();
             case SrpEnemyAiActionType.Interact:
                 return SrpAiCommand.Interact();
+            case SrpEnemyAiActionType.Overclock:
+                return SrpAiCommand.Overclock(action.skillId);
+            case SrpEnemyAiActionType.SetStance:
+                return SrpAiCommand.SetStance(action.stance);
+            case SrpEnemyAiActionType.SetFacing:
+                return SrpAiCommand.SetFacing(action.facing);
             default:
                 return SrpAiCommand.EndTurn();
         }

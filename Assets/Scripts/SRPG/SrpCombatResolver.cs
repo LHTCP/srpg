@@ -699,7 +699,7 @@ public static class SrpCombatResolver
         pgDamage += isBackAttack ? BackAttackPgBonus : SideAttackPgBonus;
     }
 
-    static bool IsAttackerBehindDefender(SrpUnitRuntime attacker, SrpUnitRuntime defender)
+    public static bool IsAttackerBehindDefender(SrpUnitRuntime attacker, SrpUnitRuntime defender)
     {
         return GetFacingDotToSource(attacker, defender) <= -DirectionalArcDotThreshold;
     }

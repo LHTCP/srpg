@@ -37,6 +37,9 @@ public struct SrpSingleBattleResult
     public int groggySkipCount;
     public int coverCount;
     public int interactionCount;
+    public int overclockCount;
+    public int stanceChangeCount;
+    public int facingChangeCount;
     /// <summary>승패가 난 방식. 무승부나 라운드 상한이면 None 또는 Draw.</summary>
     public SrpVictoryReason reason;
 }
@@ -201,6 +204,12 @@ public static class SrpBattleSimRunner
                 return SrpEnemyAiAction.TakeCover();
             case SrpAiActionType.Interact:
                 return SrpEnemyAiAction.Interact();
+            case SrpAiActionType.Overclock:
+                return SrpEnemyAiAction.Overclock(command.skillId);
+            case SrpAiActionType.SetStance:
+                return SrpEnemyAiAction.SetStance(command.stance);
+            case SrpAiActionType.SetFacing:
+                return SrpEnemyAiAction.SetFacing(command.facing);
             case SrpAiActionType.UseSkill:
                 return new SrpEnemyAiAction
                 {
@@ -258,6 +267,15 @@ public static class SrpBattleSimRunner
                 break;
             case SrpEnemyAiActionType.Interact:
                 result.interactionCount++;
+                break;
+            case SrpEnemyAiActionType.Overclock:
+                result.overclockCount++;
+                break;
+            case SrpEnemyAiActionType.SetStance:
+                result.stanceChangeCount++;
+                break;
+            case SrpEnemyAiActionType.SetFacing:
+                result.facingChangeCount++;
                 break;
         }
     }
@@ -372,6 +390,9 @@ public static class SrpBattleSimRunner
         metrics.groggySkipCount += result.groggySkipCount;
         metrics.coverCount += result.coverCount;
         metrics.interactionCount += result.interactionCount;
+        metrics.overclockCount += result.overclockCount;
+        metrics.stanceChangeCount += result.stanceChangeCount;
+        metrics.facingChangeCount += result.facingChangeCount;
 
         if (result.winnerOwner >= 0)
         {
@@ -433,6 +454,9 @@ public static class SrpBattleSimRunner
         report.actions.groggySkipsPerBattle = SrpSimThresholds.SafeDiv(metrics.groggySkipCount, trials);
         report.actions.coversPerBattle = SrpSimThresholds.SafeDiv(metrics.coverCount, trials);
         report.actions.interactionsPerBattle = SrpSimThresholds.SafeDiv(metrics.interactionCount, trials);
+        report.actions.overclocksPerBattle = SrpSimThresholds.SafeDiv(metrics.overclockCount, trials);
+        report.actions.stanceChangesPerBattle = SrpSimThresholds.SafeDiv(metrics.stanceChangeCount, trials);
+        report.actions.facingChangesPerBattle = SrpSimThresholds.SafeDiv(metrics.facingChangeCount, trials);
 
         report.sampleSeeds = new List<int>(metrics.sampledSeeds);
         return report;
