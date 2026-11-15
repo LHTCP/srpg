@@ -819,6 +819,40 @@ public class SrpM1Phase8Tests
         Assert.That(chase.x, Is.LessThan(4), "상대의 도달 칸으로 다가갔습니다.");
     }
 
+    [TestCase(TestName = "도달 칸으로 가야 하는 보호 대상은 벽에 막히면 돌아가는 길을 따라가고, 그 길의 칸이 위험하면 기다린다")]
+    public void EnemyAi_ProtectedRunnerDetoursAroundWallWhenSafe()
+    {
+        // 벽이 x = 1의 y = 0~3을 막고 있어 도달 칸 (4,2)로 가려면 y = 4로 돌아가야 한다.
+        // 첫 걸음은 어느 쪽이든 직선 거리가 늘어나므로, 경로를 따라가지 않으면 제자리에 멈춘다.
+        var state = CreateRunnerState(out var runner);
+        var detour = SrpEnemyAi.Decide(state, runner, 1, false);
+        Assert.That(detour.type, Is.EqualTo(SrpEnemyAiActionType.Move), "돌아가는 길이 있는데 제자리에 멈췄습니다.");
+        Assert.That((detour.x, detour.y), Is.EqualTo((0, 3)));
+
+        // 끝까지 따라가면 도달 칸에 선다.
+        int guard = 0;
+        while (!SrpVictory.Evaluate(state).decided && guard++ < 20)
+        {
+            runner.actionPoints = 2;
+            runner.hasMovedThisActivation = false;
+            int remaining = 1;
+            var step = SrpEnemyAi.Decide(state, runner, remaining, false);
+            Assert.That(step.type, Is.EqualTo(SrpEnemyAiActionType.Move), "도달 칸에 닿기 전에 멈췄습니다.");
+            Assert.That(SrpBattleFlow.ExecuteAiAction(state, runner, step, ref remaining, null).executed, Is.True);
+        }
+        Assert.That(SrpVictory.Evaluate(state).winnerOwner, Is.EqualTo(1));
+        Assert.That((runner.anchorX, runner.anchorY), Is.EqualTo((4, 2)));
+
+        // 돌아가는 길의 첫 칸 (0,3)이 한 차례에 쓰러질 수 있는 칸이면 나서지 않는다.
+        var danger = CreateRunnerState(out var careful);
+        AddUnit(danger, id: 4, owner: 0, x: 0, y: 7, attackPower: 8, attackRange: 3, moveRange: 1,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
+        AddUnit(danger, id: 5, owner: 0, x: 1, y: 7, attackPower: 8, attackRange: 3, moveRange: 1,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
+        Assert.That(SrpEnemyAi.Decide(danger, careful, 1, false).type, Is.Not.EqualTo(SrpEnemyAiActionType.Move),
+            "위험한 칸으로 돌아갔습니다.");
+    }
+
     [TestCase(TestName = "적 AI는 서면 자기 진영이 패배하는 칸으로는 가지 않는다")]
     public void EnemyAi_AvoidsTileThatDefeatsItsOwner()
     {
@@ -1128,6 +1162,32 @@ public class SrpM1Phase8Tests
                 defeatConditions = defeat ?? new SrpVictoryConditionData[0],
             },
         });
+    }
+
+    /// <summary>
+    /// 우회 판단용 전장(5x9). 보호 대상이자 도달 조건의 대상인 유닛(0,2, 이동 1)과 아군(0,0), 멀리 있는 무해한 적(4,8).
+    /// 벽이 x = 1의 y = 0~3을 막아, 도달 칸 (4,2)로 가는 길은 y = 4를 지나는 우회뿐이다.
+    /// </summary>
+    static SrpBattleState CreateRunnerState(out SrpUnitRuntime runner)
+    {
+        var state = CreateRuleState(
+            victory: new[]
+            {
+                new SrpVictoryConditionData { type = SrpVictoryConditionTypes.ReachTile, owner = 1, targetId = "p8_runner", x = 4, y = 2 },
+            },
+            defeat: new[]
+            {
+                new SrpVictoryConditionData { type = SrpVictoryConditionTypes.UnitLost, owner = 1, targetId = "p8_runner" },
+            },
+            width: 5,
+            height: 9);
+        for (int y = 0; y <= 3; y++)
+            state.Walkable[state.Index(1, y)] = false;
+        runner = AddUnit(state, id: 1, owner: 1, x: 0, y: 2, moveRange: 1);
+        runner.templateId = "p8_runner";
+        AddUnit(state, id: 2, owner: 1, x: 0, y: 0);
+        AddUnit(state, id: 3, owner: 0, x: 4, y: 8);
+        return state;
     }
 
     /// <summary>

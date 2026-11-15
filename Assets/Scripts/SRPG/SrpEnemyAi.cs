@@ -1368,11 +1368,9 @@ public static class SrpEnemyAi
         }
 
         // 자리를 지키는 유닛(지휘관, 보호 대상)과 시간이 자기 편인 진영은 바로 행동으로 이어지지 않는 접근 이동을 하지 않는다.
-        if (s.holdPosition || s.timeOnMySide)
+        // 도달 칸으로 가야 하는 핵심 유닛만 예외로, 아래에서 도달 칸까지의 경로를 따라 다가간다.
+        if ((s.holdPosition || s.timeOnMySide) && !s.goalOnlyApproach)
         {
-            // 도달 칸으로 가야 하는 핵심 유닛은 다가간다. 위험한 칸은 위에서 이미 걸렀다.
-            if (found && s.goalOnlyApproach)
-                return true;
             moveX = originX;
             moveY = originY;
             return false;
@@ -1387,7 +1385,8 @@ public static class SrpEnemyAi
         int unlimited = state.Width * state.Height * 3;
         var cameFrom = new Dictionary<Vector2Int, Vector2Int>();
         var pathCosts = SrpPathfinder.GetReachableWithCosts(state, actor, unlimited, cameFrom);
-        var goalTiles = CollectGoalTiles(s, pathCosts);
+        // 도달 칸으로 가야 하는 핵심 유닛은 적을 공격할 칸이 아니라 도달 칸만 목표로 삼는다.
+        var goalTiles = s.goalOnlyApproach ? CollectReachGoalTiles(s, pathCosts) : CollectGoalTiles(s, pathCosts);
         // 경로로 닿는 목표 칸이 없으면(완전히 막힘, 아군이 자리를 다 차지함) 직선 거리 판단을 유지한다.
         if (goalTiles.Count == 0)
             return found;
@@ -1416,7 +1415,10 @@ public static class SrpEnemyAi
         // 막힌 쪽으로 되돌아갔다가 다시 나오는 왕복이 생기지 않는다.
         var origin = new Vector2Int(originX, originY);
         var step = goal;
-        while (pathCosts[step] > remainingMove)
+        // 이번 이동으로 닿는 칸까지 경로를 거슬러 온다. 자리를 지키는 유닛은 위험한 칸에도 서지 않으므로 더 거슬러 온다
+        // (직선 거리로 고를 때와 같은 기준. 도달 칸 자체는 서는 순간 승리하므로 예외다).
+        while (pathCosts[step] > remainingMove
+            || (s.holdPosition && !s.reachGoals.Contains(step) && IsDangerousTile(s, step.x, step.y)))
         {
             if (!cameFrom.TryGetValue(step, out var previous) || previous == origin)
             {
@@ -1525,6 +1527,18 @@ public static class SrpEnemyAi
         {
             actor.anchorX = originX;
             actor.anchorY = originY;
+        }
+        return tiles;
+    }
+
+    /// <summary>경로로 닿는 도달 조건의 칸.</summary>
+    static HashSet<Vector2Int> CollectReachGoalTiles(Situation s, Dictionary<Vector2Int, int> pathCosts)
+    {
+        var tiles = new HashSet<Vector2Int>();
+        foreach (var goal in s.reachGoals)
+        {
+            if (pathCosts.ContainsKey(goal))
+                tiles.Add(goal);
         }
         return tiles;
     }

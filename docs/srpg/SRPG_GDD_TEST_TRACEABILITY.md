@@ -9,7 +9,7 @@
 | 칸 도달·탈출 (`reach_tile`) | `SrpM1Phase8Tests.Victory_ReachTileNeedsMatchingUnitOnTile` | 완전 | 대상 유닛 지정(모든 유닛/지휘관/템플릿) 포함 |
 | 유닛 보호 (`unit_lost`) | `SrpM1Phase8Tests.Victory_UnitLostInDefeatListDefeatsOwner` | 완전 | 대상이 여럿이면 모두 잃어야 성립 |
 | 거점 N라운드 유지 (`hold_point`) | `SrpM1Phase8Tests.Victory_HoldPointCountsConsecutiveRoundEnds` | 완전 | 연속 유지, 복제(되감기) 시 진행도 유지 포함 |
-| 추가 조건의 적 AI | `SrpM1Phase8Tests.EnemyAi_MovesOntoReachTile`, `EnemyAi_AvoidsTileThatDefeatsItsOwner`, `EnemyAi_TreatsProtectedUnitLikeCommander`, `EnemyAi_EntersAndKeepsHoldZone`, `EnemyAi_TimePressureChangesHoldAndAdvance` | 부분 | 내장 네 조건만. 가중치는 판단용 임시값. 사람 상대 체감은 Unity 확인 필요 |
+| 추가 조건의 적 AI | `SrpM1Phase8Tests.EnemyAi_MovesOntoReachTile`, `EnemyAi_ProtectedRunnerDetoursAroundWallWhenSafe`, `EnemyAi_AvoidsTileThatDefeatsItsOwner`, `EnemyAi_TreatsProtectedUnitLikeCommander`, `EnemyAi_EntersAndKeepsHoldZone`, `EnemyAi_TimePressureChangesHoldAndAdvance` | 부분 | 내장 네 조건만. 가중치는 판단용 임시값. 사람 상대 체감은 Unity 확인 필요 |
 | 추가 조건 검증 랩 (`M1ConditionLab`) | `SrpM1Phase8Tests.ConditionLab_DeclaresAllFourConditions`, `ConditionLab_SimulationEndsByListedConditions`, `SrpM1ContentTests.Presets_AreInternallyConsistent` | 부분 | AI끼리는 전령 도달로 끝나지 않는다(0%). 화면 표시는 미확인 |
 | 맵 메이커의 추가 조건 편집 규칙 | `SrpM1Phase8Tests.MakerCondition_BuildKeepsOnlyUsedFieldsAndRejectsInvalid`, `MakerCondition_AddedConditionsWorkInBattleAfterSave` | 부분 | 순수 로직(`SrpMapConditionEdit`)과 저장 → 전투 판정까지 고정. 메이커 화면은 미확인 |
 | 권총/소총 구분 (밸런스 지시 4, 계획 문서 Q18) | `SrpM1Phase8Tests.Firearm_PistolDealsLessThanRifleAndTypeCanBeSetInData` | 완전 | 권총 HP = 공격력 + 4(브릿지). 유닛 메이커 편집 항목은 없다 |

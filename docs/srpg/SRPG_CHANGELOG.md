@@ -16,6 +16,7 @@
   - 주의: 7차의 `ISrpVictoryCondition`(`HasWon`/`IsDefeated`)을 구현한 코드는 `IsMet`으로 옮겨야 한다. 내장 맵과 저장된 맵 데이터는 그대로 읽힌다
   - 테스트: `SrpM1Phase8Tests`에 17건 추가(모두 32건), `SrpM1Phase7Tests`의 승리 조건 3건을 새 인터페이스로 옮김
   - 시뮬레이션 수치 변화(평균 라운드): `M1OpeningPrototype` H vs R 6.21 → 6.15, R vs H 6.46 → 6.97. `M1QaIntegrated` H vs R 5.35 → 5.47, H vs H 7.18 → 6.06(owner 0 승률 0.337 → 0.000). `M1BarricadeAssault` H vs H 7.08 → 6.93(플레이어 진영 승률 0.800 → 0.770). `M1ObjectiveLab` H vs H 4.00 → 5.08(승률 0.310 → 0.000). `M1ConditionLab` H vs H 8.43(승률 0.765). 임계치는 바꾸지 않았고 모두 통과한다
+  - 리뷰 반영(PR #107): 도달 칸으로 가야 하는 보호 대상이 벽에 막히면 제자리에 멈추던 것을 고쳤다. 도달 칸까지의 경로를 따라 돌아가고, 그 경로의 칸이 위험하면 기다린다. 테스트 1건 추가(`SrpM1Phase8Tests` 33건, 전체 236개 통과). 시뮬레이션 수치는 변하지 않았다
   - 검증: Unity 미실행(라이선스 미활성). .NET 로직 테스트 235개 통과, Unity DLL 참조 컴파일 오류 0·경고 0, `scripts/validate-repo.sh` 통과. 맵 메이커의 추가 조건 줄, 로비의 새 버튼 두 개, 전투 화면의 조건 칸 색, HUD의 회피 성공률은 화면으로 확인하지 못했다. 확인 항목은 계획 문서 15절
 
 - 8차: 적 AI 마무리와 지휘관의 위험 판단
