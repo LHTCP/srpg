@@ -98,7 +98,7 @@ SrpGameController
   - `M1QaIntegrated`: 최신 기능 연결을 확인하는 QA 맵
   - `M1EngagementLab`: 교전/둘러싸임 고정 조건 QA 맵
   - `M1ObjectiveLab`: 승리 조건(지휘관 처치, 상호작용 승리 목표) 고정 조건 QA 맵
-- 승패 판정은 `SrpVictory.Evaluate(SrpBattleState)` 하나로 한다. 적 전멸은 항상 적용하고, 맵의 `victory.commanderKill`/`victory.interactionObjective`를 켠 경우에만 지휘관(`SrpPlacementData.isCommander`) 처치와 승리 목표(`SrpInteractionPointData.effect == VictoryObjective`) 확보를 적용한다. 값이 없는 맵은 전멸 규칙만 쓴다.
+- 승패 판정은 `SrpVictory.Evaluate(SrpBattleState)` 하나로 한다. 적 전멸은 항상 적용하고, 맵의 `victory.commanderKill`/`victory.interactionObjective`를 켠 경우에만 지휘관(`SrpPlacementData.isCommander`) 처치와 승리 목표(`SrpInteractionPointData.effect == VictoryObjective`) 확보를 적용한다. 값이 없는 맵은 전멸 규칙만 쓴다. 그 밖의 조건은 `ISrpVictoryCondition` 판정기를 `SrpVictory.Register`로 등록하고 맵의 `victory.conditions`에 적어 추가한다.
 - 이동/기본 공격/스킬/재장전과 기회공격·경계사격 반응, 라운드/활성화 시작 처리는 `SrpBattleFlow`가 맡는다. `SrpGameController`와 `SrpBattleSimRunner`가 같은 함수를 호출하고, 컨트롤러는 `ISrpBattleFlowObserver`로 로그와 연출만 붙인다.
   - `M1OpeningPrototype`: 기본 로비 첫 선택이자 첫 전투 판단용 소형 비대칭 전술 맵
 - 유닛은 런타임 전투 태그(`SrpCombatTag`)를 가질 수 있다. 이 태그는 고유 유닛 태그(`SrpUnitTags`)와 분리되며, `표식`, `균형 붕괴`, `사살 지시`를 지원한다.

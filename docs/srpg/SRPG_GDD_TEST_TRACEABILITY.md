@@ -1,5 +1,15 @@
 # SRPG GDD-테스트 추적 매핑표 (v2)
 
+## 2026-11-15 update - 7차 기획 결정 추적
+
+| Item | Tests | Status | Notes |
+| --- | --- | --- | --- |
+| 교전 인접은 대각선 포함 (`RQ-010`, 기준서 §5, 계획 문서 Q4) | `SrpM1Phase7Tests.Engagement_IncludesDiagonalAdjacency`, `Move_AwayFromDiagonalEnemyCostsExitAndTriggersOpportunityAttack`, `Move_AroundSameEnemyKeepsEngagement` | 부분 | 교전 표시와 이동 미리보기는 화면 확인이 필요하다 |
+| 패링 대상은 스킬의 패링 가능 표시만으로 판정 (`RQ-008`, 기준서 §6, 계획 문서 Q6) | `SrpM1Phase7Tests.Parry_DependsOnSkillFlagNotWeaponClass` | 완전 | 정면, 인접, 패링 가능자, RP 조건은 `SrpM1RuleSpecTests.ParryCondition_*`가 고정 |
+| 적 AI 사격수의 엄폐 + 경계태세 버티기 (기준서 §3.5, 계획 문서 Q15) | `SrpM1Phase7Tests.EnemyAi_ShooterHoldsCoverWithOverwatchInsteadOfAdvancing`, `EnemyAi_ShooterAdvancesWhenHoldingHasNoPayoff` | 부분 | 사람 상대 체감은 Unity 확인이 필요하다 |
+| 맵마다 다른 승리 조건의 추가 (기준서 §12, 계획 문서 Q13) | `SrpM1Phase7Tests.Victory_MapCanAddRegisteredCondition`, `Victory_AddedConditionRanksAfterBuiltInsAndCanDefeat`, `Victory_UnknownConditionIsSkippedButPreserved` | 부분 | 구조만 고정. 실제 추가 조건은 아직 없고 적 AI도 추가 조건을 모른다 |
+| 경계사격 발동 범위 안내 문구 (기준서 §3.5, 계획 문서 Q14) | 없음 | 미커버 | HUD 문구만 바꿨다. 화면 확인 항목은 계획 문서 14절 |
+
 ## 2026-11-15 update - 7차 추적
 
 | Item | Tests | Status | Notes |
