@@ -70,8 +70,34 @@ public enum SrpInteractionEffect
 }
 
 /// <summary>
+/// 맵이 추가로 거는 승리 조건 한 건. 판정은 SrpVictory에 등록된 같은 type의 판정기(ISrpVictoryCondition)가 한다.
+/// 등록되지 않은 type은 판정에서 빠진다.
+/// </summary>
+[Serializable]
+public class SrpVictoryConditionData
+{
+    /// <summary>조건 종류. ISrpVictoryCondition.Type과 같아야 한다.</summary>
+    public string type;
+
+    /// <summary>이 조건이 적용되는 진영. -1이면 모든 진영.</summary>
+    public int owner = -1;
+
+    /// <summary>조건별 수치(예: 라운드 수). 뜻은 판정기가 정한다.</summary>
+    public int value;
+
+    /// <summary>조건별 대상 id(예: 유닛 템플릿, 포인트). 뜻은 판정기가 정한다.</summary>
+    public string targetId;
+
+    public SrpVictoryConditionData Clone()
+    {
+        return (SrpVictoryConditionData)MemberwiseClone();
+    }
+}
+
+/// <summary>
 /// 맵별 승리 조건. 적 전멸은 항상 적용되고, 아래 조건은 켠 맵에서만 추가로 적용된다.
 /// 기존 맵(값 없음)은 모두 꺼져 있어 전멸 규칙만 쓴다.
+/// 맵마다 조건 조합이 다를 수 있다. 기본 제공 두 조건은 스위치로 켜고, 그 밖의 조건은 conditions에 나열한다.
 /// </summary>
 [Serializable]
 public class SrpVictoryRuleData
@@ -82,13 +108,23 @@ public class SrpVictoryRuleData
     /// <summary>자기 진영이 쓸 수 있는 승리 목표 포인트를 모두 활성화해 보유한 진영이 승리한다.</summary>
     public bool interactionObjective;
 
+    /// <summary>추가 조건. 적힌 순서대로 판정하며 기본 제공 조건보다 뒤다.</summary>
+    public SrpVictoryConditionData[] conditions = Array.Empty<SrpVictoryConditionData>();
+
     public SrpVictoryRuleData Clone()
     {
-        return new SrpVictoryRuleData
+        var clone = new SrpVictoryRuleData
         {
             commanderKill = commanderKill,
             interactionObjective = interactionObjective,
         };
+        if (conditions != null && conditions.Length > 0)
+        {
+            clone.conditions = new SrpVictoryConditionData[conditions.Length];
+            for (int i = 0; i < conditions.Length; i++)
+                clone.conditions[i] = conditions[i] != null ? conditions[i].Clone() : null;
+        }
+        return clone;
     }
 }
 

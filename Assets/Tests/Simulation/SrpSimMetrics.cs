@@ -37,6 +37,7 @@ public class SrpSimMetrics
     public int annihilationCount;
     public int commanderKillCount;
     public int objectiveCount;
+    public int customConditionCount;
 
     public List<int> sampledSeeds = new List<int>();
 }
@@ -63,6 +64,8 @@ public class SrpSimOutcomeSummary
     public float annihilationRate;
     public float commanderKillRate;
     public float objectiveRate;
+    /// <summary>맵이 추가로 건 조건(victory.conditions)으로 끝난 비율.</summary>
+    public float customConditionRate;
 }
 
 [Serializable]

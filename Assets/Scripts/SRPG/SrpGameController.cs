@@ -1195,7 +1195,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         _gameOver = true;
         _victoryResult = result;
         if (result.winnerOwner >= 0)
-            LogLine($"게임 종료: 플레이어 {result.winnerOwner} 승리. ({SrpVictory.DescribeReason(result.reason)})");
+            LogLine($"게임 종료: 플레이어 {result.winnerOwner} 승리. ({SrpVictory.DescribeResult(_state, result)})");
         else
             LogLine("게임 종료: 무승부(전멸).");
     }
@@ -1218,7 +1218,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         if (!_victoryResult.decided)
             return "게임 종료";
         return _victoryResult.winnerOwner >= 0
-            ? $"게임 종료 | 플레이어 {_victoryResult.winnerOwner} 승리 ({SrpVictory.DescribeReason(_victoryResult.reason)})"
+            ? $"게임 종료 | 플레이어 {_victoryResult.winnerOwner} 승리 ({SrpVictory.DescribeResult(_state, _victoryResult)})"
             : "게임 종료 | 무승부";
     }
 

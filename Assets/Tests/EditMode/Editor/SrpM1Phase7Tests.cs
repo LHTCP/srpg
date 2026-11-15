@@ -691,6 +691,182 @@ public class SrpM1Phase7Tests
             Is.EqualTo(SrpEnemyAiActionType.Move));
     }
 
+    // ── 기획 결정 Q13: 맵마다 다른 승리 조건을 추가할 수 있다 ────────────────
+
+    [TestCase(TestName = "맵은 등록된 추가 승리 조건을 진영과 수치를 정해 걸 수 있다")]
+    public void Victory_MapCanAddRegisteredCondition()
+    {
+        SrpVictory.Register(new HoldRoundsCondition());
+        try
+        {
+            var state = CreateConditionState(new SrpVictoryConditionData { type = HoldRoundsCondition.TypeName, owner = 1, value = 3 });
+            AddUnit(state, id: 1, owner: 0, x: 0, y: 0);
+            AddUnit(state, id: 2, owner: 1, x: 4, y: 4);
+            Assert.That(SrpVictory.DescribeRule(state), Is.EqualTo("적 전멸 / P1 3라운드 버티기"));
+
+            state.RoundNumber = 3;
+            Assert.That(SrpVictory.Evaluate(state).decided, Is.False, "버텨야 할 라운드가 끝나기 전에 결판이 났습니다.");
+
+            state.RoundNumber = 4;
+            var result = SrpVictory.Evaluate(state);
+            Assert.That(result.decided, Is.True);
+            Assert.That(result.winnerOwner, Is.EqualTo(1), "조건에 적힌 진영이 아닌 쪽이 이겼습니다.");
+            Assert.That(result.reason, Is.EqualTo(SrpVictoryReason.Custom));
+            Assert.That(result.conditionType, Is.EqualTo(HoldRoundsCondition.TypeName));
+            Assert.That(SrpVictory.DescribeResult(state, result), Is.EqualTo("P1 3라운드 버티기"));
+
+            // 조건은 복제한 상태(AI 시뮬레이션, 되돌리기)에도 그대로 따라간다.
+            var clone = state.Clone();
+            clone.VictoryRule.conditions[0].value = 9;
+            Assert.That(SrpVictory.Evaluate(clone).decided, Is.False);
+            Assert.That(SrpVictory.Evaluate(state).decided, Is.True, "복제본을 고치자 원본 조건이 바뀌었습니다.");
+        }
+        finally
+        {
+            SrpVictory.Unregister(HoldRoundsCondition.TypeName);
+        }
+    }
+
+    [TestCase(TestName = "추가 승리 조건은 전멸과 지휘관 처치보다 뒤에 판정하고 패배 조건도 만들 수 있다")]
+    public void Victory_AddedConditionRanksAfterBuiltInsAndCanDefeat()
+    {
+        SrpVictory.Register(new HoldRoundsCondition());
+        SrpVictory.Register(new LoseUnitCondition());
+        try
+        {
+            // 지휘관 처치와 버티기가 동시에 성립하면 지휘관 처치가 먼저다.
+            var mixed = CreateConditionState(new SrpVictoryConditionData { type = HoldRoundsCondition.TypeName, owner = 1, value = 3 });
+            mixed.VictoryRule.commanderKill = true;
+            AddUnit(mixed, id: 1, owner: 0, x: 0, y: 0);
+            var commander = AddUnit(mixed, id: 2, owner: 1, x: 4, y: 4);
+            commander.isCommander = true;
+            AddUnit(mixed, id: 3, owner: 1, x: 4, y: 3);
+            mixed.RoundNumber = 4;
+            mixed.RemoveUnit(commander);
+            var byCommander = SrpVictory.Evaluate(mixed);
+            Assert.That(byCommander.winnerOwner, Is.EqualTo(0));
+            Assert.That(byCommander.reason, Is.EqualTo(SrpVictoryReason.CommanderKilled));
+
+            // 패배 조건: 지정한 유닛을 잃은 진영이 진다.
+            var escort = CreateConditionState(new SrpVictoryConditionData { type = LoseUnitCondition.TypeName, owner = 0, targetId = "p7_vip" });
+            var vip = AddUnit(escort, id: 1, owner: 0, x: 0, y: 0);
+            vip.templateId = "p7_vip";
+            AddUnit(escort, id: 2, owner: 0, x: 0, y: 1);
+            AddUnit(escort, id: 3, owner: 1, x: 4, y: 4);
+            Assert.That(SrpVictory.Evaluate(escort).decided, Is.False);
+            escort.RemoveUnit(vip);
+            var byLoss = SrpVictory.Evaluate(escort);
+            Assert.That(byLoss.winnerOwner, Is.EqualTo(1));
+            Assert.That(byLoss.reason, Is.EqualTo(SrpVictoryReason.Custom));
+            Assert.That(byLoss.conditionType, Is.EqualTo(LoseUnitCondition.TypeName));
+        }
+        finally
+        {
+            SrpVictory.Unregister(HoldRoundsCondition.TypeName);
+            SrpVictory.Unregister(LoseUnitCondition.TypeName);
+        }
+    }
+
+    [TestCase(TestName = "등록되지 않은 승리 조건은 건너뛰고 맵 메이커 저장에서도 빠지지 않는다")]
+    public void Victory_UnknownConditionIsSkippedButPreserved()
+    {
+        var state = CreateConditionState(new SrpVictoryConditionData { type = "p7_not_registered", owner = 1, value = 1 });
+        AddUnit(state, id: 1, owner: 0, x: 0, y: 0);
+        var last = AddUnit(state, id: 2, owner: 1, x: 4, y: 4);
+        state.RoundNumber = 9;
+        Assert.That(SrpVictory.Evaluate(state).decided, Is.False, "모르는 조건으로 결판이 났습니다.");
+        Assert.That(SrpVictory.DescribeRule(state), Is.EqualTo("적 전멸"));
+        state.RemoveUnit(last);
+        Assert.That(SrpVictory.Evaluate(state).reason, Is.EqualTo(SrpVictoryReason.Annihilation));
+
+        // 메이커는 조건 목록을 편집하지 않지만 불러온 값을 저장까지 들고 간다.
+        var loaded = new SrpMapFileV1
+        {
+            victory = new SrpVictoryRuleData
+            {
+                commanderKill = true,
+                conditions = new[] { new SrpVictoryConditionData { type = "p7_not_registered", owner = 1, value = 5, targetId = "x" } },
+            },
+        };
+        var carry = SrpMapCarryOver.Capture(loaded);
+        var saved = new SrpMapFileV1();
+        carry.ApplyTo(saved);
+        Assert.That(saved.victory.commanderKill, Is.True);
+        Assert.That(saved.victory.conditions.Length, Is.EqualTo(1));
+        Assert.That(saved.victory.conditions[0], Is.Not.SameAs(loaded.victory.conditions[0]));
+        Assert.That(saved.victory.conditions[0].type, Is.EqualTo("p7_not_registered"));
+        Assert.That(saved.victory.conditions[0].owner, Is.EqualTo(1));
+        Assert.That(saved.victory.conditions[0].value, Is.EqualTo(5));
+        Assert.That(saved.victory.conditions[0].targetId, Is.EqualTo("x"));
+    }
+
+    /// <summary>확장 예시(테스트 전용): 정한 진영이 value 라운드가 끝날 때까지 버티면 승리한다.</summary>
+    sealed class HoldRoundsCondition : ISrpVictoryCondition
+    {
+        public const string TypeName = "p7_hold_rounds";
+
+        public string Type { get { return TypeName; } }
+
+        public string Describe(SrpBattleState state, SrpVictoryConditionData data)
+        {
+            return $"P{data.owner} {data.value}라운드 버티기";
+        }
+
+        public bool IsDefeated(SrpBattleState state, SrpVictoryConditionData data, int owner)
+        {
+            return false;
+        }
+
+        public bool HasWon(SrpBattleState state, SrpVictoryConditionData data, int owner)
+        {
+            return state.RoundNumber > data.value;
+        }
+    }
+
+    /// <summary>확장 예시(테스트 전용): 정한 진영이 targetId 템플릿의 유닛을 모두 잃으면 패배한다.</summary>
+    sealed class LoseUnitCondition : ISrpVictoryCondition
+    {
+        public const string TypeName = "p7_lose_unit";
+
+        public string Type { get { return TypeName; } }
+
+        public string Describe(SrpBattleState state, SrpVictoryConditionData data)
+        {
+            return $"P{data.owner} {data.targetId} 보호";
+        }
+
+        public bool IsDefeated(SrpBattleState state, SrpVictoryConditionData data, int owner)
+        {
+            foreach (var unit in state.Units)
+            {
+                if (unit != null && !unit.eliminated && unit.owner == owner && unit.templateId == data.targetId)
+                    return false;
+            }
+            return true;
+        }
+
+        public bool HasWon(SrpBattleState state, SrpVictoryConditionData data, int owner)
+        {
+            return false;
+        }
+    }
+
+    static SrpBattleState CreateConditionState(SrpVictoryConditionData condition)
+    {
+        var walk = new bool[25];
+        for (int i = 0; i < walk.Length; i++)
+            walk[i] = true;
+
+        return SrpBattleState.FromMap(new SrpMapFileV1
+        {
+            width = 5,
+            height = 5,
+            walkable = walk,
+            playerOrder = new[] { 0, 1 },
+            victory = new SrpVictoryRuleData { conditions = new[] { condition } },
+        });
+    }
+
     /// <summary>
     /// 버티기 판단용 전장. 사격수(2,2)는 이동해도 이번 차례에 쏠 수 없는 거리에 있고,
     /// 상대 사격수(10,2)는 한 번 움직이면 쏠 수 있어 엄폐가 쓸모 있다. 근접 적(10,3)은 다음 이동으로 사거리에 들어온다.

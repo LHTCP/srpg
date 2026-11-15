@@ -386,6 +386,9 @@ public static class SrpBattleSimRunner
                 case SrpVictoryReason.ObjectiveSecured:
                     metrics.objectiveCount++;
                     break;
+                case SrpVictoryReason.Custom:
+                    metrics.customConditionCount++;
+                    break;
             }
         }
     }
@@ -409,6 +412,7 @@ public static class SrpBattleSimRunner
         report.outcome.annihilationRate = SrpSimThresholds.SafeDiv(metrics.annihilationCount, trials);
         report.outcome.commanderKillRate = SrpSimThresholds.SafeDiv(metrics.commanderKillCount, trials);
         report.outcome.objectiveRate = SrpSimThresholds.SafeDiv(metrics.objectiveCount, trials);
+        report.outcome.customConditionRate = SrpSimThresholds.SafeDiv(metrics.customConditionCount, trials);
 
         int firearmTotal = metrics.firearmHpDamage + metrics.firearmPgDamage;
         int meleeTotal = metrics.meleeHpDamage + metrics.meleePgDamage;
