@@ -152,10 +152,13 @@ public static class SrpCombatResolver
         return IsAttackerInDefenderFrontArc(attacker, defender);
     }
 
+    /// <summary>
+    /// 패링할 수 있는 공격인가. 스킬 데이터의 isParryable만 본다.
+    /// 공격자의 weaponClass는 표시용이라 판정에 쓰지 않는다.
+    /// </summary>
     public static bool IsParryableThreat(SrpUnitRuntime attacker, SrpSkillData attackSkill = null)
     {
-        return attacker != null && attacker.weaponClass == SrpWeaponClass.Melee
-            && attackSkill != null && attackSkill.isParryable;
+        return attacker != null && attackSkill != null && attackSkill.isParryable;
     }
 
     public static bool IsAttackerInDefenderFrontArc(SrpUnitRuntime attacker, SrpUnitRuntime defender)

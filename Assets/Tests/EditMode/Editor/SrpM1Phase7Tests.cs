@@ -4,6 +4,7 @@ using UnityEngine;
 
 /// <summary>
 /// 7차 테스트: 6차에서 남긴 결함 두 건(메이커 저장 시 템플릿 누락, 전장 장막 오버클럭)과 적 AI 확장.
+/// 뒤쪽은 7차에서 받은 기획 결정(Q4 교전 인접, Q6 패링 대상, Q13 승리 조건 확장, Q15 AI 경계태세)을 고정한다.
 /// </summary>
 [Category("SrpM1All")]
 public class SrpM1Phase7Tests
@@ -554,6 +555,170 @@ public class SrpM1Phase7Tests
         Assert.That(report.outcome.commanderKillRate, Is.GreaterThan(0f), "지휘관 처치로 끝난 판이 없습니다.");
         float decided = report.outcome.annihilationRate + report.outcome.commanderKillRate + report.outcome.objectiveRate;
         Assert.That(decided, Is.EqualTo(1f - report.outcome.drawRate).Within(0.001f), "종료 방식 비율의 합이 승패가 난 판의 비율과 다릅니다.");
+    }
+
+    // ── 기획 결정 Q4: 교전 인접은 대각선 포함 ────────────────────────────────
+
+    [TestCase(TestName = "대각선으로 맞닿은 적과도 교전 상태가 된다")]
+    public void Engagement_IncludesDiagonalAdjacency()
+    {
+        var state = CreateState(6, 6);
+        var unit = AddUnit(state, id: 1, owner: 0, x: 1, y: 1);
+        var enemy = AddUnit(state, id: 2, owner: 1, x: 2, y: 2);
+
+        Assert.That(state.IsUnitEngaged(unit.id), Is.True, "대각선 적과 교전하지 않았습니다.");
+        Assert.That(state.GetEngagedEnemyIds(enemy.id), Has.Member(unit.id));
+        Assert.That(state.IsEnemyAdjacentToTile(3, 3, 0), Is.True, "적의 대각선 칸이 인접으로 판정되지 않았습니다.");
+        Assert.That(state.IsEnemyAdjacentToTile(1, 2, 0), Is.True, "적의 옆 칸이 인접으로 판정되지 않았습니다.");
+        Assert.That(state.IsEnemyAdjacentToTile(4, 2, 0), Is.False, "두 칸 떨어진 칸이 인접으로 판정됐습니다.");
+
+        enemy.anchorX = 3;
+        enemy.anchorY = 3;
+        state.RebuildEngagements();
+        Assert.That(state.IsUnitEngaged(unit.id), Is.False, "두 칸 떨어진 적과 교전했습니다.");
+    }
+
+    [TestCase(TestName = "대각선 교전에서 빠지면 이탈 비용이 붙고 기회공격을 받는다")]
+    public void Move_AwayFromDiagonalEnemyCostsExitAndTriggersOpportunityAttack()
+    {
+        var state = CreateState(6, 6);
+        var mover = AddUnit(state, id: 1, owner: 0, x: 1, y: 1, moveRange: 3);
+        var enemy = AddUnit(state, id: 2, owner: 1, x: 2, y: 2, attackPower: 6);
+        enemy.reactionPoints = 1;
+        int before = mover.hp + mover.pg;
+
+        var costs = SrpPathfinder.GetReachableWithCosts(state, mover, mover.moveRange);
+        Assert.That(costs.TryGetValue(new Vector2Int(0, 1), out int exitCost), Is.True);
+        Assert.That(exitCost, Is.EqualTo(2), "대각선 교전 이탈 비용(기본 1 + 이탈 1)이 붙지 않았습니다.");
+        // 같은 적의 옆 칸으로 도는 이동은 이탈이 아니다(인접 칸 진입 비용만 붙는다).
+        Assert.That(costs.TryGetValue(new Vector2Int(1, 2), out int circleCost), Is.True);
+        Assert.That(circleCost, Is.EqualTo(2));
+
+        var result = SrpBattleFlow.Move(state, mover, 0, 1, exitCost, null);
+
+        Assert.That(result.disengaged, Is.True);
+        Assert.That(result.opportunity.triggered, Is.True, "대각선 교전 이탈에 기회공격이 발동하지 않았습니다.");
+        Assert.That(result.opportunity.reactor, Is.SameAs(enemy));
+        Assert.That(enemy.reactionPoints, Is.EqualTo(0));
+        Assert.That(mover.hp + mover.pg, Is.LessThan(before), "기회공격 피해가 없습니다.");
+    }
+
+    [TestCase(TestName = "같은 적의 대각선 칸에서 옆 칸으로 옮기면 교전이 유지되어 기회공격을 받지 않는다")]
+    public void Move_AroundSameEnemyKeepsEngagement()
+    {
+        var state = CreateState(6, 6);
+        var mover = AddUnit(state, id: 1, owner: 0, x: 1, y: 1, moveRange: 3);
+        var enemy = AddUnit(state, id: 2, owner: 1, x: 2, y: 2, attackPower: 6);
+        enemy.reactionPoints = 1;
+
+        var result = SrpBattleFlow.Move(state, mover, 1, 2, 2, null);
+
+        Assert.That(result.disengaged, Is.False);
+        Assert.That(result.opportunity.triggered, Is.False);
+        Assert.That(enemy.reactionPoints, Is.EqualTo(1));
+    }
+
+    // ── 기획 결정 Q6: 패링 대상은 스킬의 isParryable만 본다 ──────────────────
+
+    [TestCase(TestName = "패링은 공격자의 무기 분류와 무관하게 스킬의 패링 가능 표시만으로 판정한다")]
+    public void Parry_DependsOnSkillFlagNotWeaponClass()
+    {
+        var parryable = new SrpSkillData { id = "p7_parryable", isParryable = true, requiresParryTelegraph = true };
+        var plain = new SrpSkillData { id = "p7_plain" };
+
+        foreach (var weaponClass in new[] { SrpWeaponClass.Melee, SrpWeaponClass.Firearm, SrpWeaponClass.Magic })
+        {
+            var state = CreateState(5, 5);
+            var defender = AddUnit(state, id: 1, owner: 0, x: 2, y: 2);
+            defender.facing = SrpFacing.North;
+            defender.tags = (int)SrpUnitTags.ParryUser;
+            defender.reactionPoints = 1;
+            var attacker = AddUnit(state, id: 2, owner: 1, x: 2, y: 3, attackPower: 6, weaponClass: weaponClass);
+
+            Assert.That(SrpCombatResolver.CanDefenderParry(state, attacker, defender, parryable), Is.True,
+                $"{weaponClass} 공격자의 패링 가능 스킬을 패링할 수 없습니다.");
+            Assert.That(SrpCombatResolver.CanDefenderParry(state, attacker, defender, plain), Is.False,
+                $"{weaponClass} 공격자의 패링 불가 스킬이 패링 가능으로 판정됐습니다.");
+            Assert.That(SrpCombatResolver.CanDefenderParry(state, attacker, defender), Is.False,
+                $"{weaponClass} 공격자의 기본 공격이 패링 가능으로 판정됐습니다.");
+
+            int before = defender.hp + defender.pg;
+            var outcome = SrpCombatResolver.ApplyAttack(state, attacker, defender, parryable);
+            Assert.That(outcome.wasParried, Is.True, $"{weaponClass} 공격자의 패링 가능 스킬이 패링되지 않았습니다.");
+            Assert.That(defender.hp + defender.pg, Is.EqualTo(before));
+        }
+    }
+
+    // ── 기획 결정 Q15: 총기 역할은 엄폐 자리에서 경계태세로 버틴다 ───────────
+
+    [TestCase(TestName = "적 AI 사격수는 쏠 대상이 없고 근접 적이 다가오면 전진 대신 엄폐하고 경계태세를 건다")]
+    public void EnemyAi_ShooterHoldsCoverWithOverwatchInsteadOfAdvancing()
+    {
+        var state = CreateHoldState(out var shooter, withMeleeEnemy: true, withCover: true);
+
+        var first = SrpEnemyAi.Decide(state, shooter, shooter.moveRange, false);
+        Assert.That(first.type, Is.EqualTo(SrpEnemyAiActionType.TakeCover));
+        int remaining = shooter.moveRange;
+        Assert.That(SrpBattleFlow.ExecuteAiAction(state, shooter, first, ref remaining, null).executed, Is.True);
+
+        var second = SrpEnemyAi.Decide(state, shooter, remaining, false);
+        Assert.That(second.type, Is.EqualTo(SrpEnemyAiActionType.Overwatch));
+        Assert.That(SrpBattleFlow.ExecuteAiAction(state, shooter, second, ref remaining, null).executed, Is.True);
+        Assert.That(shooter.coverActive, Is.True);
+        Assert.That(shooter.overwatchArmed, Is.True);
+        Assert.That((shooter.anchorX, shooter.anchorY), Is.EqualTo((2, 2)), "버티기로 했는데 자리를 옮겼습니다.");
+    }
+
+    [TestCase(TestName = "적 AI 사격수는 다가올 근접 적이 없거나 엄폐할 곳이 없으면 버티지 않고 전진한다")]
+    public void EnemyAi_ShooterAdvancesWhenHoldingHasNoPayoff()
+    {
+        // 상대가 사격수뿐이면 서로 기다리기만 하게 되므로 전진한다.
+        var shootersOnly = CreateHoldState(out var shooter, withMeleeEnemy: false, withCover: true);
+        Assert.That(SrpEnemyAi.Decide(shootersOnly, shooter, shooter.moveRange, false).type,
+            Is.EqualTo(SrpEnemyAiActionType.Move));
+
+        var noCover = CreateHoldState(out shooter, withMeleeEnemy: true, withCover: false);
+        Assert.That(SrpEnemyAi.Decide(noCover, shooter, shooter.moveRange, false).type,
+            Is.EqualTo(SrpEnemyAiActionType.Move));
+
+        // 이동해서 바로 쏠 수 있으면 버티기보다 사격이 먼저다.
+        var inReach = CreateHoldState(out shooter, withMeleeEnemy: true, withCover: true);
+        var melee = FindById(inReach, 3);
+        melee.anchorX = 8;
+        melee.anchorY = 2;
+        inReach.RebuildEngagements();
+        Assert.That(SrpEnemyAi.Decide(inReach, shooter, shooter.moveRange, false).type,
+            Is.EqualTo(SrpEnemyAiActionType.Move));
+    }
+
+    /// <summary>
+    /// 버티기 판단용 전장. 사격수(2,2)는 이동해도 이번 차례에 쏠 수 없는 거리에 있고,
+    /// 상대 사격수(10,2)는 한 번 움직이면 쏠 수 있어 엄폐가 쓸모 있다. 근접 적(10,3)은 다음 이동으로 사거리에 들어온다.
+    /// </summary>
+    static SrpBattleState CreateHoldState(out SrpUnitRuntime shooter, bool withMeleeEnemy, bool withCover)
+    {
+        var state = CreateState(13, 5);
+        if (withCover)
+            AddCoverObject(state, 2, 1);
+        shooter = AddUnit(state, id: 1, owner: 1, x: 2, y: 2, attackPower: 8, attackRange: 4, moveRange: 2,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
+        shooter.reactionPoints = 1;
+        AddUnit(state, id: 2, owner: 0, x: 10, y: 2, attackPower: 8, attackRange: 5, moveRange: 3,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
+        if (withMeleeEnemy)
+            AddUnit(state, id: 3, owner: 0, x: 10, y: 3, attackPower: 6, moveRange: 4);
+        return state;
+    }
+
+    static SrpUnitRuntime FindById(SrpBattleState state, int id)
+    {
+        foreach (var unit in state.Units)
+        {
+            if (unit.id == id)
+                return unit;
+        }
+        Assert.Fail($"유닛을 찾지 못했습니다: {id}");
+        return null;
     }
 
     // ── 공용 ─────────────────────────────────────────────────────────────────

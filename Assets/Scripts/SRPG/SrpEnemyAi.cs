@@ -184,6 +184,9 @@ public static class SrpEnemyAi
             return SrpEnemyAiAction.MoveTo(moveX, moveY);
         if (hasSkill)
             return ToAction(skill);
+        // 총기 역할은 엄폐할 수 있는 자리에서 다가올 적이 있으면, 전진 대신 엄폐하고 경계태세로 버틴다.
+        if (isShooter && ShouldHoldWithOverwatch(s))
+            return IdleAction(s, true);
         if (canMove)
             return SrpEnemyAiAction.MoveTo(moveX, moveY);
 
@@ -325,6 +328,33 @@ public static class SrpEnemyAi
         return isShooter && SrpOverwatch.CanArm(actor)
             ? SrpEnemyAiAction.Overwatch()
             : SrpEnemyAiAction.EndTurn();
+    }
+
+    /// <summary>
+    /// 총기 역할이 전진하지 않고 지금 자리에서 버틸 만한가.
+    /// 조건: 경계사격을 할 수 있고(탄약, RP), 지금 자리에 쓸모 있는 엄폐가 있으며,
+    /// 다음 이동으로 사거리 안에 들어올 수 있는 총기 역할이 아닌 적이 있다.
+    /// 마지막 조건은 양쪽 사격수가 서로 기다리기만 하는 고착을 막는다.
+    /// </summary>
+    static bool ShouldHoldWithOverwatch(Situation s)
+    {
+        var state = s.state;
+        var actor = s.actor;
+        if (actor.ammo <= 0 || actor.maxAmmo <= 0 || actor.reactionPoints <= 0 || actor.attackRange <= 1)
+            return false;
+        if (!actor.coverActive && !CanUseCover(s))
+            return false;
+
+        foreach (var enemy in state.Units)
+        {
+            if (enemy == null || enemy.eliminated || enemy.owner == actor.owner)
+                continue;
+            if (enemy.weaponClass == SrpWeaponClass.Firearm)
+                continue;
+            if (state.ChebyshevAnchor(enemy, actor) <= actor.attackRange + enemy.moveRange)
+                return true;
+        }
+        return false;
     }
 
     // ── 엄폐 ─────────────────────────────────────────────────────────────────
