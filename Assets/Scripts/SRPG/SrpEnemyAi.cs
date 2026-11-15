@@ -296,7 +296,10 @@ public static class SrpEnemyAi
         public readonly HashSet<int> objectiveThreats = new HashSet<int>();
         /// <summary>actor를 뺀 아군 지휘관.</summary>
         public readonly List<SrpUnitRuntime> alliedCommanders = new List<SrpUnitRuntime>();
-        /// <summary>자리를 지킨다: 이번 차례에 바로 행동으로 이어지지 않는 접근 이동을 하지 않는다.</summary>
+        /// <summary>
+        /// 자리를 지킨다(아군이 남아 있는 지휘관): 이번 차례에 바로 행동으로 이어지지 않는 접근 이동을 하지 않고,
+        /// 행동으로 이어지는 이동도 도착 칸이 위험하면(IsDangerousTile) 하지 않는다.
+        /// </summary>
         public bool holdPosition;
         /// <summary>이동 판단에 쓰는 회복 스킬. 지금 자리에서는 쓸 곳이 없고 옮겨 가면 쓸 수 있는지 볼 때만 채운다.</summary>
         public readonly List<SupportSkill> supportSkills = new List<SupportSkill>();
@@ -1144,14 +1147,17 @@ public static class SrpEnemyAi
             s.supportSkills.Clear();
         int originX = actor.anchorX;
         int originY = actor.anchorY;
-        int currentScore = ScoreTile(s, originX, originY, 0, false, out _);
+        int currentScore = ScoreTile(s, originX, originY, 0, false, out _, out _);
         int bestScore = currentScore;
         bool found = false;
         bool bestEnablesAction = false;
 
         foreach (var kv in costs)
         {
-            int score = ScoreTile(s, kv.Key.x, kv.Key.y, kv.Value, canActAfterMove, out bool tileEnablesAction);
+            int score = ScoreTile(s, kv.Key.x, kv.Key.y, kv.Value, canActAfterMove, out bool tileEnablesAction, out bool tileSecures);
+            // 지휘관은 다음 적 차례에 쓰러질 수 있는 칸으로는 나서지 않는다. 승리 목표를 확보하러 가는 칸은 예외다.
+            if (s.holdPosition && !tileSecures && IsDangerousTile(s, kv.Key.x, kv.Key.y))
+                continue;
             if (score > bestScore
                 || (found && score == bestScore && IsEarlierTile(kv.Key, moveX, moveY)))
             {
@@ -1229,6 +1235,56 @@ public static class SrpEnemyAi
         moveX = step.x;
         moveY = step.y;
         return true;
+    }
+
+    /// <summary>
+    /// (x, y)에 서면 다음 적 차례 한 번에 쓰러지거나 붕괴할 수 있는가. 지휘관이 나설지 정할 때 쓴다.
+    /// 그 칸을 한 번 움직여 공격할 수 있는 적이 모두 기본 공격을 한다고 보고 기준 피해를 더한다
+    /// (방어·반응·엄폐 적용 전, 장애물을 무시한 거리). 총을 쏠 수 있으면 사격, 아니면 근접으로 센다.
+    /// HP 피해 합이 남은 HP 이상이거나, 둘 이상이 공격해 PG 피해 합이 남은 PG 이상이면 위험하다.
+    /// </summary>
+    static bool IsDangerousTile(Situation s, int x, int y)
+    {
+        var state = s.state;
+        var actor = s.actor;
+        int originX = actor.anchorX;
+        int originY = actor.anchorY;
+        int incomingHp = 0;
+        int incomingPg = 0;
+        int attackers = 0;
+        try
+        {
+            actor.anchorX = x;
+            actor.anchorY = y;
+            foreach (var enemy in state.Units)
+            {
+                if (enemy == null || enemy.eliminated || enemy.owner == actor.owner || enemy.IsPgBroken)
+                    continue;
+
+                int distance = state.ChebyshevAnchor(enemy, actor);
+                // 탄약이 없으면 장전에 AP를 쓰므로 움직이지 않고 쏠 수 있는 거리만 본다.
+                int shotReach = enemy.attackRange + (enemy.ammo > 0 ? enemy.moveRange : 0);
+                bool canShoot = enemy.maxAmmo > 0 && enemy.attackRange > 1 && distance > 1 && distance <= shotReach;
+                bool canMelee = distance <= enemy.moveRange + 1;
+                if (!canShoot && !canMelee)
+                    continue;
+
+                var kind = canShoot ? SrpBasicAttackKind.Firearm : SrpBasicAttackKind.Melee;
+                SrpCombatResolver.GetBaseBasicAttackDamage(kind, enemy, out int hpDamage, out int pgDamage);
+                if (kind == SrpBasicAttackKind.Firearm)
+                    pgDamage += hpDamage * SrpCombatResolver.FirearmSpilloverPercent / 100;
+                incomingHp += hpDamage;
+                incomingPg += pgDamage;
+                attackers++;
+            }
+        }
+        finally
+        {
+            actor.anchorX = originX;
+            actor.anchorY = originY;
+        }
+
+        return incomingHp >= actor.hp || (attackers >= 2 && incomingPg >= actor.pg);
     }
 
     /// <summary>
@@ -1326,7 +1382,8 @@ public static class SrpEnemyAi
         int y,
         int moveCost,
         bool countOpportunity,
-        out bool enablesAction)
+        out bool enablesAction,
+        out bool securesObjective)
     {
         var state = s.state;
         var actor = s.actor;
@@ -1407,6 +1464,7 @@ public static class SrpEnemyAi
         if (coverUseful)
             score += CoverTileScore;
         enablesAction = canAttack || canSecure || canSupport;
+        securesObjective = canSecure;
         return score;
     }
 }

@@ -3,7 +3,8 @@ using NUnit.Framework;
 using UnityEngine;
 
 /// <summary>
-/// 8차 테스트: 적 AI 마무리(태세와 방향 선택, 오버클럭, 회복하러 다가가는 이동).
+/// 8차 테스트: 적 AI 마무리(태세와 방향 선택, 오버클럭, 회복하러 다가가는 이동)와
+/// 지휘관 처치 승리가 켜진 맵에서 지휘관이 위험한 칸으로 나서지 않는 판단.
 /// </summary>
 [Category("SrpM1All")]
 public class SrpM1Phase8Tests
@@ -348,6 +349,41 @@ public class SrpM1Phase8Tests
         Assert.That((oneAp.x, oneAp.y), Is.Not.EqualTo((3, 0)));
     }
 
+    // ── 적 AI: 지휘관의 위험 판단 ────────────────────────────────────────────
+
+    [TestCase(TestName = "적 AI 지휘관은 다음 적 차례에 쓰러질 수 있는 칸으로는 공격하러 나서지 않는다")]
+    public void EnemyAi_CommanderDoesNotAdvanceIntoLethalTile()
+    {
+        var state = CreateCommanderState(out var commander, out var ally, out var shooterA, out var shooterB);
+
+        // 전진하면 사격수 둘에게 한 차례에 HP 40(20 + 20)을 맞을 수 있다. 지휘관 HP는 30이다.
+        var hold = SrpEnemyAi.Decide(state, commander, 3, false);
+        Assert.That(hold.type, Is.Not.EqualTo(SrpEnemyAiActionType.Move), "지휘관이 위험한 칸으로 전진했습니다.");
+
+        // 위협이 약하면(한 명, HP 12) 공격하러 나선다.
+        state.RemoveUnit(shooterB);
+        shooterA.attackPower = 4;
+        var advance = SrpEnemyAi.Decide(state, commander, 3, false);
+        Assert.That(advance.type, Is.EqualTo(SrpEnemyAiActionType.Move));
+        int remaining = 3;
+        SrpBattleFlow.ExecuteAiAction(state, commander, advance, ref remaining, null);
+        Assert.That(SrpEnemyAi.Decide(state, commander, remaining, false).type, Is.EqualTo(SrpEnemyAiActionType.Attack));
+        Assert.That(ally.eliminated, Is.False);
+    }
+
+    [TestCase(TestName = "적 AI 지휘관의 위험 판단은 혼자 남았거나 지휘관 처치 규칙이 꺼진 맵에서는 적용하지 않는다")]
+    public void EnemyAi_CommanderDangerCheckOnlyAppliesWhileHolding()
+    {
+        // 혼자 남으면 고착을 피하려고 위험해도 움직인다.
+        var alone = CreateCommanderState(out var commander, out var ally, out _, out _);
+        alone.RemoveUnit(ally);
+        Assert.That(SrpEnemyAi.Decide(alone, commander, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.Move));
+
+        // 지휘관 처치 규칙이 꺼진 맵에서는 지휘관 표시가 있어도 평소처럼 공격하러 간다.
+        var ruleOff = CreateCommanderState(out var leader, out _, out _, out _, commanderRule: false);
+        Assert.That(SrpEnemyAi.Decide(ruleOff, leader, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.Move));
+    }
+
     // ── 시뮬레이션 ───────────────────────────────────────────────────────────
 
     [Category("SrpAiSim")]
@@ -373,6 +409,34 @@ public class SrpM1Phase8Tests
         Assert.That(report.actions.overclocksPerBattle, Is.GreaterThan(0f), "시뮬레이션이 오버클럭을 쓰지 않았습니다.");
     }
 
+    [Category("SrpAiSim")]
+    [TestCase(TestName = "승리 조건 실험실: AI끼리 붙어도 지휘관이 첫 라운드에 쓰러지며 끝나지 않는다")]
+    public void ObjectiveLab_SimulationDoesNotEndWithCommanderRush()
+    {
+        var config = new SrpBattleSimConfig
+        {
+            mapPreset = SrpMapPreset.M1ObjectiveLab,
+            trials = 200,
+            maxRounds = 24,
+            baseSeed = 770001,
+            sampleSeedCount = 1,
+            owner0Policy = new SrpHeuristicAiPolicy(),
+            owner1Policy = new SrpHeuristicAiPolicy(),
+            thresholds = SrpSimThresholdConfig.Default(),
+        };
+
+        var outcome = SrpBattleSimRunner.RunBatch(config, writeReport: false).report.outcome;
+        Debug.Log(
+            $"[SRPG][AI-Sim][ObjectiveLab] w0={outcome.owner0WinRate:F3}, w1={outcome.owner1WinRate:F3}, " +
+            $"draw={outcome.drawRate:F3}, avgR={outcome.averageRounds:F2}, cmd={outcome.commanderKillRate:F3}");
+
+        // 측정값(2026-11-15, 200회): 7차 평균 1.47라운드, 전부 지휘관 처치(먼저 움직인 진영이 항상 패배).
+        // 8차(지휘관이 위험한 칸으로 나서지 않음) 평균 4.00라운드, 승률 0.310 / 0.690, 지휘관 처치 69.0%.
+        Assert.That(outcome.averageRounds, Is.GreaterThanOrEqualTo(2.5f), "전투가 너무 빨리 끝납니다. 지휘관이 다시 돌진하는지 확인하세요.");
+        Assert.That(outcome.owner0WinRate, Is.GreaterThan(0.05f), "먼저 움직이는 진영이 이기는 판이 없습니다.");
+        Assert.That(outcome.drawRate, Is.LessThanOrEqualTo(0.10f), "무승부가 많습니다. 지휘관끼리 버티기만 하는지 확인하세요.");
+    }
+
     // ── 전장 구성 ────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -396,6 +460,40 @@ public class SrpM1Phase8Tests
         healer = AddUnit(state, id: 1, owner: 1, x: 0, y: 0, attackPower: 6, moveRange: 3, skills: new[] { heal.id });
         ally = AddUnit(state, id: 2, owner: 1, x: 5, y: 0);
         AddUnit(state, id: 3, owner: 0, x: 0, y: 3);
+        return state;
+    }
+
+    /// <summary>
+    /// 지휘관 위험 판단용 전장. 지휘관(0,2, HP 30)은 부무장 사격(사거리 3)이 있어 (3,2)로 나가면 사격수 A(6,2)를 쏠 수 있다.
+    /// 사격수 A(6,2)와 B(6,3)는 공격력 8(사격 HP 20), 사거리 4, 이동 2다.
+    /// </summary>
+    static SrpBattleState CreateCommanderState(
+        out SrpUnitRuntime commander,
+        out SrpUnitRuntime ally,
+        out SrpUnitRuntime shooterA,
+        out SrpUnitRuntime shooterB,
+        bool commanderRule = true)
+    {
+        var walk = new bool[9 * 5];
+        for (int i = 0; i < walk.Length; i++)
+            walk[i] = true;
+        var state = SrpBattleState.FromMap(new SrpMapFileV1
+        {
+            width = 9,
+            height = 5,
+            walkable = walk,
+            playerOrder = new[] { 0, 1 },
+            victory = new SrpVictoryRuleData { commanderKill = commanderRule },
+        });
+
+        commander = AddUnit(state, id: 1, owner: 1, x: 0, y: 2, attackPower: 6, attackRange: 3, moveRange: 3,
+            maxAmmo: 1, ammo: 1);
+        commander.isCommander = true;
+        ally = AddUnit(state, id: 2, owner: 1, x: 0, y: 0);
+        shooterA = AddUnit(state, id: 3, owner: 0, x: 6, y: 2, attackPower: 8, attackRange: 4, moveRange: 2,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
+        shooterB = AddUnit(state, id: 4, owner: 0, x: 6, y: 3, attackPower: 8, attackRange: 4, moveRange: 2,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
         return state;
     }
 
