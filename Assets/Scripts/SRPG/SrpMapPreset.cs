@@ -8,4 +8,5 @@ public enum SrpMapPreset
     M1QaIntegrated = 2,
     M1ObjectiveLab = 3,
     M1BarricadeAssault = 4,
+    M1ConditionLab = 5,
 }

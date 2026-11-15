@@ -25,6 +25,10 @@ public class SrpBattleState
 
     /// <summary>맵별 승리 조건. 판정은 SrpVictory.Evaluate가 한다.</summary>
     public SrpVictoryRuleData VictoryRule { get; private set; } = new SrpVictoryRuleData();
+    /// <summary>마지막 활성화까지 모두 끝난 라운드 수. 라운드가 끝날 때 SrpVictory.OnRoundEnded가 올린다.</summary>
+    public int CompletedRounds { get; set; }
+    /// <summary>라운드마다 쌓는 승리/패배 조건의 진행도(예: 거점을 연속으로 유지한 라운드 수). 키는 SrpVictory가 정한다.</summary>
+    public Dictionary<string, int> VictoryProgress { get; private set; } = new Dictionary<string, int>();
 
     const uint DefaultRandomState = 0x9E3779B9u;
 
@@ -92,6 +96,8 @@ public class SrpBattleState
             CoverObjects = CloneCoverObjects(CoverObjects),
             CoverSegments = CloneCoverSegments(CoverSegments),
             VictoryRule = VictoryRule != null ? VictoryRule.Clone() : new SrpVictoryRuleData(),
+            CompletedRounds = CompletedRounds,
+            VictoryProgress = new Dictionary<string, int>(VictoryProgress),
         };
         foreach (var u in Units)
             s.Units.Add(u.Clone());
@@ -326,6 +332,7 @@ public class SrpBattleState
             reactionPoints = t.maxReactionPoints > 0 ? t.maxReactionPoints : 1,
             speed = t.speed > 0 ? t.speed : 10,
             weaponClass = weaponClass,
+            firearmType = t.firearmType,
             stance = t.stance,
             facing = t.facing,
             moveRange = t.moveRange,

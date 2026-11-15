@@ -61,6 +61,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
     const int PlayerOwner = 0;
     bool _enemyAiEnabled;
     int _enemyAiToken;
+    bool _enemyAiLastStepInstant;
 
     Phase _phase;
     int? _selectedId;
@@ -607,7 +608,9 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
             if (!IsEnemyAiActivationCurrent(unitId, token))
                 yield break;
 
-            yield return new WaitForSeconds(delay);
+            // 태세와 방향 변경은 다음 행동과 이어서 보여 준다(기다리지 않는다).
+            if (!_enemyAiLastStepInstant)
+                yield return new WaitForSeconds(delay);
         }
 
         if (!IsEnemyAiActivationCurrent(unitId, token))
@@ -626,7 +629,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         try
         {
             var unit = GetUnit(unitId);
-            var action = SrpEnemyAi.Decide(_state, unit, _remainingMove, _hasAttackedThisTurn);
+            var action = SrpEnemyAi.DecideStep(_state, unit, _remainingMove, _hasAttackedThisTurn);
             return ExecuteEnemyAiAction(unit, action);
         }
         catch (System.Exception e)
@@ -657,6 +660,8 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         var step = SrpBattleFlow.ExecuteAiAction(_state, unit, action, ref _remainingMove, this);
         if (!step.executed)
             return false;
+        _enemyAiLastStepInstant = step.type == SrpEnemyAiActionType.SetStance
+            || step.type == SrpEnemyAiActionType.SetFacing;
 
         switch (step.type)
         {
@@ -686,6 +691,22 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
                 break;
             case SrpEnemyAiActionType.Interact:
                 AfterInteraction(unit, step.interaction);
+                break;
+            case SrpEnemyAiActionType.Overclock:
+                // 로그는 SrpSkills.TryOverclockSkill이 남긴다.
+                SpawnWorldFeedback(unit, "\uC624\uBC84\uD074\uB7ED", new Color(1f, 0.78f, 0.25f));
+                FlashUnit(unit, new Color(1f, 0.78f, 0.25f));
+                UpdateHud();
+                break;
+            case SrpEnemyAiActionType.SetStance:
+                LogLine($"태세 변경: {unit.displayName} → {DescribeStance(unit.stance)}");
+                RefreshUnitViews();
+                UpdateHud();
+                break;
+            case SrpEnemyAiActionType.SetFacing:
+                LogLine($"방향 변경: {unit.displayName} → {DescribeFacing(unit.facing)}");
+                RefreshUnitViews();
+                UpdateHud();
                 break;
         }
         return true;
@@ -1121,6 +1142,17 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
 
         if (!SrpTurnOrder.HasRemainingUnitInRound(_state))
         {
+            // 라운드가 끝나는 순간 성립하는 조건(버티기, 거점 유지)을 판정한 뒤 다음 라운드로 넘어간다.
+            SrpBattleFlow.EndRound(_state);
+            CheckWin();
+            if (_gameOver)
+            {
+                UpdateHud();
+                return;
+            }
+            string progress = SrpVictory.DescribeProgress(_state);
+            if (!string.IsNullOrEmpty(progress))
+                LogLine($"승리 조건 진행: {progress}");
             _state.RoundNumber++;
             StartRound();
             return;
@@ -1203,6 +1235,9 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
     void LogVictoryRule()
     {
         LogLine($"승리 조건: {SrpVictory.DescribeRule(_state)}");
+        string defeatRule = SrpVictory.DescribeDefeatRule(_state);
+        if (!string.IsNullOrEmpty(defeatRule))
+            LogLine($"패배 조건: {defeatRule}");
         var rule = _state.VictoryRule;
         if (rule == null || !rule.commanderKill)
             return;
@@ -1242,17 +1277,10 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
 
     bool CanSetSelectedStance(SrpUnitRuntime unit)
     {
+        // 조건은 적 AI와 같이 쓰는 SrpBattleFlow.CanChangeStance가 정한다(활성화의 첫 행동 전까지).
         return !_gameOver
             && _phase == Phase.UnitActive
-            && unit != null
-            && !unit.eliminated
-            && !unit.hasMovedThisActivation
-            && !unit.hasAttackedThisActivation
-            && !unit.hasUsedSkillThisActivation
-            && !unit.hasReloadedThisActivation
-            && !unit.overwatchArmed
-            // 엄폐/상호작용처럼 전용 플래그가 없는 AP 행동 뒤에도 태세를 바꿀 수 없게 한다.
-            && unit.actionPoints >= unit.maxActionPoints;
+            && SrpBattleFlow.CanChangeStance(unit);
     }
 
     bool TrySetSelectedStance(SrpStance stance, bool logFailure)

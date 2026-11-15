@@ -96,8 +96,11 @@ public struct SrpAiStepResult
 /// </summary>
 public static class SrpBattleFlow
 {
-    /// <summary>AI가 한 활성화에서 고를 수 있는 행동 수 상한(무한 반복 방지).</summary>
-    public const int MaxAiActionsPerActivation = 8;
+    /// <summary>
+    /// AI가 한 활성화에서 고를 수 있는 행동 수 상한(무한 반복 방지).
+    /// AP를 쓰지 않는 행동(태세, 방향, 오버클럭)도 한 번으로 센다.
+    /// </summary>
+    public const int MaxAiActionsPerActivation = 12;
 
     /// <summary>라운드 시작: 행동 순서 구성, 스킬 자원 틱, AP/RP/경계태세 등 라운드 자원 초기화.</summary>
     public static void StartRound(SrpBattleState state)
@@ -115,6 +118,16 @@ public static class SrpBattleFlow
         }
         SrpTurnOrder.ResetRoundResources(state);
         state.RebuildEngagements();
+    }
+
+    /// <summary>
+    /// 라운드 종료: 마지막 활성화가 끝난 뒤, 다음 라운드를 시작하기 전에 한 번 부른다.
+    /// 끝난 라운드 수와 라운드마다 쌓는 승리 조건(거점 유지 등)의 진행도를 갱신한다.
+    /// 호출한 쪽은 이어서 승패를 판정해야 한다(N라운드 버티기는 라운드가 끝나는 순간 성립한다).
+    /// </summary>
+    public static void EndRound(SrpBattleState state)
+    {
+        SrpVictory.OnRoundEnded(state);
     }
 
     /// <summary>
@@ -247,6 +260,23 @@ public static class SrpBattleFlow
             || data.endsActivation
             || caster.IsPgBroken;
         return result;
+    }
+
+    /// <summary>
+    /// 태세를 바꿀 수 있는가. 태세는 활성화의 첫 행동 전까지만 고를 수 있다(기준서 §4).
+    /// 플레이어 조작(SrpGameController)과 적 AI가 같은 조건을 쓴다.
+    /// </summary>
+    public static bool CanChangeStance(SrpUnitRuntime unit)
+    {
+        return unit != null
+            && !unit.eliminated
+            && !unit.hasMovedThisActivation
+            && !unit.hasAttackedThisActivation
+            && !unit.hasUsedSkillThisActivation
+            && !unit.hasReloadedThisActivation
+            && !unit.overwatchArmed
+            // 엄폐/상호작용처럼 전용 플래그가 없는 AP 행동 뒤에도 태세를 바꿀 수 없게 한다.
+            && unit.actionPoints >= unit.maxActionPoints;
     }
 
     /// <summary>재장전 1회(AP 1). 장전할 수 없으면 false이고 상태는 그대로다.</summary>
@@ -415,6 +445,30 @@ public static class SrpBattleFlow
                 step.executed = state.TryResolveInteractionAction(unit, out step.interaction);
                 return step;
             }
+            case SrpEnemyAiActionType.Overclock:
+            {
+                // AP를 쓰지 않는다. 안정도(FH)가 모자라거나 얻을 것이 없으면 실행하지 않는다.
+                if (!TryGetSkill(state, unit, action.skillId, out var data, out var runtime))
+                    return step;
+                step.executed = SrpSkills.TryOverclockSkill(unit, data, runtime, RuleLog(observer));
+                return step;
+            }
+            case SrpEnemyAiActionType.SetStance:
+            {
+                if (!CanChangeStance(unit) || unit.stance == action.stance)
+                    return step;
+                unit.stance = action.stance;
+                step.executed = true;
+                return step;
+            }
+            case SrpEnemyAiActionType.SetFacing:
+            {
+                if (unit.facing == action.facing)
+                    return step;
+                unit.facing = action.facing;
+                step.executed = true;
+                return step;
+            }
             default:
                 return step;
         }
@@ -422,6 +476,18 @@ public static class SrpBattleFlow
 
     /// <summary>유닛이 가진 액티브 스킬을 id로 찾고 지금 쓸 수 있는지(쿨다운/충전) 확인한다.</summary>
     public static bool TryGetUsableSkill(
+        SrpBattleState state,
+        SrpUnitRuntime unit,
+        string skillId,
+        out SrpSkillData data,
+        out SrpSkillRuntime runtime)
+    {
+        return TryGetSkill(state, unit, skillId, out data, out runtime)
+            && SrpSkills.CanUseActiveSkill(data, runtime);
+    }
+
+    /// <summary>유닛이 가진 스킬을 id로 찾는다. 지금 쓸 수 있는지는 보지 않는다.</summary>
+    static bool TryGetSkill(
         SrpBattleState state,
         SrpUnitRuntime unit,
         string skillId,
@@ -442,7 +508,7 @@ public static class SrpBattleFlow
                 break;
             }
         }
-        return runtime != null && SrpSkills.CanUseActiveSkill(data, runtime);
+        return runtime != null;
     }
 
     static SrpReactionResult FinishReaction(

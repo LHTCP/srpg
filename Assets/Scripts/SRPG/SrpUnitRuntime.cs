@@ -15,6 +15,18 @@ public enum SrpBasicAttackKind
     Firearm,
 }
 
+/// <summary>
+/// 사격에 쓰는 총기의 종류. 기본 사격의 HP 피해 식이 다르다(SrpCombatResolver.GetBaseBasicAttackDamage).
+/// 값이 없는 기존 데이터는 Auto로 읽힌다.
+/// </summary>
+public enum SrpFirearmType
+{
+    /// <summary>주무장을 따른다: 주무장(weaponClass)이 총기면 소총, 아니면 권총(부무장).</summary>
+    Auto = 0,
+    Rifle = 1,
+    Pistol = 2,
+}
+
 public enum SrpStance
 {
     Aggressive,
@@ -160,6 +172,8 @@ public class SrpUnitRuntime
     public int maxReactionPoints;
     public int speed;
     public SrpWeaponClass weaponClass;
+    /// <summary>사격에 쓰는 총기의 종류. Auto면 주무장을 따른다(SrpCombatResolver.ResolveFirearmType).</summary>
+    public SrpFirearmType firearmType;
     public SrpStance stance;
     public SrpFacing facing;
 
@@ -227,6 +241,7 @@ public class SrpUnitRuntime
             maxReactionPoints = maxReactionPoints,
             speed = speed,
             weaponClass = weaponClass,
+            firearmType = firearmType,
             stance = stance,
             facing = facing,
             moveRange = moveRange,

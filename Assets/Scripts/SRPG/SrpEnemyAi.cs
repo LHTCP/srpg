@@ -13,6 +13,12 @@ public enum SrpEnemyAiActionType
     TakeCover,
     /// <summary>인접한 상호작용 포인트를 활성화한다(AP 1).</summary>
     Interact,
+    /// <summary>스킬 하나를 오버클럭한다(AP 0, 안정도 소모). 바로 이어서 그 스킬을 쓴다.</summary>
+    Overclock,
+    /// <summary>태세를 바꾼다(AP 0). 활성화의 첫 행동 전에만 할 수 있다.</summary>
+    SetStance,
+    /// <summary>바라보는 방향을 바꾼다(AP 0).</summary>
+    SetFacing,
 }
 
 public struct SrpEnemyAiAction
@@ -22,6 +28,33 @@ public struct SrpEnemyAiAction
     public int y;
     public int targetUnitId;
     public string skillId;
+    /// <summary>SetStance가 고른 태세.</summary>
+    public SrpStance stance;
+    /// <summary>SetFacing이 고른 방향.</summary>
+    public SrpFacing facing;
+
+    /// <summary>AP를 쓰지 않는 행동인가(오버클럭, 태세, 방향).</summary>
+    public static bool IsFree(SrpEnemyAiActionType type)
+    {
+        return type == SrpEnemyAiActionType.Overclock
+            || type == SrpEnemyAiActionType.SetStance
+            || type == SrpEnemyAiActionType.SetFacing;
+    }
+
+    public static SrpEnemyAiAction Overclock(string skillId)
+    {
+        return new SrpEnemyAiAction { type = SrpEnemyAiActionType.Overclock, skillId = skillId, targetUnitId = -1 };
+    }
+
+    public static SrpEnemyAiAction SetStance(SrpStance stance)
+    {
+        return new SrpEnemyAiAction { type = SrpEnemyAiActionType.SetStance, stance = stance, targetUnitId = -1 };
+    }
+
+    public static SrpEnemyAiAction SetFacing(SrpFacing facing)
+    {
+        return new SrpEnemyAiAction { type = SrpEnemyAiActionType.SetFacing, facing = facing, targetUnitId = -1 };
+    }
 
     public static SrpEnemyAiAction EndTurn()
     {
@@ -80,10 +113,11 @@ public struct SrpEnemyAiAction
 /// <summary>
 /// 적 진영 기본 AI. 전투 상태만 읽어 다음 행동 하나를 고르는 순수 로직이다.
 /// 런타임(SrpGameController)과 AI 시뮬레이션이 같은 판단을 쓴다.
-/// 범위: 기본 공격, 스킬(단일·범위 피해, 태그, 회복), 이동, 재장전, 엄폐, 총기 역할의 경계태세,
-/// 맵이 켠 승리 조건(지휘관 처치, 상호작용 목표)의 공략과 방어.
-/// 오버클럭, 태세/방향 변경, 승리 목표가 아닌 상호작용 포인트는 쓰지 않는다.
-/// 맵이 추가로 건 승리 조건(victory.conditions)은 모른다. 조건을 새로 만들면 여기 판단도 함께 넣어야 한다.
+/// 범위: 기본 공격, 스킬(단일·범위 피해, 태그, 회복)과 오버클럭, 이동, 재장전, 엄폐, 총기 역할의 경계태세,
+/// 태세와 방향 선택, 맵이 켠 승리 조건(지휘관 처치, 상호작용 목표)과 내장 추가 조건
+/// (N라운드 버티기, 칸 도달, 유닛 보호, 거점 유지)의 공략과 방어.
+/// 승리 목표가 아닌 상호작용 포인트는 쓰지 않는다.
+/// 내장이 아닌 추가 조건(SrpVictory.Register로 등록한 것)은 모른다. 조건을 새로 만들면 여기 판단도 함께 넣어야 한다.
 /// 가치 비교에 쓰는 점수는 전투 수치가 아니라 판단용 가중치다.
 /// </summary>
 public static class SrpEnemyAi
@@ -111,8 +145,41 @@ public static class SrpEnemyAi
     const int ReactionDebuffValue = 2;
     const int SameTargetTagScore = 3;
 
-    /// <summary>현재 활성 유닛의 다음 행동 하나를 고른다. 상태는 변경하지 않는다.</summary>
+    // 이동 후 바로 아군을 회복시킬 수 있는 칸. 급한 회복은 공격 칸보다 높고 처단 칸보다 낮다.
+    const int SupportFromTileScore = 60;
+    const int UrgentSupportFromTileScore = 150;
+
+    // 방향 판단: 다음 차례에 공격해 올 수 있는 적을 더 무겁게 본다.
+    const int FacingAdjacentWeight = 4;
+    const int FacingReachWeight = 2;
+    const int FacingFarWeight = 1;
+
+    // 거점 유지 조건: 우리 편이 거점 안에 아무도 없으면 거점 칸을 공격 칸보다 높게, 이미 있으면 조금만 가산한다.
+    const int HoldZoneAnchorScore = 120;
+    const int HoldZoneSupportScore = 30;
+
+    /// <summary>
+    /// 현재 활성 유닛이 AP를 써서 할 다음 행동 하나(또는 차례 종료)를 고른다. 상태는 변경하지 않는다.
+    /// AP를 쓰지 않는 행동(태세, 방향, 오버클럭)은 고르지 않는다. 전투를 진행할 때는 DecideStep을 쓴다.
+    /// </summary>
     public static SrpEnemyAiAction Decide(
+        SrpBattleState state,
+        SrpUnitRuntime actor,
+        int remainingMove,
+        bool hasAttacked)
+    {
+        if (state == null || actor == null || actor.eliminated || actor.actionPoints <= 0 || actor.IsPgBroken)
+            return SrpEnemyAiAction.EndTurn();
+
+        return DecideAction(Assess(state, actor), remainingMove, hasAttacked);
+    }
+
+    /// <summary>
+    /// 전투 진행용 진입점(런타임, 시뮬레이션). 다음에 실행할 행동 하나를 고른다. 상태는 변경하지 않는다.
+    /// AP를 쓰는 행동(Decide와 같은 판단)을 먼저 정하고, 그 앞에 끼워 넣을 AP 0 행동(태세, 오버클럭, 방향)이 있으면
+    /// 그것을 먼저 돌려준다. AP 0 행동을 실행한 뒤 다시 부르면 이어서 할 행동이 나온다.
+    /// </summary>
+    public static SrpEnemyAiAction DecideStep(
         SrpBattleState state,
         SrpUnitRuntime actor,
         int remainingMove,
@@ -123,9 +190,34 @@ public static class SrpEnemyAi
 
         var s = Assess(state, actor);
 
+        // 태세는 활성화의 첫 행동 전에만 바꿀 수 있으므로 가장 먼저 고른다.
+        if (SrpBattleFlow.CanChangeStance(actor))
+        {
+            var stance = PickStance(s);
+            if (stance != actor.stance)
+                return SrpEnemyAiAction.SetStance(stance);
+        }
+
+        var action = DecideAction(s, remainingMove, hasAttacked);
+        if (TryPickOverclock(s, remainingMove, hasAttacked, action, out var overclock))
+            return overclock;
+        if (TryPickFacing(s, action, out var facing))
+            return SrpEnemyAiAction.SetFacing(facing);
+        return action;
+    }
+
+    /// <summary>AP를 쓰는 다음 행동 하나(또는 차례 종료).</summary>
+    static SrpEnemyAiAction DecideAction(Situation s, int remainingMove, bool hasAttacked)
+    {
+        var state = s.state;
+        var actor = s.actor;
+
         // 승리 목표에 닿아 있으면 다른 무엇보다 먼저 확보한다.
         if (CanSecureObjectiveNow(s))
             return SrpEnemyAiAction.Interact();
+        // 이번 이동으로 도달 조건의 칸에 설 수 있으면 바로 간다(서는 순간 승리한다).
+        if (TryPickWinningMove(s, remainingMove, out int winX, out int winY))
+            return SrpEnemyAiAction.MoveTo(winX, winY);
 
         bool isShooter = actor.weaponClass == SrpWeaponClass.Firearm;
 
@@ -180,13 +272,14 @@ public static class SrpEnemyAi
         bool canMove = !actor.hasMovedThisActivation && remainingMove > 0
             && TryPickMove(s, remainingMove, out moveX, out moveY, out moveEnablesAction);
 
-        // 이동해서 바로 공격하거나 목표를 확보할 수 있으면 스킬보다 이동이 먼저다.
+        // 이동해서 바로 공격하거나, 목표를 확보하거나, 다친 아군을 회복시킬 수 있으면 스킬보다 이동이 먼저다.
         if (canMove && moveEnablesAction)
             return SrpEnemyAiAction.MoveTo(moveX, moveY);
         if (hasSkill)
             return ToAction(skill);
         // 총기 역할은 엄폐할 수 있는 자리에서 다가올 적이 있으면, 전진 대신 엄폐하고 경계태세로 버틴다.
-        if (isShooter && ShouldHoldWithOverwatch(s))
+        // 시간이 상대 편이면(상대가 버티면 이기거나, 제한 라운드가 걸려 있으면) 버티지 않고 전진한다.
+        if (isShooter && !s.mustPress && ShouldHoldWithOverwatch(s))
             return IdleAction(s, true);
         if (canMove)
             return SrpEnemyAiAction.MoveTo(moveX, moveY);
@@ -208,12 +301,40 @@ public static class SrpEnemyAi
         public bool mapHasCover;
         /// <summary>actor 진영이 아직 확보하지 못한 승리 목표.</summary>
         public readonly List<SrpInteractionPointData> openObjectives = new List<SrpInteractionPointData>();
-        /// <summary>다음 차례에 자기 승리 목표에 닿을 수 있는 적.</summary>
+        /// <summary>다음 차례에 자기 승리 목표나 도달 조건의 칸에 닿을 수 있는 적.</summary>
         public readonly HashSet<int> objectiveThreats = new HashSet<int>();
-        /// <summary>actor를 뺀 아군 지휘관.</summary>
+        /// <summary>actor를 뺀 아군 핵심 유닛(잃으면 패배하는 유닛: 지휘관, 유닛 보호 조건의 대상).</summary>
         public readonly List<SrpUnitRuntime> alliedCommanders = new List<SrpUnitRuntime>();
-        /// <summary>자리를 지킨다: 이번 차례에 바로 행동으로 이어지지 않는 접근 이동을 하지 않는다.</summary>
+        /// <summary>유닛 보호 조건(패배 조건 목록의 unit_lost). 대상 유닛을 잃은 진영이 패배한다.</summary>
+        public readonly List<SrpVictoryConditionData> protectRules = new List<SrpVictoryConditionData>();
+        /// <summary>actor가 서면 자기 진영이 승리하는 칸(승리 조건 목록의 reach_tile).</summary>
+        public readonly List<Vector2Int> reachGoals = new List<Vector2Int>();
+        /// <summary>actor가 서면 자기 진영이 패배하는 칸(패배 조건 목록의 reach_tile).</summary>
+        public readonly List<Vector2Int> forbiddenTiles = new List<Vector2Int>();
+        /// <summary>거점 유지 조건(승리 조건 목록의 hold_point). 유지하는 쪽도 막는 쪽도 거점에 들어가야 한다.</summary>
+        public readonly List<SrpVictoryConditionData> holdZones = new List<SrpVictoryConditionData>();
+        /// <summary>시간이 상대 편이다: 상대가 버티면 이기거나 자기 진영에 제한 라운드가 걸려 있다. 버티지 않는다.</summary>
+        public bool mustPress;
+        /// <summary>시간이 자기 편이다: 버티면 이기거나 상대에게 제한 라운드가 걸려 있다. 행동으로 이어지지 않는 접근 이동을 하지 않는다.</summary>
+        public bool timeOnMySide;
+        /// <summary>
+        /// 도달 조건의 칸으로 가야 하는 핵심 유닛(예: 탈출해야 하는 보호 대상)이다.
+        /// 적에게는 다가가지 않고 도달 칸 쪽으로만, 위험하지 않은 칸을 골라 움직인다.
+        /// </summary>
+        public bool goalOnlyApproach;
+        /// <summary>
+        /// 자리를 지킨다(아군이 남아 있는 지휘관): 이번 차례에 바로 행동으로 이어지지 않는 접근 이동을 하지 않고,
+        /// 행동으로 이어지는 이동도 도착 칸이 위험하면(IsDangerousTile) 하지 않는다.
+        /// </summary>
         public bool holdPosition;
+        /// <summary>이동 판단에 쓰는 회복 스킬. 지금 자리에서는 쓸 곳이 없고 옮겨 가면 쓸 수 있는지 볼 때만 채운다.</summary>
+        public readonly List<SupportSkill> supportSkills = new List<SupportSkill>();
+    }
+
+    struct SupportSkill
+    {
+        public SrpSkillData data;
+        public int powerBonus;
     }
 
     static Situation Assess(SrpBattleState state, SrpUnitRuntime actor)
@@ -248,7 +369,9 @@ public static class SrpEnemyAi
             }
         }
 
-        if (s.commanderRule)
+        AssessListedConditions(s, rule);
+
+        if (s.commanderRule || s.protectRules.Count > 0)
         {
             bool hasOtherAlly = false;
             foreach (var unit in state.Units)
@@ -256,15 +379,172 @@ public static class SrpEnemyAi
                 if (unit == null || unit.eliminated || unit.owner != actor.owner || unit == actor)
                     continue;
                 hasOtherAlly = true;
-                if (unit.isCommander)
+                if (IsKeyUnit(s, unit))
                     s.alliedCommanders.Add(unit);
             }
-            // 지휘관은 쓰러지면 패배하므로 아군이 남아 있는 동안은 앞으로 나서지 않는다.
+            // 핵심 유닛(지휘관, 보호 대상)은 쓰러지면 패배하므로 아군이 남아 있는 동안은 앞으로 나서지 않는다.
             // 혼자 남으면 고착을 피하려고 평소처럼 움직인다.
-            s.holdPosition = actor.isCommander && hasOtherAlly;
+            s.holdPosition = IsKeyUnit(s, actor) && hasOtherAlly;
         }
+        s.goalOnlyApproach = s.holdPosition && s.reachGoals.Count > 0;
 
         return s;
+    }
+
+    /// <summary>맵이 승리/패배 조건 목록에 건 내장 조건을 읽어 판단에 쓸 형태로 옮긴다.</summary>
+    static void AssessListedConditions(Situation s, SrpVictoryRuleData rule)
+    {
+        if (rule == null)
+            return;
+        var state = s.state;
+        var actor = s.actor;
+
+        if (rule.conditions != null)
+        {
+            foreach (var data in rule.conditions)
+            {
+                if (data == null)
+                    continue;
+                bool mine = data.owner < 0 || data.owner == actor.owner;
+                switch (data.type)
+                {
+                    case SrpVictoryConditionTypes.SurviveRounds:
+                        // 진영이 정해지지 않은 버티기는 누구 편인지 알 수 없어 판단에 쓰지 않는다.
+                        if (data.owner == actor.owner)
+                            s.timeOnMySide = true;
+                        else if (data.owner >= 0)
+                            s.mustPress = true;
+                        break;
+
+                    case SrpVictoryConditionTypes.ReachTile:
+                        if (mine && SrpVictoryConditionTypes.MatchesUnit(actor, data.targetId))
+                            s.reachGoals.Add(new Vector2Int(data.x, data.y));
+                        // 상대가 다음 이동으로 그 칸에 설 수 있으면 위협으로 본다(장애물을 무시한 직선 거리).
+                        foreach (var unit in state.Units)
+                        {
+                            if (unit == null || unit.eliminated || unit.owner == actor.owner)
+                                continue;
+                            if (data.owner >= 0 && data.owner != unit.owner)
+                                continue;
+                            if (!SrpVictoryConditionTypes.MatchesUnit(unit, data.targetId))
+                                continue;
+                            if (Mathf.Abs(unit.anchorX - data.x) + Mathf.Abs(unit.anchorY - data.y) <= unit.moveRange)
+                                s.objectiveThreats.Add(unit.id);
+                        }
+                        break;
+
+                    case SrpVictoryConditionTypes.HoldPoint:
+                        s.holdZones.Add(data);
+                        break;
+                }
+            }
+        }
+
+        if (rule.defeatConditions != null)
+        {
+            foreach (var data in rule.defeatConditions)
+            {
+                if (data == null)
+                    continue;
+                bool mine = data.owner < 0 || data.owner == actor.owner;
+                switch (data.type)
+                {
+                    case SrpVictoryConditionTypes.SurviveRounds:
+                        // 제한 라운드: 걸린 진영은 서둘러야 하고, 상대는 버티면 된다.
+                        if (mine)
+                            s.mustPress = true;
+                        else
+                            s.timeOnMySide = true;
+                        break;
+
+                    case SrpVictoryConditionTypes.ReachTile:
+                        if (mine && SrpVictoryConditionTypes.MatchesUnit(actor, data.targetId))
+                            s.forbiddenTiles.Add(new Vector2Int(data.x, data.y));
+                        break;
+
+                    case SrpVictoryConditionTypes.UnitLost:
+                        if (!string.IsNullOrEmpty(data.targetId))
+                            s.protectRules.Add(data);
+                        break;
+                }
+            }
+        }
+
+        if (s.mustPress)
+            s.timeOnMySide = false;
+    }
+
+    /// <summary>잃으면 그 진영이 패배하는 유닛인가: 지휘관 처치가 켜진 맵의 지휘관, 유닛 보호 조건의 대상.</summary>
+    static bool IsKeyUnit(Situation s, SrpUnitRuntime unit)
+    {
+        if (unit == null)
+            return false;
+        if (s.commanderRule && unit.isCommander)
+            return true;
+        foreach (var rule in s.protectRules)
+        {
+            if ((rule.owner < 0 || rule.owner == unit.owner)
+                && SrpVictoryConditionTypes.MatchesUnit(unit, rule.targetId))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>이번 이동으로 도달 조건의 칸에 설 수 있는가. 여러 칸이면 이동 비용이 가장 낮은 칸을 고른다.</summary>
+    static bool TryPickWinningMove(Situation s, int remainingMove, out int x, out int y)
+    {
+        var actor = s.actor;
+        x = actor.anchorX;
+        y = actor.anchorY;
+        if (s.reachGoals.Count == 0 || actor.hasMovedThisActivation || remainingMove <= 0)
+            return false;
+
+        var costs = SrpPathfinder.GetReachableWithCosts(s.state, actor, remainingMove);
+        int bestCost = int.MaxValue;
+        foreach (var goal in s.reachGoals)
+        {
+            if (!costs.TryGetValue(goal, out int cost) || cost >= bestCost)
+                continue;
+            bestCost = cost;
+            x = goal.x;
+            y = goal.y;
+        }
+        return bestCost != int.MaxValue;
+    }
+
+    /// <summary>거점 조건의 거점까지의 거리(안이면 0). 장애물을 무시한 직선 거리.</summary>
+    static int DistanceToZone(SrpVictoryConditionData zone, int x, int y)
+    {
+        int radius = Mathf.Max(0, zone.radius);
+        return Mathf.Max(0, Mathf.Abs(x - zone.x) - radius) + Mathf.Max(0, Mathf.Abs(y - zone.y) - radius);
+    }
+
+    /// <summary>actor가 아닌 아군이 이 거점 안에 있는가.</summary>
+    static bool HasOtherAllyInZone(Situation s, SrpVictoryConditionData zone)
+    {
+        foreach (var unit in s.state.Units)
+        {
+            if (unit == null || unit.eliminated || unit.owner != s.actor.owner || unit == s.actor)
+                continue;
+            if (SrpVictoryConditionTypes.IsInZone(zone, unit.anchorX, unit.anchorY))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>(x, y)가 거점 안일 때의 가산. 우리 편이 아무도 없는 거점이면 크게, 이미 있으면 조금 준다.</summary>
+    static int ScoreHoldZones(Situation s, int x, int y)
+    {
+        int best = 0;
+        foreach (var zone in s.holdZones)
+        {
+            if (!SrpVictoryConditionTypes.IsInZone(zone, x, y))
+                continue;
+            int bonus = HasOtherAllyInZone(s, zone) ? HoldZoneSupportScore : HoldZoneAnchorScore;
+            if (bonus > best)
+                best = bonus;
+        }
+        return best;
     }
 
     /// <summary>owner가 지금 활성화해서 승리에 보탤 수 있는 목표인가.</summary>
@@ -291,7 +571,7 @@ public static class SrpEnemyAi
     static int TargetPriority(Situation s, SrpUnitRuntime unit)
     {
         int bonus = 0;
-        if (s.commanderRule && unit.isCommander)
+        if (IsKeyUnit(s, unit))
             bonus += CommanderTargetScore;
         if (s.objectiveThreats.Contains(unit.id))
             bonus += ObjectiveThreatScore;
@@ -304,6 +584,244 @@ public static class SrpEnemyAi
             }
         }
         return bonus;
+    }
+
+    // ── 태세·방향·오버클럭 (AP 0) ────────────────────────────────────────────
+
+    static readonly SrpFacing[] Facings = { SrpFacing.North, SrpFacing.East, SrpFacing.South, SrpFacing.West };
+
+    /// <summary>
+    /// 이번 활성화의 태세. 태세마다 실제로 얻는 것을 기준으로 고른다(판단 기준은 브릿지).
+    /// 탱커 특성(완벽한 수비, 다중 교전 완충)은 수비 태세에서만 작동하므로 탱커는 수비.
+    /// 교전 중이면 인접 공격은 회피할 수 없으니 PG 감쇠와 가드를 주는 수비.
+    /// 교전하지 않았고 다음 차례에 사격해 올 수 있는 적이 있으면 회피를 노려 공격. 그 밖에는 수비.
+    /// </summary>
+    static SrpStance PickStance(Situation s)
+    {
+        var actor = s.actor;
+        if (actor.HasTag(SrpUnitTags.Tank) || s.state.IsUnitEngaged(actor.id))
+            return SrpStance.Defensive;
+        return HasRangedThreat(s) ? SrpStance.Aggressive : SrpStance.Defensive;
+    }
+
+    /// <summary>한 번 움직여 사격해 올 수 있는 적이 있는가. 그로기인 적은 다음 차례를 잃으므로 뺀다.</summary>
+    static bool HasRangedThreat(Situation s)
+    {
+        var state = s.state;
+        var actor = s.actor;
+        foreach (var enemy in state.Units)
+        {
+            if (enemy == null || enemy.eliminated || enemy.owner == actor.owner || enemy.IsPgBroken)
+                continue;
+            if (enemy.maxAmmo <= 0 || enemy.attackRange <= 1)
+                continue;
+            int distance = state.ChebyshevAnchor(enemy, actor);
+            if (distance > 1 && distance <= enemy.attackRange + enemy.moveRange)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// 고른 행동을 하기 전에 돌아설 방향이 있는가. 방향은 AP를 쓰지 않지만 AP가 0이 되면 활성화가 끝나므로,
+    /// 그 자리에서 하는 행동 앞에서, 그리고 마지막 AP로 이동할 때는 도착 칸 기준으로 미리 정한다.
+    /// </summary>
+    static bool TryPickFacing(Situation s, SrpEnemyAiAction action, out SrpFacing facing)
+    {
+        var actor = s.actor;
+        facing = actor.facing;
+        int x = actor.anchorX;
+        int y = actor.anchorY;
+        switch (action.type)
+        {
+            case SrpEnemyAiActionType.Move:
+                // 이동 뒤에 AP가 남으면 도착한 자리에서 다시 판단한다.
+                if (actor.actionPoints >= 2)
+                    return false;
+                x = action.x;
+                y = action.y;
+                break;
+            case SrpEnemyAiActionType.Attack:
+            {
+                // 사격은 쏘는 쪽으로 돌아서므로(SrpFirearmAim.TurnShooterTowardTarget) 미리 바꾸지 않는다.
+                var target = s.state.FindUnitById(action.targetUnitId);
+                if (target != null
+                    && SrpCombatResolver.ResolveBasicAttackKind(s.state, actor, target) == SrpBasicAttackKind.Firearm)
+                    return false;
+                break;
+            }
+        }
+
+        facing = PickFacing(s, x, y);
+        return facing != actor.facing;
+    }
+
+    /// <summary>
+    /// (x, y)에 섰을 때 측면·후면을 가장 덜 내주는 방향. 실제 피해 규칙의 정면/후면 판정을 그대로 쓴다.
+    /// 벌점은 측면 1, 후면 2(방향 취약 가산과 같은 비)에 적의 가까움 가중치를 곱한다.
+    /// 동점이면 지금 방향을 유지한다. 그로기인 적은 세지 않는다.
+    /// </summary>
+    static SrpFacing PickFacing(Situation s, int x, int y)
+    {
+        var state = s.state;
+        var actor = s.actor;
+        int originX = actor.anchorX;
+        int originY = actor.anchorY;
+        var originFacing = actor.facing;
+        var best = originFacing;
+        int bestPenalty = int.MaxValue;
+        try
+        {
+            actor.anchorX = x;
+            actor.anchorY = y;
+            // 지금 방향을 먼저 평가해, 더 나은 방향이 있을 때만 돌아선다.
+            for (int i = -1; i < Facings.Length; i++)
+            {
+                var candidate = i < 0 ? originFacing : Facings[i];
+                if (i >= 0 && candidate == originFacing)
+                    continue;
+                actor.facing = candidate;
+
+                int penalty = 0;
+                foreach (var enemy in state.Units)
+                {
+                    if (enemy == null || enemy.eliminated || enemy.owner == actor.owner || enemy.IsPgBroken)
+                        continue;
+                    if (SrpCombatResolver.IsAttackerInDefenderFrontArc(enemy, actor))
+                        continue;
+
+                    int distance = state.ChebyshevAnchor(enemy, actor);
+                    int reach = enemy.maxAmmo > 0 ? Mathf.Max(1, enemy.attackRange) : 1;
+                    int weight = distance <= 1 ? FacingAdjacentWeight
+                        : distance <= enemy.moveRange + reach ? FacingReachWeight
+                        : FacingFarWeight;
+                    penalty += weight * (SrpCombatResolver.IsAttackerBehindDefender(enemy, actor) ? 2 : 1);
+                }
+
+                if (penalty < bestPenalty)
+                {
+                    bestPenalty = penalty;
+                    best = candidate;
+                }
+            }
+        }
+        finally
+        {
+            actor.anchorX = originX;
+            actor.anchorY = originY;
+            actor.facing = originFacing;
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// 오버클럭할 스킬이 있는가. 안정도(FH)는 오버클럭에만 쓰이므로 쓸 곳이 있으면 아끼지 않는다.
+    /// (1) 지금 쓰려는 스킬이 "다음 사용 피해/회복 강화"를 받을 수 있으면 쓰기 직전에 건다.
+    /// (2) 쿨다운이나 충전 때문에 못 쓰는 스킬을 되살리면 이번 행동으로 그 스킬을 고르게 될 때 건다.
+    /// </summary>
+    static bool TryPickOverclock(
+        Situation s,
+        int remainingMove,
+        bool hasAttacked,
+        SrpEnemyAiAction action,
+        out SrpEnemyAiAction overclock)
+    {
+        overclock = default;
+        var state = s.state;
+        var actor = s.actor;
+        if (actor.skillRuntimes == null || actor.frozenHeart <= 0)
+            return false;
+
+        if (action.type == SrpEnemyAiActionType.UseSkill)
+        {
+            foreach (var runtime in actor.skillRuntimes)
+            {
+                if (runtime == null || runtime.skillId != action.skillId
+                    || !state.SkillLookup.TryGetValue(runtime.skillId, out var data))
+                    continue;
+                if (data.overclockPowerBonus > 0
+                    && runtime.overclockedUsesRemaining <= 0
+                    && HasPowerScalingEffect(data)
+                    && SrpSkills.CanOverclockSkill(actor, data, runtime))
+                {
+                    overclock = SrpEnemyAiAction.Overclock(data.id);
+                    return true;
+                }
+                break;
+            }
+            return false;
+        }
+
+        if (actor.hasUsedSkillThisActivation)
+            return false;
+
+        foreach (var runtime in actor.skillRuntimes)
+        {
+            if (runtime == null || !state.SkillLookup.TryGetValue(runtime.skillId, out var data))
+                continue;
+            if (data.skillType != SrpSkillType.Active || data.trigger != SrpSkillTrigger.OnActivate)
+                continue;
+            if (SrpSkills.CanUseActiveSkill(data, runtime) || !SrpSkills.CanOverclockSkill(actor, data, runtime))
+                continue;
+
+            // 오버클럭을 잠시 적용해 보고, 그 상태에서 같은 판단이 이 스킬을 고르는지 확인한 뒤 되돌린다.
+            var saved = runtime.Clone();
+            int savedFrozenHeart = actor.frozenHeart;
+            bool wouldUse;
+            try
+            {
+                SrpSkills.TryOverclockSkill(actor, data, runtime, null);
+                if (SrpSkills.CanUseActiveSkill(data, runtime))
+                {
+                    var next = DecideAction(s, remainingMove, hasAttacked);
+                    wouldUse = next.type == SrpEnemyAiActionType.UseSkill && next.skillId == data.id;
+                }
+                else
+                {
+                    wouldUse = false;
+                }
+            }
+            finally
+            {
+                runtime.cooldownRemaining = saved.cooldownRemaining;
+                runtime.chargesRemaining = saved.chargesRemaining;
+                runtime.chargeRecoveryRemaining = saved.chargeRecoveryRemaining;
+                runtime.overclockedUsesRemaining = saved.overclockedUsesRemaining;
+                runtime.chargesInitialized = saved.chargesInitialized;
+                actor.frozenHeart = savedFrozenHeart;
+            }
+
+            if (wouldUse)
+            {
+                overclock = SrpEnemyAiAction.Overclock(data.id);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>오버클럭 강화(피해/회복 +N)가 붙는 효과가 있는가(SrpSkills.ApplyEffects와 같은 범위).</summary>
+    static bool HasPowerScalingEffect(SrpSkillData data)
+    {
+        if (data.effects == null)
+            return false;
+        foreach (var eff in data.effects)
+        {
+            if (eff == null)
+                continue;
+            if (eff.type == SrpEffectType.Damage || eff.type == SrpEffectType.Cleave || eff.type == SrpEffectType.Heal
+                || SrpSkills.IsRecoveryStatEffect(eff))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>이미 오버클럭해 둔 스킬이 다음 사용에 받는 강화량.</summary>
+    static int GetPowerBonus(SrpSkillData data, SrpSkillRuntime runtime)
+    {
+        return runtime != null && runtime.overclockedUsesRemaining > 0 && data.overclockPowerBonus > 0
+            ? data.overclockPowerBonus
+            : 0;
     }
 
     // ── 대기 행동 ────────────────────────────────────────────────────────────
@@ -508,10 +1026,11 @@ public static class SrpEnemyAi
             if (!SrpSkills.CanUseActiveSkill(data, runtime))
                 continue;
 
+            int powerBonus = GetPowerBonus(data, runtime);
             switch (data.targetType)
             {
                 case SrpTargetType.Self:
-                    ConsiderSkillAt(s, data, actor.anchorX, actor.anchorY, attackTarget, ref best, ref found);
+                    ConsiderSkillAt(s, data, powerBonus, actor.anchorX, actor.anchorY, attackTarget, ref best, ref found);
                     break;
 
                 case SrpTargetType.SingleEnemy:
@@ -524,14 +1043,14 @@ public static class SrpEnemyAi
                             continue;
                         if (!SrpSkills.CanTargetTile(data, actor, unit.anchorX, unit.anchorY, state))
                             continue;
-                        ConsiderSkillAt(s, data, unit.anchorX, unit.anchorY, attackTarget, ref best, ref found);
+                        ConsiderSkillAt(s, data, powerBonus, unit.anchorX, unit.anchorY, attackTarget, ref best, ref found);
                     }
                     break;
 
                 case SrpTargetType.AreaEnemy:
                 case SrpTargetType.AreaAlly:
                     foreach (var tile in SrpSkills.GetSkillTargetTiles(data, actor, state))
-                        ConsiderSkillAt(s, data, tile.x, tile.y, attackTarget, ref best, ref found);
+                        ConsiderSkillAt(s, data, powerBonus, tile.x, tile.y, attackTarget, ref best, ref found);
                     break;
             }
         }
@@ -542,13 +1061,14 @@ public static class SrpEnemyAi
     static void ConsiderSkillAt(
         Situation s,
         SrpSkillData data,
+        int powerBonus,
         int x,
         int y,
         SrpUnitRuntime attackTarget,
         ref SkillPick best,
         ref bool found)
     {
-        if (!TryEvaluateSkillAt(s, data, x, y, attackTarget, out var pick))
+        if (!TryEvaluateSkillAt(s, data, powerBonus, x, y, attackTarget, out var pick))
             return;
 
         bool better = !found || pick.score > best.score;
@@ -565,9 +1085,11 @@ public static class SrpEnemyAi
         found = true;
     }
 
+    /// <summary>powerBonus는 이미 걸어 둔 오버클럭이 이번 사용의 피해/회복에 더해 주는 양이다(없으면 0).</summary>
     static bool TryEvaluateSkillAt(
         Situation s,
         SrpSkillData data,
+        int powerBonus,
         int x,
         int y,
         SrpUnitRuntime attackTarget,
@@ -587,13 +1109,13 @@ public static class SrpEnemyAi
             if (unit == null || unit.eliminated)
                 continue;
             if (unit.owner != s.actor.owner)
-                AddOffensiveValue(s, data, unit, attackTarget, ref pick);
+                AddOffensiveValue(s, data, powerBonus, unit, attackTarget, ref pick);
             else
-                AddSupportValue(data, unit, ref supportValue, ref supportUrgent);
+                AddSupportValue(data, powerBonus, unit, ref supportValue, ref supportUrgent);
         }
 
         // 회복은 한 명 기준 회복량의 3/4 이상이 실제로 들어갈 때만 쓴다(쿨다운·충전 낭비 방지).
-        if (supportValue > 0 && supportValue * 4 >= GetSupportNominalValue(data) * 3)
+        if (supportValue > 0 && supportValue * 4 >= GetSupportNominalValue(data, powerBonus) * 3)
         {
             pick.value += supportValue;
             pick.score += supportValue;
@@ -605,6 +1127,7 @@ public static class SrpEnemyAi
     static void AddOffensiveValue(
         Situation s,
         SrpSkillData data,
+        int powerBonus,
         SrpUnitRuntime unit,
         SrpUnitRuntime attackTarget,
         ref SkillPick pick)
@@ -620,8 +1143,8 @@ public static class SrpEnemyAi
                 case SrpEffectType.Damage:
                 case SrpEffectType.Cleave:
                 {
-                    // 실제 해결(SrpSkills.ApplyEffects)과 같은 기준 피해: HP = 값, PG = 값/2(최소 1).
-                    int damage = eff.type == SrpEffectType.Cleave ? s.actor.attackPower + eff.value : eff.value;
+                    // 실제 해결(SrpSkills.ApplyEffects)과 같은 기준 피해: HP = 값(+오버클럭 강화), PG = 값/2(최소 1).
+                    int damage = (eff.type == SrpEffectType.Cleave ? s.actor.attackPower + eff.value : eff.value) + powerBonus;
                     if (damage <= 0)
                         break;
                     value += damage * HpValue + Mathf.Max(1, damage / 2);
@@ -678,7 +1201,7 @@ public static class SrpEnemyAi
         }
     }
 
-    static void AddSupportValue(SrpSkillData data, SrpUnitRuntime unit, ref int supportValue, ref bool urgent)
+    static void AddSupportValue(SrpSkillData data, int powerBonus, SrpUnitRuntime unit, ref int supportValue, ref bool urgent)
     {
         foreach (var eff in data.effects)
         {
@@ -689,7 +1212,7 @@ public static class SrpEnemyAi
             bool restoresPg = eff.type == SrpEffectType.BuffStat && (eff.stat == "pg" || eff.stat == "posture");
             if (healsHp)
             {
-                int amount = Mathf.Min(eff.value, unit.maxHp - unit.hp);
+                int amount = Mathf.Min(eff.value + powerBonus, unit.maxHp - unit.hp);
                 if (amount <= 0)
                     continue;
                 supportValue += amount * HpValue;
@@ -699,7 +1222,7 @@ public static class SrpEnemyAi
             else if (restoresPg && !unit.IsPgBroken)
             {
                 // 붕괴(그로기)한 유닛은 PG를 채워도 그로기가 풀리지 않는다.
-                int amount = Mathf.Min(eff.value, unit.maxPg - unit.pg);
+                int amount = Mathf.Min(eff.value + powerBonus, unit.maxPg - unit.pg);
                 if (amount <= 0)
                     continue;
                 supportValue += amount;
@@ -710,7 +1233,7 @@ public static class SrpEnemyAi
     }
 
     /// <summary>회복 효과가 한 명에게 온전히 들어갔을 때의 가치.</summary>
-    static int GetSupportNominalValue(SrpSkillData data)
+    static int GetSupportNominalValue(SrpSkillData data, int powerBonus)
     {
         int nominal = 0;
         foreach (var eff in data.effects)
@@ -718,9 +1241,9 @@ public static class SrpEnemyAi
             if (eff == null || eff.value <= 0)
                 continue;
             if (eff.type == SrpEffectType.Heal || (eff.type == SrpEffectType.BuffStat && eff.stat == "hp"))
-                nominal += eff.value * HpValue;
+                nominal += (eff.value + powerBonus) * HpValue;
             else if (eff.type == SrpEffectType.BuffStat && (eff.stat == "pg" || eff.stat == "posture"))
-                nominal += eff.value;
+                nominal += eff.value + powerBonus;
         }
         return nominal;
     }
@@ -728,7 +1251,67 @@ public static class SrpEnemyAi
     // ── 이동 ─────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// 이동할 칸을 고른다. enablesAction은 그 칸에서 남은 AP로 바로 공격하거나 승리 목표를 확보할 수 있다는 뜻이다.
+    /// 이동 판단에 쓸 회복 스킬을 모은다: 지금 쓸 수 있고 아군을 대상으로 하며 HP/PG를 회복하는 스킬.
+    /// 지금 자리에서 이미 쓸 곳이 있으면 옮겨 갈 이유가 없으므로 비운다.
+    /// </summary>
+    static void CollectSupportSkills(Situation s)
+    {
+        s.supportSkills.Clear();
+        var actor = s.actor;
+        if (actor.hasUsedSkillThisActivation || actor.skillRuntimes == null)
+            return;
+
+        foreach (var runtime in actor.skillRuntimes)
+        {
+            if (runtime == null || !s.state.SkillLookup.TryGetValue(runtime.skillId, out var data))
+                continue;
+            if (data.targetType != SrpTargetType.SingleAlly && data.targetType != SrpTargetType.AreaAlly)
+                continue;
+            if (data.effects == null || !SrpSkills.CanUseActiveSkill(data, runtime))
+                continue;
+            int powerBonus = GetPowerBonus(data, runtime);
+            if (GetSupportNominalValue(data, powerBonus) > 0)
+                s.supportSkills.Add(new SupportSkill { data = data, powerBonus = powerBonus });
+        }
+
+        if (s.supportSkills.Count > 0 && CanSupportAllyFromHere(s, out _))
+            s.supportSkills.Clear();
+    }
+
+    /// <summary>
+    /// 지금 서 있는 칸에서 다친 다른 아군에게 회복 스킬을 쓸 만한가(TryEvaluateSkillAt과 같은 기준).
+    /// 범위 스킬도 다친 아군이 선 칸을 중심으로만 본다. 실제 사용 칸은 옮겨 간 뒤 TryPickSkillUse가 다시 고른다.
+    /// </summary>
+    static bool CanSupportAllyFromHere(Situation s, out bool urgent)
+    {
+        urgent = false;
+        bool any = false;
+        var state = s.state;
+        var actor = s.actor;
+        foreach (var ally in state.Units)
+        {
+            if (ally == null || ally.eliminated || ally.owner != actor.owner || ally == actor)
+                continue;
+            if (ally.hp >= ally.maxHp && (ally.pg >= ally.maxPg || ally.IsPgBroken))
+                continue;
+
+            foreach (var skill in s.supportSkills)
+            {
+                if (!SrpSkills.CanTargetTile(skill.data, actor, ally.anchorX, ally.anchorY, state))
+                    continue;
+                if (!TryEvaluateSkillAt(s, skill.data, skill.powerBonus, ally.anchorX, ally.anchorY, null, out var pick))
+                    continue;
+                any = true;
+                if (pick.urgent)
+                    urgent = true;
+            }
+        }
+        return any;
+    }
+
+    /// <summary>
+    /// 이동할 칸을 고른다. enablesAction은 그 칸에서 남은 AP로 바로 공격하거나, 승리 목표를 확보하거나,
+    /// 다친 아군을 회복시킬 수 있다는 뜻이다.
     /// </summary>
     static bool TryPickMove(Situation s, int remainingMove, out int moveX, out int moveY, out bool enablesAction)
     {
@@ -741,18 +1324,28 @@ public static class SrpEnemyAi
         if (costs.Count == 0)
             return false;
 
-        // 이동에 AP 1을 쓰고도 행동할 AP가 남을 때만 "그 칸에서 공격/목표 확보 가능"을 가산한다.
+        // 이동에 AP 1을 쓰고도 행동할 AP가 남을 때만 "그 칸에서 공격/목표 확보/회복 가능"을 가산한다.
         bool canActAfterMove = actor.actionPoints >= 2;
+        if (canActAfterMove)
+            CollectSupportSkills(s);
+        else
+            s.supportSkills.Clear();
         int originX = actor.anchorX;
         int originY = actor.anchorY;
-        int currentScore = ScoreTile(s, originX, originY, 0, false, out _);
+        int currentScore = ScoreTile(s, originX, originY, 0, false, out _, out _);
         int bestScore = currentScore;
         bool found = false;
         bool bestEnablesAction = false;
 
         foreach (var kv in costs)
         {
-            int score = ScoreTile(s, kv.Key.x, kv.Key.y, kv.Value, canActAfterMove, out bool tileEnablesAction);
+            int score = ScoreTile(s, kv.Key.x, kv.Key.y, kv.Value, canActAfterMove, out bool tileEnablesAction, out bool tileSecures);
+            // 서면 자기 진영이 패배하는 칸은 고르지 않는다.
+            if (s.forbiddenTiles.Contains(kv.Key))
+                continue;
+            // 지휘관은 다음 적 차례에 쓰러질 수 있는 칸으로는 나서지 않는다. 승리 목표를 확보하러 가는 칸은 예외다.
+            if (s.holdPosition && !tileSecures && IsDangerousTile(s, kv.Key.x, kv.Key.y))
+                continue;
             if (score > bestScore
                 || (found && score == bestScore && IsEarlierTile(kv.Key, moveX, moveY)))
             {
@@ -774,20 +1367,26 @@ public static class SrpEnemyAi
             return true;
         }
 
-        // 자리를 지키는 유닛(지휘관)은 바로 행동으로 이어지지 않는 접근 이동을 하지 않는다.
-        if (s.holdPosition)
+        // 자리를 지키는 유닛(지휘관, 보호 대상)과 시간이 자기 편인 진영은 바로 행동으로 이어지지 않는 접근 이동을 하지 않는다.
+        // 도달 칸으로 가야 하는 핵심 유닛만 예외로, 아래에서 도달 칸까지의 경로를 따라 다가간다.
+        if ((s.holdPosition || s.timeOnMySide) && !s.goalOnlyApproach)
         {
             moveX = originX;
             moveY = originY;
             return false;
         }
 
+        // 거점을 혼자 지키고 있으면 아래의 우회(공격할 칸까지의 경로)로 거점을 비우지 않는다.
+        if (ScoreHoldZones(s, originX, originY) == HoldZoneAnchorScore)
+            return found;
+
         // 위 점수는 직선(맨해튼) 거리 기준이라 장애물을 돌아가야 하는 길을 찾지 못한다.
         // 고른 칸이 없거나 그 칸이 목표 칸까지의 실제 경로 비용을 늘리면, 최단 경로를 따라 우회한다.
         int unlimited = state.Width * state.Height * 3;
         var cameFrom = new Dictionary<Vector2Int, Vector2Int>();
         var pathCosts = SrpPathfinder.GetReachableWithCosts(state, actor, unlimited, cameFrom);
-        var goalTiles = CollectGoalTiles(s, pathCosts);
+        // 도달 칸으로 가야 하는 핵심 유닛은 적을 공격할 칸이 아니라 도달 칸만 목표로 삼는다.
+        var goalTiles = s.goalOnlyApproach ? CollectReachGoalTiles(s, pathCosts) : CollectGoalTiles(s, pathCosts);
         // 경로로 닿는 목표 칸이 없으면(완전히 막힘, 아군이 자리를 다 차지함) 직선 거리 판단을 유지한다.
         if (goalTiles.Count == 0)
             return found;
@@ -816,7 +1415,10 @@ public static class SrpEnemyAi
         // 막힌 쪽으로 되돌아갔다가 다시 나오는 왕복이 생기지 않는다.
         var origin = new Vector2Int(originX, originY);
         var step = goal;
-        while (pathCosts[step] > remainingMove)
+        // 이번 이동으로 닿는 칸까지 경로를 거슬러 온다. 자리를 지키는 유닛은 위험한 칸에도 서지 않으므로 더 거슬러 온다
+        // (직선 거리로 고를 때와 같은 기준. 도달 칸 자체는 서는 순간 승리하므로 예외다).
+        while (pathCosts[step] > remainingMove
+            || (s.holdPosition && !s.reachGoals.Contains(step) && IsDangerousTile(s, step.x, step.y)))
         {
             if (!cameFrom.TryGetValue(step, out var previous) || previous == origin)
             {
@@ -826,10 +1428,66 @@ public static class SrpEnemyAi
             }
             step = previous;
         }
+        if (s.forbiddenTiles.Contains(step))
+        {
+            moveX = originX;
+            moveY = originY;
+            return false;
+        }
 
         moveX = step.x;
         moveY = step.y;
         return true;
+    }
+
+    /// <summary>
+    /// (x, y)에 서면 다음 적 차례 한 번에 쓰러지거나 붕괴할 수 있는가. 지휘관이 나설지 정할 때 쓴다.
+    /// 그 칸을 한 번 움직여 공격할 수 있는 적이 모두 기본 공격을 한다고 보고 기준 피해를 더한다
+    /// (방어·반응·엄폐 적용 전, 장애물을 무시한 거리). 총을 쏠 수 있으면 사격, 아니면 근접으로 센다.
+    /// HP 피해 합이 남은 HP 이상이거나, 둘 이상이 공격해 PG 피해 합이 남은 PG 이상이면 위험하다.
+    /// </summary>
+    static bool IsDangerousTile(Situation s, int x, int y)
+    {
+        var state = s.state;
+        var actor = s.actor;
+        int originX = actor.anchorX;
+        int originY = actor.anchorY;
+        int incomingHp = 0;
+        int incomingPg = 0;
+        int attackers = 0;
+        try
+        {
+            actor.anchorX = x;
+            actor.anchorY = y;
+            foreach (var enemy in state.Units)
+            {
+                if (enemy == null || enemy.eliminated || enemy.owner == actor.owner || enemy.IsPgBroken)
+                    continue;
+
+                int distance = state.ChebyshevAnchor(enemy, actor);
+                // 탄약이 없으면 장전에 AP를 쓰므로 움직이지 않고 쏠 수 있는 거리만 본다.
+                int shotReach = enemy.attackRange + (enemy.ammo > 0 ? enemy.moveRange : 0);
+                bool canShoot = enemy.maxAmmo > 0 && enemy.attackRange > 1 && distance > 1 && distance <= shotReach;
+                bool canMelee = distance <= enemy.moveRange + 1;
+                if (!canShoot && !canMelee)
+                    continue;
+
+                var kind = canShoot ? SrpBasicAttackKind.Firearm : SrpBasicAttackKind.Melee;
+                SrpCombatResolver.GetBaseBasicAttackDamage(kind, enemy, out int hpDamage, out int pgDamage);
+                if (kind == SrpBasicAttackKind.Firearm)
+                    pgDamage += hpDamage * SrpCombatResolver.FirearmSpilloverPercent / 100;
+                incomingHp += hpDamage;
+                incomingPg += pgDamage;
+                attackers++;
+            }
+        }
+        finally
+        {
+            actor.anchorX = originX;
+            actor.anchorY = originY;
+        }
+
+        return incomingHp >= actor.hp || (attackers >= 2 && incomingPg >= actor.pg);
     }
 
     /// <summary>
@@ -849,7 +1507,7 @@ public static class SrpEnemyAi
             {
                 actor.anchorX = kv.Key.x;
                 actor.anchorY = kv.Key.y;
-                if (CanInteractWithOpenObjective(s))
+                if (s.reachGoals.Contains(kv.Key) || CanInteractWithOpenObjective(s))
                 {
                     tiles.Add(kv.Key);
                     continue;
@@ -869,6 +1527,18 @@ public static class SrpEnemyAi
         {
             actor.anchorX = originX;
             actor.anchorY = originY;
+        }
+        return tiles;
+    }
+
+    /// <summary>경로로 닿는 도달 조건의 칸.</summary>
+    static HashSet<Vector2Int> CollectReachGoalTiles(Situation s, Dictionary<Vector2Int, int> pathCosts)
+    {
+        var tiles = new HashSet<Vector2Int>();
+        foreach (var goal in s.reachGoals)
+        {
+            if (pathCosts.ContainsKey(goal))
+                tiles.Add(goal);
         }
         return tiles;
     }
@@ -927,7 +1597,8 @@ public static class SrpEnemyAi
         int y,
         int moveCost,
         bool countOpportunity,
-        out bool enablesAction)
+        out bool enablesAction,
+        out bool securesObjective)
     {
         var state = s.state;
         var actor = s.actor;
@@ -941,6 +1612,9 @@ public static class SrpEnemyAi
         bool canExecute = false;
         bool canAttackPriority = false;
         bool canSecure = false;
+        bool canReach = false;
+        bool canSupport = false;
+        bool supportUrgent = false;
         bool coverUseful;
         try
         {
@@ -956,7 +1630,7 @@ public static class SrpEnemyAi
                 bool priority = TargetPriority(s, unit) > 0;
                 if (priority)
                     dist -= PriorityApproachDistanceBonus;
-                if (dist < nearest)
+                if (dist < nearest && !s.goalOnlyApproach)
                     nearest = dist;
 
                 if (!countOpportunity || !SrpCombatResolver.CanAttack(state, actor, unit))
@@ -978,6 +1652,28 @@ public static class SrpEnemyAi
                     canSecure = true;
             }
 
+            // 도달 조건의 칸: 서는 순간 승리하므로 이동 뒤에 AP가 남지 않아도 된다.
+            foreach (var goal in s.reachGoals)
+            {
+                int dist = Mathf.Abs(goal.x - x) + Mathf.Abs(goal.y - y);
+                if (dist < nearest)
+                    nearest = dist;
+                if (dist == 0)
+                    canReach = true;
+            }
+
+            // 거점: 유지하는 쪽도 막는 쪽도 거점 쪽으로 다가간다.
+            foreach (var zone in s.holdZones)
+            {
+                int dist = DistanceToZone(zone, x, y);
+                if (dist < nearest)
+                    nearest = dist;
+            }
+
+            // 다친 아군에게 회복 스킬이 닿는 칸. 지금 자리에서 닿는 경우는 CollectSupportSkills가 이미 걸렀다.
+            if (countOpportunity && s.supportSkills.Count > 0)
+                canSupport = CanSupportAllyFromHere(s, out supportUrgent);
+
             coverUseful = IsCoverUsefulHere(s);
         }
         finally
@@ -995,11 +1691,18 @@ public static class SrpEnemyAi
             score += ExecuteFromTileScore;
         if (canAttackPriority)
             score += PriorityAttackFromTileScore;
-        if (canSecure)
+        if (canSecure || canReach)
             score += ObjectiveFromTileScore;
+        // 우리 편이 아무도 없는 거점에 들어서는 것은 그 자체로 이번 차례의 행동이다(유지 시작 또는 저지).
+        int zoneScore = ScoreHoldZones(s, x, y);
+        bool anchorsZone = zoneScore == HoldZoneAnchorScore;
+        score += zoneScore;
+        if (canSupport)
+            score += supportUrgent ? UrgentSupportFromTileScore : SupportFromTileScore;
         if (coverUseful)
             score += CoverTileScore;
-        enablesAction = canAttack || canSecure;
+        enablesAction = canAttack || canSecure || canReach || canSupport || anchorsZone;
+        securesObjective = canSecure || canReach;
         return score;
     }
 }

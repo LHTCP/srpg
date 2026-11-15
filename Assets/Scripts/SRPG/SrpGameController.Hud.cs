@@ -2070,7 +2070,7 @@ public partial class SrpGameController
         if (outcome.becameGroggy)
             parts.Add("PG 붕괴 예상");
         if (outcome.reactionKind == SrpReactionKind.Dodge)
-            parts.Add($"대상 회피 시도: 성공률 {SrpCombatResolver.DodgeChancePercent}%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)");
+            parts.Add($"대상 회피 시도: 성공률 {SrpCombatResolver.GetDodgeChancePercent(_state, active, target)}%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)");
         if (outcome.wasParried)
             parts.Add("대상 패링 가능성 반영");
         if (outcome.coverBufferApplied)
@@ -2129,7 +2129,7 @@ public partial class SrpGameController
         bool targetMayDodge = SrpSkills.CanTargetDodgeSkillDamage(
             _pendingSkillData, cloneCaster, target != null ? clone.FindUnitById(target.id) : null, clone);
         string dodgeNote = targetMayDodge
-            ? $"\n대상 회피 시도: 성공률 {SrpCombatResolver.DodgeChancePercent}%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)"
+            ? $"\n대상 회피 시도: 성공률 {SrpCombatResolver.GetDodgeChancePercent(_state, active, target)}%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)"
             : string.Empty;
         SrpSkills.ResolveActiveSkill(_pendingSkillData, cloneRuntime, cloneCaster, _hoverTileX, _hoverTileY, clone, null);
         var afterTarget = clone.FindUnitById(targetId) ?? cloneCaster;
@@ -2151,11 +2151,19 @@ public partial class SrpGameController
         var beforeHp = new int[affected.Count];
         var beforePg = new int[affected.Count];
         bool anyDodge = false;
+        int minDodge = 100;
+        int maxDodge = 0;
         for (int i = 0; i < affected.Count; i++)
         {
             beforeHp[i] = affected[i].hp;
             beforePg[i] = affected[i].pg;
-            anyDodge |= SrpSkills.CanTargetDodgeSkillDamage(_pendingSkillData, cloneCaster, affected[i], clone);
+            if (!SrpSkills.CanTargetDodgeSkillDamage(_pendingSkillData, cloneCaster, affected[i], clone))
+                continue;
+            anyDodge = true;
+            // 대상마다 방향과 속도가 달라 성공률이 다르다. 범위로 보여 준다.
+            int chance = SrpCombatResolver.GetDodgeChancePercent(clone, cloneCaster, affected[i]);
+            minDodge = Mathf.Min(minDodge, chance);
+            maxDodge = Mathf.Max(maxDodge, chance);
         }
 
         SrpSkills.ResolveActiveSkill(_pendingSkillData, cloneRuntime, cloneCaster, _hoverTileX, _hoverTileY, clone, null);
@@ -2166,7 +2174,10 @@ public partial class SrpGameController
             parts.Add($"{affected[i].displayName}: {FormatSignedDelta("HP", affected[i].hp - beforeHp[i])} / {FormatSignedDelta("PG", affected[i].pg - beforePg[i])}");
         }
         if (anyDodge)
-            parts.Add($"회피 시도 가능한 대상 있음: 성공률 {SrpCombatResolver.DodgeChancePercent}%, 성공 시 피해 무효 (위 수치는 회피 실패 기준)");
+        {
+            string dodgeRange = minDodge == maxDodge ? $"{minDodge}%" : $"{minDodge}~{maxDodge}%";
+            parts.Add($"회피 시도 가능한 대상 있음: 성공률 {dodgeRange}, 성공 시 피해 무효 (위 수치는 회피 실패 기준)");
+        }
         return string.Join("\n", parts);
     }
 

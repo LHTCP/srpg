@@ -26,6 +26,8 @@ public class SrpUnitTemplateData
     public int maxReactionPoints = 1;
     public int speed = 10;
     public SrpWeaponClass weaponClass = SrpWeaponClass.Melee;
+    /// <summary>사격에 쓰는 총기의 종류. 비워 두면(Auto) 주무장이 총기일 때 소총, 아니면 권총(부무장)이다.</summary>
+    public SrpFirearmType firearmType = SrpFirearmType.Auto;
     public SrpStance stance = SrpStance.Aggressive;
     public SrpFacing facing = SrpFacing.South;
 
@@ -70,8 +72,10 @@ public enum SrpInteractionEffect
 }
 
 /// <summary>
-/// 맵이 추가로 거는 승리 조건 한 건. 판정은 SrpVictory에 등록된 같은 type의 판정기(ISrpVictoryCondition)가 한다.
-/// 등록되지 않은 type은 판정에서 빠진다.
+/// 맵이 추가로 거는 조건 한 건. 판정은 SrpVictory에 등록된 같은 type의 판정기(ISrpVictoryCondition)가 한다.
+/// 승리 조건 목록(victory.conditions)에 넣으면 조건이 성립한 진영이 승리하고,
+/// 패배 조건 목록(victory.defeatConditions)에 넣으면 조건이 성립한 진영이 패배한다.
+/// 등록되지 않은 type은 판정에서 빠진다. 내장 type은 SrpVictoryConditionTypes에 있다.
 /// </summary>
 [Serializable]
 public class SrpVictoryConditionData
@@ -85,8 +89,18 @@ public class SrpVictoryConditionData
     /// <summary>조건별 수치(예: 라운드 수). 뜻은 판정기가 정한다.</summary>
     public int value;
 
-    /// <summary>조건별 대상 id(예: 유닛 템플릿, 포인트). 뜻은 판정기가 정한다.</summary>
+    /// <summary>
+    /// 조건별 대상 id. 뜻은 판정기가 정한다.
+    /// 내장 조건에서는 대상 유닛이다: 비어 있으면 모든 유닛, "commander"면 지휘관, 그 밖에는 유닛 템플릿 id.
+    /// </summary>
     public string targetId;
+
+    /// <summary>조건별 대상 칸(도달 칸, 거점 중심). 칸을 쓰지 않는 조건에서는 무시한다.</summary>
+    public int x;
+    public int y;
+
+    /// <summary>거점의 반경(대각선 포함). 0이면 대상 칸 하나다. 거점을 쓰지 않는 조건에서는 무시한다.</summary>
+    public int radius;
 
     public SrpVictoryConditionData Clone()
     {
@@ -97,7 +111,8 @@ public class SrpVictoryConditionData
 /// <summary>
 /// 맵별 승리 조건. 적 전멸은 항상 적용되고, 아래 조건은 켠 맵에서만 추가로 적용된다.
 /// 기존 맵(값 없음)은 모두 꺼져 있어 전멸 규칙만 쓴다.
-/// 맵마다 조건 조합이 다를 수 있다. 기본 제공 두 조건은 스위치로 켜고, 그 밖의 조건은 conditions에 나열한다.
+/// 맵마다 조건 조합이 다를 수 있다. 기본 제공 두 조건은 스위치로 켜고, 그 밖의 조건은 승리 조건 목록(conditions)과
+/// 패배 조건 목록(defeatConditions)에 나열한다. 판정 순서는 전멸 > 패배 조건 > 승리 조건이다(SrpVictory).
 /// </summary>
 [Serializable]
 public class SrpVictoryRuleData
@@ -108,8 +123,11 @@ public class SrpVictoryRuleData
     /// <summary>자기 진영이 쓸 수 있는 승리 목표 포인트를 모두 활성화해 보유한 진영이 승리한다.</summary>
     public bool interactionObjective;
 
-    /// <summary>추가 조건. 적힌 순서대로 판정하며 기본 제공 조건보다 뒤다.</summary>
+    /// <summary>승리 조건 목록. 조건이 성립한 진영이 승리한다. 적힌 순서대로 판정하며 목표 확보보다 뒤다.</summary>
     public SrpVictoryConditionData[] conditions = Array.Empty<SrpVictoryConditionData>();
+
+    /// <summary>패배 조건 목록. 조건이 성립한 진영이 패배한다. 적힌 순서대로 판정하며 지휘관 처치보다 뒤다.</summary>
+    public SrpVictoryConditionData[] defeatConditions = Array.Empty<SrpVictoryConditionData>();
 
     public SrpVictoryRuleData Clone()
     {
@@ -118,13 +136,19 @@ public class SrpVictoryRuleData
             commanderKill = commanderKill,
             interactionObjective = interactionObjective,
         };
-        if (conditions != null && conditions.Length > 0)
-        {
-            clone.conditions = new SrpVictoryConditionData[conditions.Length];
-            for (int i = 0; i < conditions.Length; i++)
-                clone.conditions[i] = conditions[i] != null ? conditions[i].Clone() : null;
-        }
+        clone.conditions = CloneList(conditions);
+        clone.defeatConditions = CloneList(defeatConditions);
         return clone;
+    }
+
+    static SrpVictoryConditionData[] CloneList(SrpVictoryConditionData[] source)
+    {
+        if (source == null || source.Length == 0)
+            return Array.Empty<SrpVictoryConditionData>();
+        var copy = new SrpVictoryConditionData[source.Length];
+        for (int i = 0; i < source.Length; i++)
+            copy[i] = source[i] != null ? source[i].Clone() : null;
+        return copy;
     }
 }
 
@@ -550,6 +574,194 @@ public static class SrpMapCoverEdit
 /// <summary>
 /// 맵 메이커의 상호작용 포인트 편집 규칙(순수 로직).
 /// </summary>
+/// <summary>
+/// 맵 메이커의 추가 조건 편집 규칙(순수 로직). 승리 조건 목록과 패배 조건 목록에 내장 조건을 넣고 뺀다.
+/// 화면(SrpMapMakerController)은 버튼 값만 넘긴다.
+/// </summary>
+public static class SrpMapConditionEdit
+{
+    /// <summary>거점 유지 조건을 새로 만들 때의 반경(3x3). 다른 값은 맵 JSON에서 고친다.</summary>
+    public const int DefaultHoldRadius = 1;
+
+    /// <summary>조건의 대상 유닛을 고르는 방식.</summary>
+    public enum TargetKind
+    {
+        /// <summary>그 진영의 모든 유닛.</summary>
+        Any,
+        /// <summary>지휘관 표시가 있는 유닛.</summary>
+        Commander,
+        /// <summary>메이커의 "배치할 유닛"에서 고른 유닛 템플릿.</summary>
+        SelectedUnit,
+    }
+
+    public static string NextType(string type)
+    {
+        var types = SrpVictoryConditionTypes.BuiltIn;
+        int index = Array.IndexOf(types, type);
+        return types[(index + 1 + types.Length) % types.Length];
+    }
+
+    public static TargetKind NextTargetKind(TargetKind kind)
+    {
+        return (TargetKind)(((int)kind + 1) % 3);
+    }
+
+    public static string GetTypeLabel(string type)
+    {
+        switch (type)
+        {
+            case SrpVictoryConditionTypes.SurviveRounds:
+                return "N라운드 버티기";
+            case SrpVictoryConditionTypes.ReachTile:
+                return "칸 도달";
+            case SrpVictoryConditionTypes.UnitLost:
+                return "유닛 상실(보호)";
+            case SrpVictoryConditionTypes.HoldPoint:
+                return "거점 유지";
+            default:
+                return type ?? string.Empty;
+        }
+    }
+
+    public static string GetTargetLabel(TargetKind kind)
+    {
+        switch (kind)
+        {
+            case TargetKind.Commander:
+                return "지휘관";
+            case TargetKind.SelectedUnit:
+                return "선택한 유닛";
+            default:
+                return "모든 유닛";
+        }
+    }
+
+    /// <summary>수치(N라운드)를 쓰는 조건인가.</summary>
+    public static bool UsesValue(string type)
+    {
+        return type == SrpVictoryConditionTypes.SurviveRounds || type == SrpVictoryConditionTypes.HoldPoint;
+    }
+
+    /// <summary>대상 칸을 쓰는 조건인가.</summary>
+    public static bool UsesTile(string type)
+    {
+        return type == SrpVictoryConditionTypes.ReachTile || type == SrpVictoryConditionTypes.HoldPoint;
+    }
+
+    /// <summary>대상 유닛을 쓰는 조건인가.</summary>
+    public static bool UsesTarget(string type)
+    {
+        return type == SrpVictoryConditionTypes.ReachTile || type == SrpVictoryConditionTypes.UnitLost;
+    }
+
+    /// <summary>대상 유닛 선택을 조건의 targetId로 바꾼다. 선택한 유닛이 없으면 null.</summary>
+    public static string ResolveTargetId(TargetKind kind, string selectedUnitId)
+    {
+        switch (kind)
+        {
+            case TargetKind.Commander:
+                return SrpVictoryConditionTypes.CommanderTarget;
+            case TargetKind.SelectedUnit:
+                return string.IsNullOrEmpty(selectedUnitId) ? null : selectedUnitId;
+            default:
+                return string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// 버튼 값으로 조건 한 건을 만든다. 조건이 쓰지 않는 값은 넣지 않는다.
+    /// 만들 수 없으면 null이고 error에 이유가 든다(내장 조건이 아님, 유닛 상실인데 대상이 "모든 유닛"이거나 없음).
+    /// </summary>
+    public static SrpVictoryConditionData Build(
+        string type, int owner, int value, int x, int y, string targetId, out string error)
+    {
+        error = null;
+        if (Array.IndexOf(SrpVictoryConditionTypes.BuiltIn, type) < 0)
+        {
+            error = "알 수 없는 조건입니다.";
+            return null;
+        }
+        if (UsesTarget(type) && targetId == null)
+        {
+            error = "대상으로 쓸 유닛을 먼저 선택하세요.";
+            return null;
+        }
+        if (type == SrpVictoryConditionTypes.UnitLost && string.IsNullOrEmpty(targetId))
+        {
+            error = "유닛 상실 조건은 대상을 지휘관이나 선택한 유닛으로 정해야 합니다(모든 유닛은 전멸과 같습니다).";
+            return null;
+        }
+
+        var data = new SrpVictoryConditionData { type = type, owner = owner };
+        if (UsesValue(type))
+            data.value = Math.Max(1, value);
+        if (UsesTile(type))
+        {
+            data.x = x;
+            data.y = y;
+        }
+        if (UsesTarget(type))
+            data.targetId = targetId;
+        if (type == SrpVictoryConditionTypes.HoldPoint)
+            data.radius = DefaultHoldRadius;
+        return data;
+    }
+
+    /// <summary>조건을 승리 조건 목록 또는 패배 조건 목록의 끝에 넣는다.</summary>
+    public static void Add(SrpMapCarryOver carry, SrpVictoryConditionData condition, bool asDefeat)
+    {
+        if (carry == null || condition == null)
+            return;
+        if (carry.victory == null)
+            carry.victory = new SrpVictoryRuleData();
+        var list = new System.Collections.Generic.List<SrpVictoryConditionData>(
+            (asDefeat ? carry.victory.defeatConditions : carry.victory.conditions) ?? Array.Empty<SrpVictoryConditionData>());
+        list.Add(condition);
+        if (asDefeat)
+            carry.victory.defeatConditions = list.ToArray();
+        else
+            carry.victory.conditions = list.ToArray();
+    }
+
+    /// <summary>목록의 마지막 조건을 뺀다. 뺄 것이 없으면 false.</summary>
+    public static bool RemoveLast(SrpMapCarryOver carry, bool asDefeat)
+    {
+        if (carry == null || carry.victory == null)
+            return false;
+        var source = asDefeat ? carry.victory.defeatConditions : carry.victory.conditions;
+        if (source == null || source.Length == 0)
+            return false;
+        var list = new System.Collections.Generic.List<SrpVictoryConditionData>(source);
+        list.RemoveAt(list.Count - 1);
+        if (asDefeat)
+            carry.victory.defeatConditions = list.ToArray();
+        else
+            carry.victory.conditions = list.ToArray();
+        return true;
+    }
+
+    /// <summary>두 목록을 여러 줄로 설명한다(메이커 화면용). 조건이 없으면 "(추가 조건 없음)".</summary>
+    public static string Describe(SrpMapCarryOver carry)
+    {
+        var lines = new System.Collections.Generic.List<string>();
+        if (carry != null && carry.victory != null)
+        {
+            AppendLines(lines, "승리", carry.victory.conditions, false);
+            AppendLines(lines, "패배", carry.victory.defeatConditions, true);
+        }
+        return lines.Count > 0 ? string.Join("\n", lines) : "(추가 조건 없음)";
+    }
+
+    static void AppendLines(
+        System.Collections.Generic.List<string> lines, string label, SrpVictoryConditionData[] list, bool asDefeat)
+    {
+        if (list == null)
+            return;
+        for (int i = 0; i < list.Length; i++)
+            lines.Add($"{label} {i + 1}. {SrpVictory.DescribeCondition(list[i], asDefeat)}");
+    }
+}
+
 public static class SrpMapObjectiveEdit
 {
     /// <summary>

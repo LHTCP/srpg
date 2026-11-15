@@ -26,6 +26,7 @@ public class SrpLobbyController : MonoBehaviour
     Image[]   _presetImages;
     TextMeshProUGUI _txtLoadStatus;
     TMP_Dropdown    _ddMapSelect;
+    Button          _btnEnemyAi;
     static readonly SrpMapPreset[] PresetValues =
     {
         SrpMapPreset.M1OpeningPrototype,
@@ -33,6 +34,7 @@ public class SrpLobbyController : MonoBehaviour
         SrpMapPreset.M1EngagementLab,
         SrpMapPreset.M1ObjectiveLab,
         SrpMapPreset.M1BarricadeAssault,
+        SrpMapPreset.M1ConditionLab,
     };
     static readonly string[] PresetLabels =
     {
@@ -41,6 +43,7 @@ public class SrpLobbyController : MonoBehaviour
         "교전/포위\n검증 랩",
         "승리 조건\n검증 랩",
         "방벽선\n돌파",
+        "추가 조건\n검증 랩",
     };
 
     // ── 생명주기 ──────────────────────────────────────────────────────────────
@@ -138,6 +141,10 @@ public class SrpLobbyController : MonoBehaviour
 
         MakeSeparator(centerGo.transform);
 
+        // 적 AI 켜기/끄기. 끄면 양 진영을 직접 조작한다(핫시트).
+        _btnEnemyAi = MakeButton(centerGo.transform, "", OnToggleEnemyAi, 44, 22);
+        RefreshEnemyAiButton();
+
         // 전투 시작 버튼
         MakeButton(centerGo.transform, "전투 시작", OnStartBattle, 72, 30);
 
@@ -193,6 +200,26 @@ public class SrpLobbyController : MonoBehaviour
             _txtLoadStatus.text  = $"'{fileName}.json' 파일을 찾을 수 없습니다.";
             _txtLoadStatus.color = new Color(1f, 0.5f, 0.4f);
         }
+    }
+
+    void OnToggleEnemyAi()
+    {
+        SrpGameSettings.EnemyAiEnabled = !SrpGameSettings.EnemyAiEnabled;
+        RefreshEnemyAiButton();
+    }
+
+    void RefreshEnemyAiButton()
+    {
+        if (_btnEnemyAi == null)
+            return;
+        var label = _btnEnemyAi.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null)
+            label.text = SrpGameSettings.EnemyAiEnabled
+                ? "적 AI: 켬 (적 진영을 AI가 조작)"
+                : "적 AI: 끔 (양 진영을 직접 조작)";
+        _btnEnemyAi.GetComponent<Image>().color = SrpGameSettings.EnemyAiEnabled
+            ? new Color(0.18f, 0.50f, 0.22f, 0.95f)
+            : new Color(0.28f, 0.38f, 0.55f, 0.9f);
     }
 
     void OnStartBattle()
