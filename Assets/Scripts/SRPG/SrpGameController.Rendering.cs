@@ -133,9 +133,29 @@ public partial class SrpGameController
             var tv = cube.AddComponent<SrpTileView>();
             tv.x = x; tv.y = y; tv.game = this;
         }
+        TintVictoryConditionTiles();
         ClearAllOverlayLayers();
         RenderCoverObjects();
         RebuildAllTileColors();
+    }
+
+    /// <summary>
+    /// 추가 승리/패배 조건이 가리키는 칸(도달 칸, 거점)의 바닥 색을 바꿔 전투 내내 보이게 한다.
+    /// 승리 조건은 하늘색(거점의 주변 칸은 옅게), 패배 조건은 분홍색이다.
+    /// </summary>
+    void TintVictoryConditionTiles()
+    {
+        foreach (var mark in SrpVictory.GetConditionTiles(_state.VictoryRule))
+        {
+            if (!_state.InBounds(mark.x, mark.y) || !_state.IsWalkableTile(mark.x, mark.y))
+                continue;
+            Color tint = mark.asDefeat
+                ? new Color(0.95f, 0.45f, 0.65f)
+                : new Color(0.35f, 0.85f, 0.95f);
+            Color c = Color.Lerp(_baseTileColors[mark.x, mark.y], tint, mark.isCenter ? 0.75f : 0.4f);
+            _baseTileColors[mark.x, mark.y] = c;
+            ApplyColor(_tileRenderers[mark.x, mark.y], c);
+        }
     }
 
     // ── 타일 색상 ────────────────────────────────────────────────────────────

@@ -19,7 +19,7 @@ public class SrpMapMakerController : MonoBehaviour
     SrpUnitTemplateData[] _allUnits = Array.Empty<SrpUnitTemplateData>();
     SrpSkillData[] _allSkills = Array.Empty<SrpSkillData>();
 
-    enum EditMode { Terrain, PlaceUnit, RemoveUnit, CoverObject, CoverSegment, InteractionPoint, Commander }
+    enum EditMode { Terrain, PlaceUnit, RemoveUnit, CoverObject, CoverSegment, InteractionPoint, Commander, ConditionTile }
     EditMode _editMode = EditMode.Terrain;
 
     // 엄폐 편집 데이터. 규칙은 SrpMapCoverEdit(순수 로직)에 있다.
@@ -30,6 +30,13 @@ public class SrpMapMakerController : MonoBehaviour
     SrpMapCoverEdit.Strength _coverStrength = SrpMapCoverEdit.Strength.Default;
     // 새로 놓는 상호작용 포인트를 승리 목표로 만들지 여부.
     bool _pointIsVictoryObjective = true;
+    // 새로 넣을 추가 조건의 값. 규칙은 SrpMapConditionEdit(순수 로직)에 있다.
+    string _conditionType = SrpVictoryConditionTypes.SurviveRounds;
+    bool _conditionAsDefeat;
+    SrpMapConditionEdit.TargetKind _conditionTarget = SrpMapConditionEdit.TargetKind.Any;
+    int _conditionValue = 3;
+    int _conditionX;
+    int _conditionY;
     int _selectedUnitIndex = -1;
     int _placementOwner;
 
@@ -73,6 +80,12 @@ public class SrpMapMakerController : MonoBehaviour
     Button _btnModeCommander;
     Button _btnVictoryCommander;
     Button _btnVictoryObjective;
+    Button _btnConditionType;
+    Button _btnConditionList;
+    Button _btnConditionTarget;
+    Button _btnConditionValue;
+    Button _btnModeConditionTile;
+    TextMeshProUGUI _txtConditions;
     int _selectedPlacementIndex = -1;
     GameObject _unitSkillPanel;
     readonly List<(GameObject go, Toggle toggle, string skillId)> _unitSkillToggles
@@ -96,6 +109,8 @@ public class SrpMapMakerController : MonoBehaviour
     static readonly Color ObjectivePointColor = new Color(1f, 0.85f, 0.2f);
     static readonly Color PlainPointColor = new Color(0.75f, 0.78f, 0.85f);
     static readonly Color CommanderColor = new Color(1f, 0.9f, 0.3f);
+    static readonly Color VictoryTileColor = new Color(0.3f, 0.9f, 1f);
+    static readonly Color DefeatTileColor = new Color(1f, 0.35f, 0.6f);
 
     // ── 생명주기 ──────────────────────────────────────────────────────────────
 
@@ -255,6 +270,21 @@ public class SrpMapMakerController : MonoBehaviour
                 ApplyColor(sphere.GetComponent<Renderer>(), objective ? ObjectivePointColor : PlainPointColor);
                 _coverMarkers.Add(sphere);
             }
+        }
+
+        // 추가 조건이 가리키는 칸: 얇은 판. 하늘색은 승리 조건, 분홍색은 패배 조건이다. 거점의 주변 칸은 더 작게 그린다.
+        foreach (var mark in SrpVictory.GetConditionTiles(_carryOver.victory))
+        {
+            if (mark.x < 0 || mark.y < 0 || mark.x >= _mapWidth || mark.y >= _mapHeight)
+                continue;
+            var plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            plate.name = $"conditionTile_{mark.x}_{mark.y}";
+            Destroy(plate.GetComponent<Collider>());
+            plate.transform.position = new Vector3(mark.x * _cellSize, 0.1f, mark.y * _cellSize);
+            float size = _cellSize * (mark.isCenter ? 0.6f : 0.35f);
+            plate.transform.localScale = new Vector3(size, 0.04f, size);
+            ApplyColor(plate.GetComponent<Renderer>(), mark.asDefeat ? DefeatTileColor : VictoryTileColor);
+            _coverMarkers.Add(plate);
         }
     }
 
@@ -424,6 +454,16 @@ public class SrpMapMakerController : MonoBehaviour
                 break;
             }
 
+            case EditMode.ConditionTile:
+            {
+                // 다음에 추가할 조건(칸 도달, 거점 유지)의 대상 칸을 정한다.
+                _conditionX = x;
+                _conditionY = y;
+                RefreshConditionButtons();
+                SetStatus($"조건 칸 지정 ({x},{y}) | \"조건 추가\"를 누르면 이 칸으로 들어갑니다.");
+                break;
+            }
+
             case EditMode.Commander:
             {
                 int commanderIdx = -1;
@@ -552,6 +592,23 @@ public class SrpMapMakerController : MonoBehaviour
         _btnVictoryCommander = MakeButtonInParent(victoryRow.transform, "지휘관 처치 승리: 끔", OnToggleVictoryCommander, BtnNormal, 1f);
         _btnVictoryObjective = MakeButtonInParent(victoryRow.transform, "목표 확보 승리: 끔", OnToggleVictoryObjective, BtnNormal, 1f);
         MakeLabelInLayout(form, "상호작용: 칸 클릭(소유자 드롭다운의 진영 전용) / 지휘관: 배치된 유닛 클릭", 16, new Color(0.7f, 0.8f, 0.9f), 22);
+
+        // 추가 조건: 종류·목록·대상·수치를 고르고 "조건 추가"를 누른다. 진영은 "소유자" 드롭다운, 대상 유닛은 "배치할 유닛"을 따른다.
+        MakeLabelInLayout(form, "추가 조건", 20, new Color(0.8f, 0.9f, 1f), 26);
+        var conditionRow = MakeHRow(form, 44);
+        _btnConditionType = MakeButtonInParent(conditionRow.transform, "조건", OnCycleConditionType, BtnNormal, 1.4f);
+        _btnConditionList = MakeButtonInParent(conditionRow.transform, "목록", OnToggleConditionList, BtnNormal, 1f);
+        var conditionValueRow = MakeHRow(form, 44);
+        _btnConditionTarget = MakeButtonInParent(conditionValueRow.transform, "대상", OnCycleConditionTarget, BtnNormal, 1.4f);
+        MakeButtonInParent(conditionValueRow.transform, "-", () => OnChangeConditionValue(-1), BtnNormal, 0.4f);
+        _btnConditionValue = MakeButtonInParent(conditionValueRow.transform, "N", () => OnChangeConditionValue(1), BtnNormal, 0.8f);
+        MakeButtonInParent(conditionValueRow.transform, "+", () => OnChangeConditionValue(1), BtnNormal, 0.4f);
+        var conditionActionRow = MakeHRow(form, 44);
+        _btnModeConditionTile = MakeButtonInParent(conditionActionRow.transform, "조건 칸 지정", () => SetMode(EditMode.ConditionTile), BtnNormal, 1f);
+        MakeButtonInParent(conditionActionRow.transform, "조건 추가", OnAddCondition, BtnGreen, 1f);
+        MakeButtonInParent(conditionActionRow.transform, "마지막 삭제", OnRemoveLastCondition, BtnDanger, 1f);
+        MakeLabelInLayout(form, "진영: 소유자 드롭다운 / 대상 유닛: 배치할 유닛 / 삭제는 지금 고른 목록(승리·패배)의 마지막 조건", 16, new Color(0.7f, 0.8f, 0.9f), 22);
+        _txtConditions = MakeLabelInLayout(form, "(추가 조건 없음)", 16, new Color(0.85f, 0.92f, 1f), 88);
         RefreshObjectiveButtons();
 
         MakeSep(form);
@@ -783,6 +840,7 @@ public class SrpMapMakerController : MonoBehaviour
         SetBtnColor(_btnModeCoverSegment, _editMode == EditMode.CoverSegment ? BtnActive : BtnNormal);
         SetBtnColor(_btnModeInteraction, _editMode == EditMode.InteractionPoint ? BtnActive : BtnNormal);
         SetBtnColor(_btnModeCommander, _editMode == EditMode.Commander ? BtnActive : BtnNormal);
+        SetBtnColor(_btnModeConditionTile, _editMode == EditMode.ConditionTile ? BtnActive : BtnNormal);
     }
 
     static void SetBtnLabel(Button btn, string text)
@@ -818,11 +876,85 @@ public class SrpMapMakerController : MonoBehaviour
         RefreshObjectiveButtons();
     }
 
+    void OnCycleConditionType()
+    {
+        _conditionType = SrpMapConditionEdit.NextType(_conditionType);
+        RefreshConditionButtons();
+    }
+
+    void OnToggleConditionList()
+    {
+        _conditionAsDefeat = !_conditionAsDefeat;
+        RefreshConditionButtons();
+    }
+
+    void OnCycleConditionTarget()
+    {
+        _conditionTarget = SrpMapConditionEdit.NextTargetKind(_conditionTarget);
+        RefreshConditionButtons();
+    }
+
+    void OnChangeConditionValue(int delta)
+    {
+        _conditionValue = Mathf.Clamp(_conditionValue + delta, 1, 99);
+        RefreshConditionButtons();
+    }
+
+    /// <summary>지금 고른 값으로 조건을 만들어 승리 또는 패배 조건 목록에 넣는다.</summary>
+    void OnAddCondition()
+    {
+        string selectedUnitId = _selectedUnitIndex >= 0 && _selectedUnitIndex < _allUnits.Length
+            ? _allUnits[_selectedUnitIndex].id
+            : null;
+        string targetId = SrpMapConditionEdit.ResolveTargetId(_conditionTarget, selectedUnitId);
+        var condition = SrpMapConditionEdit.Build(
+            _conditionType, _placementOwner, _conditionValue, _conditionX, _conditionY, targetId, out string error);
+        if (condition == null)
+        {
+            SetStatus(error, false);
+            return;
+        }
+
+        SrpMapConditionEdit.Add(_carryOver, condition, _conditionAsDefeat);
+        RefreshConditionButtons();
+        RefreshCoverMarkers();
+        SetStatus($"{(_conditionAsDefeat ? "패배" : "승리")} 조건 추가: {SrpVictory.DescribeCondition(condition, _conditionAsDefeat)}");
+    }
+
+    void OnRemoveLastCondition()
+    {
+        bool removed = SrpMapConditionEdit.RemoveLast(_carryOver, _conditionAsDefeat);
+        RefreshConditionButtons();
+        RefreshCoverMarkers();
+        string list = _conditionAsDefeat ? "패배" : "승리";
+        SetStatus(removed ? $"{list} 조건 목록의 마지막 조건을 삭제했습니다." : $"{list} 조건 목록이 비어 있습니다.", removed);
+    }
+
+    /// <summary>추가 조건 버튼의 글자와 조건 목록 표시를 현재 값에 맞춘다.</summary>
+    void RefreshConditionButtons()
+    {
+        SetBtnLabel(_btnConditionType, "조건: " + SrpMapConditionEdit.GetTypeLabel(_conditionType));
+        SetBtnLabel(_btnConditionList, _conditionAsDefeat ? "목록: 패배" : "목록: 승리");
+        SetBtnColor(_btnConditionList, _conditionAsDefeat ? BtnDanger : BtnNormal);
+        SetBtnLabel(_btnConditionTarget, SrpMapConditionEdit.UsesTarget(_conditionType)
+            ? "대상: " + SrpMapConditionEdit.GetTargetLabel(_conditionTarget)
+            : "대상: (쓰지 않음)");
+        SetBtnLabel(_btnConditionValue, SrpMapConditionEdit.UsesValue(_conditionType)
+            ? $"N: {_conditionValue}"
+            : "N: (쓰지 않음)");
+        SetBtnLabel(_btnModeConditionTile, SrpMapConditionEdit.UsesTile(_conditionType)
+            ? $"조건 칸 지정 ({_conditionX},{_conditionY})"
+            : "조건 칸 (쓰지 않음)");
+        if (_txtConditions != null)
+            _txtConditions.text = SrpMapConditionEdit.Describe(_carryOver);
+    }
+
     /// <summary>승리 조건 버튼의 글자와 색을 현재 맵 값에 맞춘다. 맵을 불러오거나 새로 만들 때도 부른다.</summary>
     void RefreshObjectiveButtons()
     {
         if (_carryOver.victory == null)
             _carryOver.victory = new SrpVictoryRuleData();
+        RefreshConditionButtons();
         SetBtnLabel(_btnPointObjective, _pointIsVictoryObjective ? "승리 목표: 켬" : "승리 목표: 끔");
         SetBtnLabel(_btnVictoryCommander, _carryOver.victory.commanderKill ? "지휘관 처치 승리: 켬" : "지휘관 처치 승리: 끔");
         SetBtnLabel(_btnVictoryObjective, _carryOver.victory.interactionObjective ? "목표 확보 승리: 켬" : "목표 확보 승리: 끔");

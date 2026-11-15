@@ -121,6 +121,16 @@ public static class SrpBattleFlow
     }
 
     /// <summary>
+    /// 라운드 종료: 마지막 활성화가 끝난 뒤, 다음 라운드를 시작하기 전에 한 번 부른다.
+    /// 끝난 라운드 수와 라운드마다 쌓는 승리 조건(거점 유지 등)의 진행도를 갱신한다.
+    /// 호출한 쪽은 이어서 승패를 판정해야 한다(N라운드 버티기는 라운드가 끝나는 순간 성립한다).
+    /// </summary>
+    public static void EndRound(SrpBattleState state)
+    {
+        SrpVictory.OnRoundEnded(state);
+    }
+
+    /// <summary>
     /// 새 활성화 시작: 턴 시작 패시브(라운드당 1회)와 활성화 플래그 초기화. 이번 활성화의 이동력을 돌려준다.
     /// 그로기 회복으로 활성화를 잃는 경우는 SrpTurnOrder.TryConsumeActivationForGroggyRecovery가 먼저 처리한다.
     /// </summary>

@@ -727,7 +727,7 @@ public class SrpM1Phase7Tests
         }
     }
 
-    [TestCase(TestName = "추가 승리 조건은 전멸과 지휘관 처치보다 뒤에 판정하고 패배 조건도 만들 수 있다")]
+    [TestCase(TestName = "추가 조건은 전멸과 지휘관 처치보다 뒤에 판정하고, 패배 조건 목록에 넣으면 성립한 진영이 진다")]
     public void Victory_AddedConditionRanksAfterBuiltInsAndCanDefeat()
     {
         SrpVictory.Register(new HoldRoundsCondition());
@@ -747,8 +747,9 @@ public class SrpM1Phase7Tests
             Assert.That(byCommander.winnerOwner, Is.EqualTo(0));
             Assert.That(byCommander.reason, Is.EqualTo(SrpVictoryReason.CommanderKilled));
 
-            // 패배 조건: 지정한 유닛을 잃은 진영이 진다.
-            var escort = CreateConditionState(new SrpVictoryConditionData { type = LoseUnitCondition.TypeName, owner = 0, targetId = "p7_vip" });
+            // 패배 조건 목록: 지정한 유닛을 잃은 진영이 진다.
+            var escort = CreateConditionState(
+                new SrpVictoryConditionData { type = LoseUnitCondition.TypeName, owner = 0, targetId = "p7_vip" }, asDefeat: true);
             var vip = AddUnit(escort, id: 1, owner: 0, x: 0, y: 0);
             vip.templateId = "p7_vip";
             AddUnit(escort, id: 2, owner: 0, x: 0, y: 1);
@@ -759,6 +760,9 @@ public class SrpM1Phase7Tests
             Assert.That(byLoss.winnerOwner, Is.EqualTo(1));
             Assert.That(byLoss.reason, Is.EqualTo(SrpVictoryReason.Custom));
             Assert.That(byLoss.conditionType, Is.EqualTo(LoseUnitCondition.TypeName));
+            Assert.That(byLoss.byDefeatCondition, Is.True);
+            Assert.That(SrpVictory.DescribeDefeatRule(escort), Is.EqualTo("P0 p7_vip 보호"));
+            Assert.That(SrpVictory.DescribeRule(escort), Is.EqualTo("적 전멸"), "패배 조건이 승리 조건 설명에 섞였습니다.");
         }
         finally
         {
@@ -786,6 +790,7 @@ public class SrpM1Phase7Tests
             {
                 commanderKill = true,
                 conditions = new[] { new SrpVictoryConditionData { type = "p7_not_registered", owner = 1, value = 5, targetId = "x" } },
+                defeatConditions = new[] { new SrpVictoryConditionData { type = "p7_not_registered_defeat", owner = 0, x = 3, y = 4, radius = 2 } },
             },
         };
         var carry = SrpMapCarryOver.Capture(loaded);
@@ -798,6 +803,11 @@ public class SrpM1Phase7Tests
         Assert.That(saved.victory.conditions[0].owner, Is.EqualTo(1));
         Assert.That(saved.victory.conditions[0].value, Is.EqualTo(5));
         Assert.That(saved.victory.conditions[0].targetId, Is.EqualTo("x"));
+        Assert.That(saved.victory.defeatConditions.Length, Is.EqualTo(1), "패배 조건 목록이 저장에서 빠졌습니다.");
+        Assert.That(saved.victory.defeatConditions[0], Is.Not.SameAs(loaded.victory.defeatConditions[0]));
+        Assert.That(saved.victory.defeatConditions[0].type, Is.EqualTo("p7_not_registered_defeat"));
+        Assert.That((saved.victory.defeatConditions[0].x, saved.victory.defeatConditions[0].y, saved.victory.defeatConditions[0].radius),
+            Is.EqualTo((3, 4, 2)));
     }
 
     /// <summary>확장 예시(테스트 전용): 정한 진영이 value 라운드가 끝날 때까지 버티면 승리한다.</summary>
@@ -807,35 +817,30 @@ public class SrpM1Phase7Tests
 
         public string Type { get { return TypeName; } }
 
-        public string Describe(SrpBattleState state, SrpVictoryConditionData data)
+        public string Describe(SrpBattleState state, SrpVictoryConditionData data, bool asDefeat)
         {
             return $"P{data.owner} {data.value}라운드 버티기";
         }
 
-        public bool IsDefeated(SrpBattleState state, SrpVictoryConditionData data, int owner)
-        {
-            return false;
-        }
-
-        public bool HasWon(SrpBattleState state, SrpVictoryConditionData data, int owner)
+        public bool IsMet(SrpBattleState state, SrpVictoryConditionData data, int owner, int progress)
         {
             return state.RoundNumber > data.value;
         }
     }
 
-    /// <summary>확장 예시(테스트 전용): 정한 진영이 targetId 템플릿의 유닛을 모두 잃으면 패배한다.</summary>
+    /// <summary>확장 예시(테스트 전용): 정한 진영이 targetId 템플릿의 유닛을 모두 잃으면 성립한다. 패배 조건 목록에 넣어 쓴다.</summary>
     sealed class LoseUnitCondition : ISrpVictoryCondition
     {
         public const string TypeName = "p7_lose_unit";
 
         public string Type { get { return TypeName; } }
 
-        public string Describe(SrpBattleState state, SrpVictoryConditionData data)
+        public string Describe(SrpBattleState state, SrpVictoryConditionData data, bool asDefeat)
         {
             return $"P{data.owner} {data.targetId} 보호";
         }
 
-        public bool IsDefeated(SrpBattleState state, SrpVictoryConditionData data, int owner)
+        public bool IsMet(SrpBattleState state, SrpVictoryConditionData data, int owner, int progress)
         {
             foreach (var unit in state.Units)
             {
@@ -844,14 +849,9 @@ public class SrpM1Phase7Tests
             }
             return true;
         }
-
-        public bool HasWon(SrpBattleState state, SrpVictoryConditionData data, int owner)
-        {
-            return false;
-        }
     }
 
-    static SrpBattleState CreateConditionState(SrpVictoryConditionData condition)
+    static SrpBattleState CreateConditionState(SrpVictoryConditionData condition, bool asDefeat = false)
     {
         var walk = new bool[25];
         for (int i = 0; i < walk.Length; i++)
@@ -863,7 +863,9 @@ public class SrpM1Phase7Tests
             height = 5,
             walkable = walk,
             playerOrder = new[] { 0, 1 },
-            victory = new SrpVictoryRuleData { conditions = new[] { condition } },
+            victory = asDefeat
+                ? new SrpVictoryRuleData { defeatConditions = new[] { condition } }
+                : new SrpVictoryRuleData { conditions = new[] { condition } },
         });
     }
 

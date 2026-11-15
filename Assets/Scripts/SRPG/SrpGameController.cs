@@ -1142,6 +1142,17 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
 
         if (!SrpTurnOrder.HasRemainingUnitInRound(_state))
         {
+            // 라운드가 끝나는 순간 성립하는 조건(버티기, 거점 유지)을 판정한 뒤 다음 라운드로 넘어간다.
+            SrpBattleFlow.EndRound(_state);
+            CheckWin();
+            if (_gameOver)
+            {
+                UpdateHud();
+                return;
+            }
+            string progress = SrpVictory.DescribeProgress(_state);
+            if (!string.IsNullOrEmpty(progress))
+                LogLine($"승리 조건 진행: {progress}");
             _state.RoundNumber++;
             StartRound();
             return;
@@ -1224,6 +1235,9 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
     void LogVictoryRule()
     {
         LogLine($"승리 조건: {SrpVictory.DescribeRule(_state)}");
+        string defeatRule = SrpVictory.DescribeDefeatRule(_state);
+        if (!string.IsNullOrEmpty(defeatRule))
+            LogLine($"패배 조건: {defeatRule}");
         var rule = _state.VictoryRule;
         if (rule == null || !rule.commanderKill)
             return;

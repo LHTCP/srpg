@@ -17,6 +17,8 @@ public static class SrpDefaultMaps
                 return CreateM1ObjectiveLab();
             case SrpMapPreset.M1BarricadeAssault:
                 return CreateM1BarricadeAssault();
+            case SrpMapPreset.M1ConditionLab:
+                return CreateM1ConditionLab();
             case SrpMapPreset.M1QaIntegrated:
             default:
                 return CreateM1QaIntegrated();
@@ -779,6 +781,178 @@ public static class SrpDefaultMaps
             placements = placements,
             interactionPoints = interactionPoints,
             victory = new SrpVictoryRuleData { commanderKill = true, interactionObjective = true },
+        };
+    }
+
+    /// <summary>
+    /// 추가 조건 검증 랩(8차 추가). 전령 호위 상황으로 추가 승리/패배 조건 네 종류를 한 맵에서 확인한다.
+    /// - 승리 조건: 전령이 동쪽 출구 (10,3)에 도달(P0), 중앙 거점 (5,3) 주변 3x3을 3라운드 유지(P0),
+    ///   8라운드 버티기(P1. P0에게는 제한 라운드다).
+    /// - 패배 조건: 전령을 잃으면 P0 패배.
+    /// - 지휘관 처치와 상호작용 목표는 쓰지 않는다. 스킬 없이 기본 행동만으로 조건을 본다.
+    /// 수치와 배치는 조건 확인용 임시값(브릿지)이다.
+    /// </summary>
+    public static SrpMapFileV1 CreateM1ConditionLab()
+    {
+        int w = 11, h = 7;
+        int n = w * h;
+        var walk = new bool[n];
+        for (int i = 0; i < n; i++)
+            walk[i] = true;
+
+        // 거점 양옆의 기둥. 가운데 길(y = 3)은 열어 둔다.
+        walk[3 + 1 * w] = false;
+        walk[3 + 5 * w] = false;
+        walk[7 + 1 * w] = false;
+        walk[7 + 5 * w] = false;
+
+        var templates = new[]
+        {
+            new SrpUnitTemplateData
+            {
+                id = "lab_courier",
+                displayName = "전령",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 4,
+                maxHp = 24,
+                maxPg = 14,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 12,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Defensive,
+                facing = SrpFacing.East,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "lab_escort",
+                displayName = "호위 검사",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 10,
+                maxHp = 34,
+                maxPg = 22,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 10,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.East,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = (int)SrpUnitTags.ParryUser,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "lab_escort_rifle",
+                displayName = "호위 사격수",
+                moveRange = 3,
+                attackRange = 4,
+                attackPower = 8,
+                maxHp = 28,
+                maxPg = 16,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 9,
+                weaponClass = SrpWeaponClass.Firearm,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.East,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "lab_raider",
+                displayName = "추격병",
+                moveRange = 4,
+                attackRange = 1,
+                attackPower = 8,
+                maxHp = 30,
+                maxPg = 18,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 10,
+                weaponClass = SrpWeaponClass.Melee,
+                stance = SrpStance.Aggressive,
+                facing = SrpFacing.West,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+            new SrpUnitTemplateData
+            {
+                id = "lab_marksman",
+                displayName = "저격수",
+                moveRange = 3,
+                attackRange = 4,
+                attackPower = 8,
+                maxHp = 26,
+                maxPg = 14,
+                maxActionPoints = 2,
+                maxReactionPoints = 1,
+                speed = 8,
+                weaponClass = SrpWeaponClass.Firearm,
+                stance = SrpStance.Defensive,
+                facing = SrpFacing.West,
+                skillIds = new string[0],
+                maxSkills = 4,
+                tags = 0,
+            },
+        };
+
+        var placements = new[]
+        {
+            new SrpPlacementData { templateId = "lab_courier", owner = 0, x = 0, y = 3, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "lab_escort", owner = 0, x = 1, y = 2, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "lab_escort", owner = 0, x = 1, y = 4, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "lab_escort_rifle", owner = 0, x = 0, y = 1, footprint = new SrpOffset[0] },
+
+            new SrpPlacementData { templateId = "lab_raider", owner = 1, x = 8, y = 2, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "lab_raider", owner = 1, x = 8, y = 4, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "lab_raider", owner = 1, x = 9, y = 3, footprint = new SrpOffset[0] },
+            new SrpPlacementData { templateId = "lab_marksman", owner = 1, x = 10, y = 5, footprint = new SrpOffset[0] },
+        };
+
+        return new SrpMapFileV1
+        {
+            version = 2,
+            name = "m1_condition_lab",
+            width = w,
+            height = h,
+            walkable = walk,
+            playerOrder = new[] { 0, 1 },
+            templates = templates,
+            placements = placements,
+            victory = new SrpVictoryRuleData
+            {
+                conditions = new[]
+                {
+                    new SrpVictoryConditionData
+                    {
+                        type = SrpVictoryConditionTypes.ReachTile, owner = 0, targetId = "lab_courier", x = 10, y = 3,
+                    },
+                    new SrpVictoryConditionData
+                    {
+                        type = SrpVictoryConditionTypes.HoldPoint, owner = 0, x = 5, y = 3, radius = 1, value = 3,
+                    },
+                    new SrpVictoryConditionData
+                    {
+                        type = SrpVictoryConditionTypes.SurviveRounds, owner = 1, value = 8,
+                    },
+                },
+                defeatConditions = new[]
+                {
+                    new SrpVictoryConditionData
+                    {
+                        type = SrpVictoryConditionTypes.UnitLost, owner = 0, targetId = "lab_courier",
+                    },
+                },
+            },
         };
     }
 

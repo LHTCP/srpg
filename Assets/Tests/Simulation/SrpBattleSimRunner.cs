@@ -126,20 +126,30 @@ public static class SrpBattleSimRunner
 
                 RunActivation(state, config, actor, rng, ref result);
 
-                var victory = SrpVictory.Evaluate(state);
-                if (victory.decided)
-                {
-                    result.rounds = round;
-                    result.winnerOwner = victory.winnerOwner;
-                    result.reason = victory.reason;
+                if (TryFinish(state, round, ref result))
                     return result;
-                }
             }
+
+            // 라운드가 끝나는 순간 성립하는 조건(버티기, 거점 유지)을 판정한다.
+            SrpBattleFlow.EndRound(state);
+            if (TryFinish(state, round, ref result))
+                return result;
         }
 
         result.rounds = Mathf.Max(1, config.maxRounds);
         result.winnerOwner = -1;
         return result;
+    }
+
+    static bool TryFinish(SrpBattleState state, int round, ref SrpSingleBattleResult result)
+    {
+        var victory = SrpVictory.Evaluate(state);
+        if (!victory.decided)
+            return false;
+        result.rounds = round;
+        result.winnerOwner = victory.winnerOwner;
+        result.reason = victory.reason;
+        return true;
     }
 
     static void RunActivation(

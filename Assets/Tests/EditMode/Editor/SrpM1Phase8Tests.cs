@@ -5,6 +5,7 @@ using UnityEngine;
 /// <summary>
 /// 8차 테스트: 적 AI 마무리(태세와 방향 선택, 오버클럭, 회복하러 다가가는 이동)와
 /// 지휘관 처치 승리가 켜진 맵에서 지휘관이 위험한 칸으로 나서지 않는 판단.
+/// 뒤쪽은 8차에서 받은 기획 결정(Q16 추가 승리 조건 4종과 패배 조건 목록)을 고정한다.
 /// </summary>
 [Category("SrpM1All")]
 public class SrpM1Phase8Tests
@@ -437,7 +438,589 @@ public class SrpM1Phase8Tests
         Assert.That(outcome.drawRate, Is.LessThanOrEqualTo(0.10f), "무승부가 많습니다. 지휘관끼리 버티기만 하는지 확인하세요.");
     }
 
+    // ── 기획 결정 Q16: 추가 승리 조건과 패배 조건 목록 ───────────────────────
+
+    [TestCase(TestName = "N라운드 버티기는 그 라운드가 끝나는 순간 성립하고, 패배 목록에 넣으면 제한 라운드가 된다")]
+    public void Victory_SurviveRoundsDecidesWhenRoundEnds()
+    {
+        var state = CreateRuleState(victory: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.SurviveRounds, owner = 1, value = 2 },
+        });
+        AddUnit(state, id: 1, owner: 0, x: 0, y: 0);
+        AddUnit(state, id: 2, owner: 1, x: 4, y: 4);
+        Assert.That(SrpVictory.DescribeRule(state), Is.EqualTo("적 전멸 / P1 2라운드 버티기"));
+        Assert.That(SrpVictory.DescribeDefeatRule(state), Is.Null);
+
+        state.RoundNumber = 1;
+        SrpBattleFlow.EndRound(state);
+        Assert.That(SrpVictory.Evaluate(state).decided, Is.False);
+
+        // 2라운드가 진행 중일 때는 아직 아니다.
+        state.RoundNumber = 2;
+        Assert.That(SrpVictory.Evaluate(state).decided, Is.False, "버텨야 할 라운드가 끝나기 전에 결판이 났습니다.");
+
+        SrpBattleFlow.EndRound(state);
+        var result = SrpVictory.Evaluate(state);
+        Assert.That(result.decided, Is.True);
+        Assert.That(result.winnerOwner, Is.EqualTo(1));
+        Assert.That(result.reason, Is.EqualTo(SrpVictoryReason.Custom));
+        Assert.That(result.conditionType, Is.EqualTo(SrpVictoryConditionTypes.SurviveRounds));
+        Assert.That(result.byDefeatCondition, Is.False);
+        Assert.That(SrpVictory.DescribeResult(state, result), Is.EqualTo("P1 2라운드 버티기"));
+
+        // 패배 목록: P0은 2라운드 안에 끝내지 못하면 진다.
+        var limit = CreateRuleState(defeat: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.SurviveRounds, owner = 0, value = 2 },
+        });
+        AddUnit(limit, id: 1, owner: 0, x: 0, y: 0);
+        AddUnit(limit, id: 2, owner: 1, x: 4, y: 4);
+        Assert.That(SrpVictory.DescribeRule(limit), Is.EqualTo("적 전멸"));
+        Assert.That(SrpVictory.DescribeDefeatRule(limit), Is.EqualTo("P0 2라운드 안에 끝내지 못함"));
+        limit.RoundNumber = 2;
+        SrpBattleFlow.EndRound(limit);
+        var byLimit = SrpVictory.Evaluate(limit);
+        Assert.That(byLimit.winnerOwner, Is.EqualTo(1));
+        Assert.That(byLimit.byDefeatCondition, Is.True);
+    }
+
+    [TestCase(TestName = "칸 도달은 조건이 정한 진영의 대상 유닛이 그 칸에 섰을 때만 성립한다")]
+    public void Victory_ReachTileNeedsMatchingUnitOnTile()
+    {
+        var state = CreateRuleState(victory: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.ReachTile, owner = 0, targetId = "p8_courier", x = 4, y = 2 },
+        });
+        var courier = AddUnit(state, id: 1, owner: 0, x: 0, y: 2);
+        courier.templateId = "p8_courier";
+        var escort = AddUnit(state, id: 2, owner: 0, x: 0, y: 0);
+        var enemy = AddUnit(state, id: 3, owner: 1, x: 4, y: 4);
+        Assert.That(SrpVictory.DescribeRule(state), Is.EqualTo("적 전멸 / P0 p8_courier (4,2) 도달"));
+
+        // 대상이 아닌 아군이나 적이 서 있어도 성립하지 않는다.
+        escort.anchorX = 4;
+        escort.anchorY = 2;
+        Assert.That(SrpVictory.Evaluate(state).decided, Is.False, "대상이 아닌 유닛으로 조건이 성립했습니다.");
+        escort.anchorX = 0;
+        escort.anchorY = 0;
+        enemy.anchorX = 4;
+        enemy.anchorY = 2;
+        Assert.That(SrpVictory.Evaluate(state).decided, Is.False, "상대 유닛으로 조건이 성립했습니다.");
+        enemy.anchorX = 4;
+        enemy.anchorY = 4;
+
+        courier.anchorX = 4;
+        courier.anchorY = 2;
+        var result = SrpVictory.Evaluate(state);
+        Assert.That(result.winnerOwner, Is.EqualTo(0));
+        Assert.That(result.conditionType, Is.EqualTo(SrpVictoryConditionTypes.ReachTile));
+
+        // 대상이 비어 있으면 그 진영의 아무 유닛이나, "commander"면 지휘관만 본다.
+        var any = CreateRuleState(victory: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.ReachTile, owner = 0, targetId = SrpVictoryConditionTypes.CommanderTarget, x = 4, y = 2 },
+        });
+        var runner = AddUnit(any, id: 1, owner: 0, x: 4, y: 2);
+        AddUnit(any, id: 2, owner: 1, x: 4, y: 4);
+        Assert.That(SrpVictory.Evaluate(any).decided, Is.False);
+        runner.isCommander = true;
+        Assert.That(SrpVictory.Evaluate(any).winnerOwner, Is.EqualTo(0));
+        any.VictoryRule.conditions[0].targetId = null;
+        runner.isCommander = false;
+        Assert.That(SrpVictory.Evaluate(any).winnerOwner, Is.EqualTo(0));
+    }
+
+    [TestCase(TestName = "유닛 보호는 패배 목록에 넣으며, 대상 유닛을 모두 잃은 진영이 진다")]
+    public void Victory_UnitLostInDefeatListDefeatsOwner()
+    {
+        var state = CreateRuleState(defeat: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.UnitLost, owner = 0, targetId = "p8_courier" },
+        });
+        var first = AddUnit(state, id: 1, owner: 0, x: 0, y: 0);
+        first.templateId = "p8_courier";
+        var second = AddUnit(state, id: 2, owner: 0, x: 0, y: 1);
+        second.templateId = "p8_courier";
+        AddUnit(state, id: 3, owner: 0, x: 0, y: 2);
+        var enemy = AddUnit(state, id: 4, owner: 1, x: 4, y: 4);
+        // 상대에게 같은 템플릿의 유닛이 있어도 조건은 P0에만 걸려 있다.
+        enemy.templateId = "p8_courier";
+        Assert.That(SrpVictory.DescribeDefeatRule(state), Is.EqualTo("P0 p8_courier 보호 실패"));
+
+        state.RemoveUnit(first);
+        Assert.That(SrpVictory.Evaluate(state).decided, Is.False, "대상이 남아 있는데 패배했습니다.");
+
+        state.RemoveUnit(second);
+        var result = SrpVictory.Evaluate(state);
+        Assert.That(result.winnerOwner, Is.EqualTo(1));
+        Assert.That(result.reason, Is.EqualTo(SrpVictoryReason.Custom));
+        Assert.That(result.conditionType, Is.EqualTo(SrpVictoryConditionTypes.UnitLost));
+        Assert.That(result.byDefeatCondition, Is.True);
+
+        // 대상 유닛이 처음부터 없던 진영에는 성립하지 않는다.
+        var none = CreateRuleState(defeat: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.UnitLost, owner = 0, targetId = "p8_courier" },
+        });
+        AddUnit(none, id: 1, owner: 0, x: 0, y: 0);
+        AddUnit(none, id: 2, owner: 1, x: 4, y: 4);
+        Assert.That(SrpVictory.Evaluate(none).decided, Is.False);
+    }
+
+    [TestCase(TestName = "거점 유지는 라운드가 끝날 때 혼자 점유하고 있어야 진행도가 오르고, 적이 들어오면 처음부터 다시 센다")]
+    public void Victory_HoldPointCountsConsecutiveRoundEnds()
+    {
+        var state = CreateRuleState(victory: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.HoldPoint, owner = 0, x = 2, y = 2, radius = 1, value = 2 },
+        });
+        var holder = AddUnit(state, id: 1, owner: 0, x: 1, y: 1);
+        var enemy = AddUnit(state, id: 2, owner: 1, x: 4, y: 4);
+        Assert.That(SrpVictory.DescribeRule(state), Is.EqualTo("적 전멸 / P0 거점 (2,2) 2라운드 유지"));
+        Assert.That(SrpVictory.DescribeProgress(state), Is.Null);
+
+        state.RoundNumber = 1;
+        SrpBattleFlow.EndRound(state);
+        Assert.That(SrpVictory.DescribeProgress(state), Is.EqualTo("P0 거점 (2,2) 유지 1/2"));
+        // 같은 라운드에 다시 불러도 진행도가 두 번 오르지 않는다.
+        SrpBattleFlow.EndRound(state);
+        Assert.That(SrpVictory.Evaluate(state).decided, Is.False);
+
+        // 적이 거점에 들어온 채로 라운드가 끝나면 진행도가 0으로 돌아간다.
+        state.RoundNumber = 2;
+        enemy.anchorX = 3;
+        enemy.anchorY = 3;
+        SrpBattleFlow.EndRound(state);
+        Assert.That(SrpVictory.DescribeProgress(state), Is.Null);
+        Assert.That(SrpVictory.Evaluate(state).decided, Is.False);
+
+        enemy.anchorX = 4;
+        enemy.anchorY = 4;
+        state.RoundNumber = 3;
+        SrpBattleFlow.EndRound(state);
+        // 진행도는 복제한 상태(되감기, 시뮬레이션)에도 따라간다.
+        var clone = state.Clone();
+        clone.RoundNumber = 4;
+        SrpBattleFlow.EndRound(clone);
+        Assert.That(SrpVictory.Evaluate(clone).winnerOwner, Is.EqualTo(0));
+        Assert.That(SrpVictory.Evaluate(state).decided, Is.False, "복제본의 진행도가 원본에 섞였습니다.");
+
+        // 거점을 비운 채로 라운드가 끝나도 처음부터 다시 센다.
+        holder.anchorX = 0;
+        holder.anchorY = 4;
+        state.RoundNumber = 4;
+        SrpBattleFlow.EndRound(state);
+        Assert.That(SrpVictory.Evaluate(state).decided, Is.False);
+        Assert.That(SrpVictory.DescribeProgress(state), Is.Null);
+    }
+
+    [TestCase(TestName = "패배 조건은 승리 조건보다 먼저 판정하고, 조건 목록은 저장 형식을 거쳐도 그대로다")]
+    public void Victory_DefeatListRanksBeforeVictoryListAndSurvivesJson()
+    {
+        var rule = new SrpVictoryRuleData
+        {
+            conditions = new[]
+            {
+                new SrpVictoryConditionData { type = SrpVictoryConditionTypes.ReachTile, owner = 0, x = 4, y = 2 },
+            },
+            defeatConditions = new[]
+            {
+                new SrpVictoryConditionData { type = SrpVictoryConditionTypes.UnitLost, owner = 0, targetId = "p8_courier" },
+            },
+        };
+        var map = new SrpMapFileV1
+        {
+            width = 5,
+            height = 5,
+            walkable = AllWalkable(5, 5),
+            playerOrder = new[] { 0, 1 },
+            victory = rule,
+        };
+        var restored = JsonUtility.FromJson<SrpMapFileV1>(JsonUtility.ToJson(map));
+        Assert.That(restored.victory.conditions.Length, Is.EqualTo(1));
+        Assert.That(restored.victory.defeatConditions.Length, Is.EqualTo(1));
+        Assert.That((restored.victory.conditions[0].x, restored.victory.conditions[0].y), Is.EqualTo((4, 2)));
+        Assert.That(restored.victory.defeatConditions[0].targetId, Is.EqualTo("p8_courier"));
+
+        var state = SrpBattleState.FromMap(restored);
+        var courier = AddUnit(state, id: 1, owner: 0, x: 0, y: 0);
+        courier.templateId = "p8_courier";
+        AddUnit(state, id: 2, owner: 0, x: 4, y: 2);
+        AddUnit(state, id: 3, owner: 1, x: 4, y: 4);
+        Assert.That(SrpVictory.Evaluate(state).winnerOwner, Is.EqualTo(0), "도달 조건이 성립하지 않았습니다.");
+
+        // 도달과 보호 실패가 함께 성립하면 패배가 먼저다.
+        state.RemoveUnit(courier);
+        var result = SrpVictory.Evaluate(state);
+        Assert.That(result.winnerOwner, Is.EqualTo(1));
+        Assert.That(result.conditionType, Is.EqualTo(SrpVictoryConditionTypes.UnitLost));
+    }
+
+    [TestCase(TestName = "추가 조건 검증 랩은 네 조건을 모두 걸고 있고 설명이 진영별로 나온다")]
+    public void ConditionLab_DeclaresAllFourConditions()
+    {
+        var state = SrpBattleState.FromMap(SrpDefaultMaps.CreateM1ConditionLab());
+
+        Assert.That(SrpVictory.DescribeRule(state),
+            Is.EqualTo("적 전멸 / P0 전령 (10,3) 도달 / P0 거점 (5,3) 3라운드 유지 / P1 8라운드 버티기"));
+        Assert.That(SrpVictory.DescribeDefeatRule(state), Is.EqualTo("P0 전령 보호 실패"));
+        Assert.That(SrpVictory.Evaluate(state).decided, Is.False);
+        foreach (string type in SrpVictoryConditionTypes.BuiltIn)
+            Assert.That(SrpVictory.IsRegistered(type), Is.True, $"내장 조건이 등록되지 않았습니다: {type}");
+
+        // 도달 칸은 걸을 수 있는 빈 칸이어야 한다.
+        Assert.That(state.IsWalkableTile(10, 3), Is.True);
+        Assert.That(state.GetOccupant(10, 3), Is.Null);
+    }
+
+    // ── 맵 메이커: 추가 조건 편집 규칙 ───────────────────────────────────────
+
+    [TestCase(TestName = "메이커의 조건 만들기는 조건이 쓰는 값만 넣고, 만들 수 없는 조합은 이유와 함께 거부한다")]
+    public void MakerCondition_BuildKeepsOnlyUsedFieldsAndRejectsInvalid()
+    {
+        var survive = SrpMapConditionEdit.Build(SrpVictoryConditionTypes.SurviveRounds, 1, 0, 7, 7, "x", out string error);
+        Assert.That(error, Is.Null);
+        Assert.That((survive.owner, survive.value), Is.EqualTo((1, 1)), "라운드 수는 1 이상이어야 합니다.");
+        Assert.That((survive.x, survive.y, survive.targetId), Is.EqualTo((0, 0, (string)null)), "쓰지 않는 값이 들어갔습니다.");
+
+        var reach = SrpMapConditionEdit.Build(SrpVictoryConditionTypes.ReachTile, 0, 5, 3, 4,
+            SrpMapConditionEdit.ResolveTargetId(SrpMapConditionEdit.TargetKind.Commander, null), out error);
+        Assert.That(error, Is.Null);
+        Assert.That((reach.x, reach.y, reach.value), Is.EqualTo((3, 4, 0)));
+        Assert.That(reach.targetId, Is.EqualTo(SrpVictoryConditionTypes.CommanderTarget));
+
+        var hold = SrpMapConditionEdit.Build(SrpVictoryConditionTypes.HoldPoint, 0, 3, 5, 3, "ignored", out error);
+        Assert.That((hold.x, hold.y, hold.value, hold.radius), Is.EqualTo((5, 3, 3, SrpMapConditionEdit.DefaultHoldRadius)));
+        Assert.That(hold.targetId, Is.Null);
+
+        // 유닛 상실은 대상이 "모든 유닛"이면 전멸과 같아 만들지 않는다.
+        string anyTarget = SrpMapConditionEdit.ResolveTargetId(SrpMapConditionEdit.TargetKind.Any, "mage");
+        Assert.That(SrpMapConditionEdit.Build(SrpVictoryConditionTypes.UnitLost, 0, 0, 0, 0, anyTarget, out error), Is.Null);
+        Assert.That(error, Is.Not.Empty);
+        // "선택한 유닛"인데 고른 유닛이 없으면 만들지 않는다.
+        string noUnit = SrpMapConditionEdit.ResolveTargetId(SrpMapConditionEdit.TargetKind.SelectedUnit, null);
+        Assert.That(SrpMapConditionEdit.Build(SrpVictoryConditionTypes.UnitLost, 0, 0, 0, 0, noUnit, out error), Is.Null);
+        Assert.That(SrpMapConditionEdit.Build("p8_unknown", 0, 0, 0, 0, null, out error), Is.Null);
+
+        // 조건 종류 버튼은 내장 조건 네 가지를 돈다.
+        string type = SrpVictoryConditionTypes.SurviveRounds;
+        var seen = new List<string>();
+        for (int i = 0; i < SrpVictoryConditionTypes.BuiltIn.Length; i++)
+        {
+            seen.Add(type);
+            Assert.That(SrpMapConditionEdit.GetTypeLabel(type), Is.Not.EqualTo(type), "조건 이름표가 없습니다.");
+            type = SrpMapConditionEdit.NextType(type);
+        }
+        Assert.That(seen, Is.EquivalentTo(SrpVictoryConditionTypes.BuiltIn));
+        Assert.That(type, Is.EqualTo(SrpVictoryConditionTypes.SurviveRounds));
+    }
+
+    [TestCase(TestName = "메이커에서 승리·패배 목록에 넣은 조건은 저장 형식을 거쳐 전투에서 그대로 판정된다")]
+    public void MakerCondition_AddedConditionsWorkInBattleAfterSave()
+    {
+        var carry = new SrpMapCarryOver();
+        Assert.That(SrpMapConditionEdit.Describe(carry), Is.EqualTo("(추가 조건 없음)"));
+        Assert.That(SrpMapConditionEdit.RemoveLast(carry, false), Is.False);
+
+        string courierId = SrpMapConditionEdit.ResolveTargetId(SrpMapConditionEdit.TargetKind.SelectedUnit, "p8_courier");
+        SrpMapConditionEdit.Add(carry,
+            SrpMapConditionEdit.Build(SrpVictoryConditionTypes.ReachTile, 0, 0, 4, 2, courierId, out _), false);
+        SrpMapConditionEdit.Add(carry,
+            SrpMapConditionEdit.Build(SrpVictoryConditionTypes.HoldPoint, 0, 2, 2, 2, null, out _), false);
+        SrpMapConditionEdit.Add(carry,
+            SrpMapConditionEdit.Build(SrpVictoryConditionTypes.SurviveRounds, 1, 9, 0, 0, null, out _), false);
+        SrpMapConditionEdit.Add(carry,
+            SrpMapConditionEdit.Build(SrpVictoryConditionTypes.UnitLost, 0, 0, 0, 0, courierId, out _), true);
+        Assert.That(SrpMapConditionEdit.Describe(carry), Is.EqualTo(
+            "승리 1. P0 p8_courier (4,2) 도달\n" +
+            "승리 2. P0 거점 (2,2) 2라운드 유지\n" +
+            "승리 3. P1 9라운드 버티기\n" +
+            "패배 1. P0 p8_courier 보호 실패"));
+
+        // 삭제는 고른 목록의 마지막 조건만 뺀다.
+        Assert.That(SrpMapConditionEdit.RemoveLast(carry, false), Is.True);
+        Assert.That(carry.victory.conditions.Length, Is.EqualTo(2));
+        Assert.That(carry.victory.defeatConditions.Length, Is.EqualTo(1));
+
+        // 조건이 가리키는 칸: 도달 칸 1개 + 거점 3x3.
+        var marks = SrpVictory.GetConditionTiles(carry.victory);
+        Assert.That(marks.Count, Is.EqualTo(1 + 9));
+        int centers = 0;
+        foreach (var mark in marks)
+        {
+            Assert.That(mark.asDefeat, Is.False);
+            if (mark.isCenter)
+                centers++;
+        }
+        Assert.That(centers, Is.EqualTo(2));
+
+        // 메이커 저장처럼 맵에 실어 저장 형식을 거친 뒤 전투에 올린다.
+        var map = new SrpMapFileV1
+        {
+            width = 5,
+            height = 5,
+            walkable = AllWalkable(5, 5),
+            playerOrder = new[] { 0, 1 },
+        };
+        carry.ApplyTo(map);
+        var state = SrpBattleState.FromMap(JsonUtility.FromJson<SrpMapFileV1>(JsonUtility.ToJson(map)));
+        var courier = AddUnit(state, id: 1, owner: 0, x: 0, y: 0);
+        courier.templateId = "p8_courier";
+        AddUnit(state, id: 2, owner: 0, x: 0, y: 4);
+        AddUnit(state, id: 3, owner: 1, x: 4, y: 4);
+        Assert.That(SrpVictory.Evaluate(state).decided, Is.False);
+
+        courier.anchorX = 4;
+        courier.anchorY = 2;
+        Assert.That(SrpVictory.Evaluate(state).conditionType, Is.EqualTo(SrpVictoryConditionTypes.ReachTile));
+        state.RemoveUnit(courier);
+        var lost = SrpVictory.Evaluate(state);
+        Assert.That(lost.winnerOwner, Is.EqualTo(1));
+        Assert.That(lost.conditionType, Is.EqualTo(SrpVictoryConditionTypes.UnitLost));
+    }
+
+    // ── 적 AI: 추가 조건 ─────────────────────────────────────────────────────
+
+    [TestCase(TestName = "적 AI는 이번 이동으로 도달 칸에 설 수 있으면 공격보다 먼저 가고, 멀면 그쪽으로 다가간다")]
+    public void EnemyAi_MovesOntoReachTile()
+    {
+        var state = CreateRuleState(victory: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.ReachTile, owner = 1, x = 5, y = 2 },
+        }, width: 9, height: 5);
+        var runner = AddUnit(state, id: 1, owner: 1, x: 3, y: 2, attackPower: 8, moveRange: 4);
+        // 바로 옆에 공격할 적이 있어도 도달이 먼저다. 적 옆 칸을 지나고 교전에서 벗어나는 비용까지 이동력 4로 닿는다.
+        AddUnit(state, id: 2, owner: 0, x: 3, y: 3);
+
+        var win = SrpEnemyAi.Decide(state, runner, 4, false);
+        Assert.That(win.type, Is.EqualTo(SrpEnemyAiActionType.Move));
+        Assert.That((win.x, win.y), Is.EqualTo((5, 2)));
+        int remaining = 4;
+        SrpBattleFlow.ExecuteAiAction(state, runner, win, ref remaining, null);
+        Assert.That(SrpVictory.Evaluate(state).winnerOwner, Is.EqualTo(1));
+
+        // 한 번에 닿지 않으면 도달 칸 쪽으로 다가간다.
+        var far = CreateRuleState(victory: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.ReachTile, owner = 1, x = 8, y = 2 },
+        }, width: 9, height: 5);
+        // 적(0,2)은 이번 차례에 공격할 수 없는 거리에 있다(적 옆 칸까지 비용 4).
+        var walker = AddUnit(far, id: 1, owner: 1, x: 4, y: 2, attackPower: 8, moveRange: 3);
+        AddUnit(far, id: 2, owner: 0, x: 0, y: 2);
+        var approach = SrpEnemyAi.Decide(far, walker, 3, false);
+        Assert.That(approach.type, Is.EqualTo(SrpEnemyAiActionType.Move));
+        Assert.That((approach.x, approach.y), Is.EqualTo((7, 2)));
+
+        // 조건이 상대 진영 것이면 그 칸은 접근 대상이 아니다. 적 쪽으로 간다.
+        far.VictoryRule.conditions[0].owner = 0;
+        var chase = SrpEnemyAi.Decide(far, walker, 3, false);
+        Assert.That(chase.x, Is.LessThan(4), "상대의 도달 칸으로 다가갔습니다.");
+    }
+
+    [TestCase(TestName = "적 AI는 서면 자기 진영이 패배하는 칸으로는 가지 않는다")]
+    public void EnemyAi_AvoidsTileThatDefeatsItsOwner()
+    {
+        // 적(4,2)의 서쪽 옆 칸 (3,2)가 가장 가까운 공격 칸이지만, 서면 패배하는 칸이다.
+        var state = CreateRuleState(defeat: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.ReachTile, owner = 1, x = 3, y = 2 },
+        }, width: 7, height: 5);
+        var actor = AddUnit(state, id: 1, owner: 1, x: 0, y: 2, attackPower: 8, moveRange: 4);
+        AddUnit(state, id: 2, owner: 0, x: 4, y: 2);
+
+        var move = SrpEnemyAi.Decide(state, actor, 4, false);
+        Assert.That(move.type, Is.EqualTo(SrpEnemyAiActionType.Move));
+        Assert.That((move.x, move.y), Is.Not.EqualTo((3, 2)), "서면 패배하는 칸으로 이동했습니다.");
+
+        // 조건이 없으면 그 칸을 고른다(비교 기준).
+        state.VictoryRule.defeatConditions = new SrpVictoryConditionData[0];
+        var plain = SrpEnemyAi.Decide(state, actor, 4, false);
+        Assert.That((plain.x, plain.y), Is.EqualTo((3, 2)));
+    }
+
+    [TestCase(TestName = "적 AI는 보호 대상을 지휘관처럼 다룬다: 상대의 보호 대상을 먼저 노리고, 자기 보호 대상은 나서지 않는다")]
+    public void EnemyAi_TreatsProtectedUnitLikeCommander()
+    {
+        var state = CreateRuleState(defeat: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.UnitLost, owner = 0, targetId = "p8_courier" },
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.UnitLost, owner = 1, targetId = "p8_envoy" },
+        }, width: 9, height: 5);
+        var attacker = AddUnit(state, id: 1, owner: 1, x: 2, y: 2, attackPower: 8);
+        // 더 다친 일반 유닛이 있어도 보호 대상을 먼저 공격한다.
+        var wounded = AddUnit(state, id: 2, owner: 0, x: 3, y: 2);
+        wounded.hp = 20;
+        var courier = AddUnit(state, id: 3, owner: 0, x: 2, y: 3);
+        courier.templateId = "p8_courier";
+        Assert.That(SrpEnemyAi.Decide(state, attacker, 0, false).targetUnitId, Is.EqualTo(courier.id));
+
+        // 자기 진영의 보호 대상은 아군이 남아 있는 동안 공격으로 이어지지 않는 접근 이동을 하지 않는다.
+        var envoy = AddUnit(state, id: 4, owner: 1, x: 8, y: 0, attackPower: 6, moveRange: 2);
+        envoy.templateId = "p8_envoy";
+        Assert.That(SrpEnemyAi.Decide(state, envoy, 2, false).type, Is.EqualTo(SrpEnemyAiActionType.EndTurn));
+        envoy.templateId = "p8_plain";
+        Assert.That(SrpEnemyAi.Decide(state, envoy, 2, false).type, Is.EqualTo(SrpEnemyAiActionType.Move));
+    }
+
+    [TestCase(TestName = "적 AI는 우리 편이 없는 거점으로 들어가고, 혼자 지키는 거점은 공격하러 비우지 않는다")]
+    public void EnemyAi_EntersAndKeepsHoldZone()
+    {
+        // 거점은 (4,2) 한 칸 주변 3x3. 유지하는 쪽은 P0이지만 P1도 들어가서 막아야 한다.
+        var state = CreateRuleState(victory: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.HoldPoint, owner = 0, x = 4, y = 2, radius = 1, value = 3 },
+        }, width: 11, height: 5);
+        var blocker = AddUnit(state, id: 1, owner: 1, x: 7, y: 2, attackPower: 8, moveRange: 2, actionPoints: 1);
+        var enemy = AddUnit(state, id: 2, owner: 0, x: 10, y: 4);
+
+        // AP가 1이라 이동 뒤 공격할 수 없다. 적 쪽이 아니라 거점으로 들어간다.
+        var enter = SrpEnemyAi.Decide(state, blocker, 2, false);
+        Assert.That(enter.type, Is.EqualTo(SrpEnemyAiActionType.Move));
+        Assert.That(SrpVictoryConditionTypes.IsInZone(state.VictoryRule.conditions[0], enter.x, enter.y), Is.True,
+            "거점 안으로 들어가지 않았습니다.");
+
+        // 거점을 혼자 지키는 유닛은 이동해서 공격할 수 있는 적이 밖에 있어도 거점을 비우지 않는다.
+        // 적 옆 칸 (7,2)는 들어가는 비용이 1 더 들어 이동력 3으로 닿는다.
+        blocker.anchorX = 5;
+        blocker.anchorY = 2;
+        blocker.actionPoints = 2;
+        blocker.moveRange = 3;
+        enemy.anchorX = 8;
+        enemy.anchorY = 2;
+        var keep = SrpEnemyAi.Decide(state, blocker, 3, false);
+        if (keep.type == SrpEnemyAiActionType.Move)
+            Assert.That(SrpVictoryConditionTypes.IsInZone(state.VictoryRule.conditions[0], keep.x, keep.y), Is.True,
+                "혼자 지키던 거점을 비웠습니다.");
+
+        // 다른 아군이 거점에 있으면 공격하러 나간다.
+        AddUnit(state, id: 3, owner: 1, x: 4, y: 2);
+        var leave = SrpEnemyAi.Decide(state, blocker, 3, false);
+        Assert.That(leave.type, Is.EqualTo(SrpEnemyAiActionType.Move));
+        Assert.That(System.Math.Max(System.Math.Abs(leave.x - 8), System.Math.Abs(leave.y - 2)), Is.EqualTo(1));
+    }
+
+    [TestCase(TestName = "적 AI는 시간이 상대 편이면 버티지 않고, 시간이 자기 편이면 공격으로 이어지지 않는 전진을 하지 않는다")]
+    public void EnemyAi_TimePressureChangesHoldAndAdvance()
+    {
+        // 상대(P0)가 버티면 이기는 맵: 사격수는 엄폐 + 경계태세로 버티지 않고 전진한다.
+        var press = CreateHoldState(out var shooter, new SrpVictoryRuleData
+        {
+            conditions = new[] { new SrpVictoryConditionData { type = SrpVictoryConditionTypes.SurviveRounds, owner = 0, value = 6 } },
+        });
+        Assert.That(SrpEnemyAi.Decide(press, shooter, shooter.moveRange, false).type, Is.EqualTo(SrpEnemyAiActionType.Move),
+            "시간에 쫓기는데 버텼습니다.");
+
+        // 조건이 없으면 같은 상황에서 버틴다(비교 기준, 7차 Q15).
+        var hold = CreateHoldState(out var holder, new SrpVictoryRuleData());
+        Assert.That(SrpEnemyAi.Decide(hold, holder, holder.moveRange, false).type, Is.EqualTo(SrpEnemyAiActionType.TakeCover));
+
+        // 자기(P1)가 버티면 이기는 맵: 근접 유닛은 공격으로 이어지지 않는 접근 이동을 하지 않는다.
+        var wait = CreateRuleState(victory: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.SurviveRounds, owner = 1, value = 6 },
+        }, width: 9, height: 5);
+        var defender = AddUnit(wait, id: 1, owner: 1, x: 0, y: 2, attackPower: 8, moveRange: 3);
+        var enemy = AddUnit(wait, id: 2, owner: 0, x: 8, y: 2);
+        Assert.That(SrpEnemyAi.Decide(wait, defender, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.EndTurn));
+        // 이동해서 바로 공격할 수 있으면 나간다.
+        enemy.anchorX = 3;
+        Assert.That(SrpEnemyAi.Decide(wait, defender, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.Move));
+
+        // 제한 라운드가 상대에게 걸려 있어도 같다.
+        var limit = CreateRuleState(defeat: new[]
+        {
+            new SrpVictoryConditionData { type = SrpVictoryConditionTypes.SurviveRounds, owner = 0, value = 6 },
+        }, width: 9, height: 5);
+        var waiter = AddUnit(limit, id: 1, owner: 1, x: 0, y: 2, attackPower: 8, moveRange: 3);
+        AddUnit(limit, id: 2, owner: 0, x: 8, y: 2);
+        Assert.That(SrpEnemyAi.Decide(limit, waiter, 3, false).type, Is.EqualTo(SrpEnemyAiActionType.EndTurn));
+    }
+
+    [Category("SrpAiSim")]
+    [TestCase(TestName = "추가 조건 검증 랩: AI끼리의 전투가 추가 조건을 포함해 여러 방식으로 끝난다")]
+    public void ConditionLab_SimulationEndsByListedConditions()
+    {
+        var config = new SrpBattleSimConfig
+        {
+            mapPreset = SrpMapPreset.M1ConditionLab,
+            trials = 200,
+            maxRounds = 24,
+            baseSeed = 880101,
+            sampleSeedCount = 1,
+            owner0Policy = new SrpHeuristicAiPolicy(),
+            owner1Policy = new SrpHeuristicAiPolicy(),
+            thresholds = SrpSimThresholdConfig.Default(),
+        };
+
+        var outcome = SrpBattleSimRunner.RunBatch(config, writeReport: false).report.outcome;
+        Debug.Log(
+            $"[SRPG][AI-Sim][ConditionLab] w0={outcome.owner0WinRate:F3}, w1={outcome.owner1WinRate:F3}, " +
+            $"draw={outcome.drawRate:F3}, avgR={outcome.averageRounds:F2}, custom={outcome.customConditionRate:F3}");
+
+        // 측정값(2026-11-15, 200회): 평균 6.66라운드, 승률 0.510 / 0.490, 무승부 0.
+        // 종료 방식은 전멸 41.0%, 추가 조건 59.0%(8라운드 버티기 25.0%, 전령 보호 실패 21.0%, 거점 유지 13.0%).
+        Assert.That(outcome.drawRate, Is.LessThanOrEqualTo(0.05f), "8라운드 버티기가 있어 무승부가 나오면 안 됩니다.");
+        Assert.That(outcome.averageRounds, Is.LessThanOrEqualTo(8f), "8라운드가 끝나면 승패가 나야 합니다.");
+        Assert.That(outcome.customConditionRate, Is.GreaterThan(0.2f), "추가 조건으로 끝난 판이 거의 없습니다.");
+        Assert.That(outcome.owner0WinRate, Is.InRange(0.2f, 0.8f), "한쪽이 일방적으로 이깁니다.");
+    }
+
     // ── 전장 구성 ────────────────────────────────────────────────────────────
+
+    static bool[] AllWalkable(int width, int height)
+    {
+        var walk = new bool[width * height];
+        for (int i = 0; i < walk.Length; i++)
+            walk[i] = true;
+        return walk;
+    }
+
+    /// <summary>승리 조건 목록과 패배 조건 목록을 건 빈 맵.</summary>
+    static SrpBattleState CreateRuleState(
+        SrpVictoryConditionData[] victory = null,
+        SrpVictoryConditionData[] defeat = null,
+        int width = 5,
+        int height = 5)
+    {
+        return SrpBattleState.FromMap(new SrpMapFileV1
+        {
+            width = width,
+            height = height,
+            walkable = AllWalkable(width, height),
+            playerOrder = new[] { 0, 1 },
+            victory = new SrpVictoryRuleData
+            {
+                conditions = victory ?? new SrpVictoryConditionData[0],
+                defeatConditions = defeat ?? new SrpVictoryConditionData[0],
+            },
+        });
+    }
+
+    /// <summary>
+    /// 버티기 판단용 전장(7차 Q15와 같은 배치). 사격수(2,2)는 이동해도 이번 차례에 쏠 수 없고 옆에 엄폐물이 있다.
+    /// 상대 사격수(10,2)는 한 번 움직이면 쏠 수 있고, 근접 적(10,3)은 다음 이동으로 사거리에 들어온다.
+    /// </summary>
+    static SrpBattleState CreateHoldState(out SrpUnitRuntime shooter, SrpVictoryRuleData rule)
+    {
+        var state = SrpBattleState.FromMap(new SrpMapFileV1
+        {
+            width = 13,
+            height = 5,
+            walkable = AllWalkable(13, 5),
+            playerOrder = new[] { 0, 1 },
+            victory = rule,
+        });
+        state.Walkable[state.Index(2, 1)] = false;
+        state.CoverObjects.Add(new SrpCoverObjectData { x = 2, y = 1, coverDef = 2, coverGrd = 1, blocksLineOfSight = true });
+        shooter = AddUnit(state, id: 1, owner: 1, x: 2, y: 2, attackPower: 8, attackRange: 4, moveRange: 2,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
+        shooter.reactionPoints = 1;
+        AddUnit(state, id: 2, owner: 0, x: 10, y: 2, attackPower: 8, attackRange: 5, moveRange: 3,
+            weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
+        AddUnit(state, id: 3, owner: 0, x: 10, y: 3, attackPower: 6, moveRange: 4);
+        return state;
+    }
 
     /// <summary>
     /// 회복 이동 판단용 전장. 회복수(0,0, 이동 3)는 사거리 2의 회복 스킬을 갖고, 아군(5,0)은 사거리 밖이다.

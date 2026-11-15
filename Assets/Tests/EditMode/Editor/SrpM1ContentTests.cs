@@ -16,6 +16,7 @@ public class SrpM1ContentTests
         SrpMapPreset.M1QaIntegrated,
         SrpMapPreset.M1ObjectiveLab,
         SrpMapPreset.M1BarricadeAssault,
+        SrpMapPreset.M1ConditionLab,
     };
 
     // ── 내장 데이터 정합성 ────────────────────────────────────────────────────
