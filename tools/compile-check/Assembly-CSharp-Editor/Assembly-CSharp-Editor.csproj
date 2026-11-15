@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Unity의 미리 정의된 어셈블리 Assembly-CSharp-Editor를 흉내 낸다.
+    asmdef 폴더 밖에 있는 Editor 폴더의 스크립트다(EditMode 테스트, 테스트 실행 메뉴 등). 에디터에만 있다.
+    Unity는 이 어셈블리를 .NET Framework 4.8 프로필로 컴파일하고 테스트 러너도 참조시킨다.
+  -->
+  <PropertyGroup>
+    <SrpVariants>editor</SrpVariants>
+    <SrpPackageAssemblies>true</SrpPackageAssemblies>
+    <SrpTestAssemblies>true</SrpTestAssemblies>
+    <SrpEditorApiProfile>true</SrpEditorApiProfile>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- firstpass 폴더를 빼는 이유는 ../Assembly-CSharp/Assembly-CSharp.csproj와 같다. -->
+    <Compile Include="$(SrpAssets)/**/Editor/**/*.cs"
+             Exclude="@(SrpAsmdefFile->'%(RootDir)%(Directory)**/*.cs');$(SrpAssets)/Plugins/**/*.cs;$(SrpAssets)/Standard Assets/**/*.cs;$(SrpAssets)/Pro Standard Assets/**/*.cs" />
+    <ProjectReference Include="../Assembly-CSharp/Assembly-CSharp.csproj" />
+    <ProjectReference Include="../Srp.Runtime/Srp.Runtime.csproj" />
+    <ProjectReference Include="../Srp.Simulation/Srp.Simulation.csproj" />
+  </ItemGroup>
+</Project>

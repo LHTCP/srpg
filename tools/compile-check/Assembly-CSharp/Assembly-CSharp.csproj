@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Unity의 미리 정의된 어셈블리 Assembly-CSharp를 흉내 낸다.
+    asmdef 폴더에도, Editor 폴더에도 들지 않은 Assets의 나머지 스크립트다. 에디터와 플레이어 양쪽에 들어간다.
+    autoReferenced인 asmdef 어셈블리(Srp.Runtime, Srp.Simulation)와 패키지 어셈블리를 참조한다.
+  -->
+  <PropertyGroup>
+    <SrpPackageAssemblies>true</SrpPackageAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <!--
+      Assets/Plugins 같은 firstpass 폴더는 Unity에서 다른 어셈블리(Assembly-CSharp-firstpass)가 된다.
+      여기서는 일부러 빼 두어, 그런 스크립트가 생기면 실행 스크립트의 소스 대조에서 드러나게 한다.
+    -->
+    <Compile Include="$(SrpAssets)/**/*.cs"
+             Exclude="$(SrpAssets)/**/Editor/**/*.cs;@(SrpAsmdefFile->'%(RootDir)%(Directory)**/*.cs');$(SrpAssets)/Plugins/**/*.cs;$(SrpAssets)/Standard Assets/**/*.cs;$(SrpAssets)/Pro Standard Assets/**/*.cs" />
+    <ProjectReference Include="../Srp.Runtime/Srp.Runtime.csproj" />
+    <ProjectReference Include="../Srp.Simulation/Srp.Simulation.csproj" />
+  </ItemGroup>
+</Project>

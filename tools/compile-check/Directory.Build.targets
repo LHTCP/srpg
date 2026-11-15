@@ -1,0 +1,149 @@
+<Project>
+  <!--
+    csproj가 적은 것(소스, 프로젝트 참조, 어셈블리 성격)에 Unity가 자동으로 붙이는 참조와 전처리 기호를 더하고,
+    "아무것도 컴파일하지 않고 오류 0으로 끝나는" 일을 막는 확인을 건다.
+    설명: docs/project/logic-tests.md
+  -->
+
+  <PropertyGroup>
+    <SrpIsEditor>false</SrpIsEditor>
+    <SrpIsEditor Condition="'$(SrpVariant)' == 'editor'">true</SrpIsEditor>
+
+    <!--
+      전처리 기호는 여기 적은 것이 전부다. 저장소 코드가 쓰는 기호가 이 둘뿐이라서다.
+      다른 기호를 쓰기 시작하면 실행 스크립트가 실패로 알려 준다(scripts/run-compile-check.sh의 known_symbols).
+    -->
+    <DefineConstants></DefineConstants>
+    <DefineConstants Condition="'$(SrpIsEditor)' == 'true'">UNITY_EDITOR;UNITY_INCLUDE_TESTS</DefineConstants>
+
+    <!-- editor 변형은 에디터용 엔진 DLL, player 변형은 플레이어용 엔진 DLL(에디터 전용 멤버가 빠져 있다)을 쓴다. -->
+    <SrpEngineDir>$(SrpPlayerManaged)</SrpEngineDir>
+    <SrpEngineDir Condition="'$(SrpIsEditor)' == 'true'">$(SrpEditorManaged)</SrpEngineDir>
+  </PropertyGroup>
+
+  <!-- 엔진 모듈. UnityEditor는 editor 변형에서만 보인다. -->
+  <ItemGroup>
+    <Reference Include="$(SrpEngineDir)/UnityEngine.dll;$(SrpEngineDir)/UnityEngine.*.dll" />
+    <SrpRequiredFile Include="$(SrpEngineDir)/UnityEngine.dll;$(SrpEngineDir)/UnityEngine.CoreModule.dll" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(SrpIsEditor)' == 'true'">
+    <Reference Include="$(SrpEditorManaged)/UnityEditor.dll;$(SrpEditorManaged)/UnityEditor.*.dll" />
+    <SrpRequiredFile Include="$(SrpEditorManaged)/UnityEditor.dll;$(SrpEditorManaged)/UnityEditor.CoreModule.dll" />
+  </ItemGroup>
+
+  <!-- 기본 라이브러리: 프로젝트 설정의 API 호환 수준(.NET Standard 2.1)에서 Unity가 주는 참조 그대로. -->
+  <ItemGroup Condition="'$(SrpEditorApiProfile)' != 'true'">
+    <Reference Include="$(SrpNetStandard)/ref/2.1.0/*.dll" />
+    <Reference Include="$(SrpNetStandard)/compat/2.1.0/shims/netstandard/*.dll" />
+    <Reference Include="$(SrpNetStandard)/compat/2.1.0/shims/netfx/*.dll" />
+    <Reference Include="$(SrpNetStandard)/Extensions/2.0.0/*.dll" />
+    <SrpRequiredFile Include="$(SrpNetStandard)/ref/2.1.0/netstandard.dll" />
+  </ItemGroup>
+  <!-- 에디터 전용 어셈블리는 Unity가 .NET Framework 4.8 프로필로 컴파일한다. -->
+  <ItemGroup Condition="'$(SrpEditorApiProfile)' == 'true'">
+    <SrpNet48Dll Include="mscorlib;System;System.Core;System.Data;System.Data.DataSetExtensions;System.Drawing;System.Xml;System.Xml.Linq" />
+    <SrpNet48Dll Include="System.Numerics;System.Numerics.Vectors;System.Net.Http;System.IO.Compression;System.IO.Compression.FileSystem" />
+    <SrpNet48Dll Include="System.Runtime.Serialization;System.Transactions;System.ComponentModel.Composition;Microsoft.CSharp" />
+    <Reference Include="@(SrpNet48Dll->'$(SrpNet48)/%(Identity).dll')" />
+    <Reference Include="$(SrpNet48)/Facades/*.dll" />
+    <SrpRequiredFile Include="@(SrpNet48Dll->'$(SrpNet48)/%(Identity).dll')" />
+    <SrpRequiredFile Include="$(SrpNet48)/Facades/netstandard.dll" />
+  </ItemGroup>
+
+  <!--
+    asmdef 어셈블리: Unity는 asmdef에 적지 않아도 UnityEngine.UI(에디터에서는 UnityEditor.UI도)를 참조에 넣는다.
+    그래서 "asmdef에 UI가 없는 어셈블리가 UI를 쓴다"는 Unity에서 오류가 아니다. Unity.TextMeshPro 같은 다른 패키지는
+    asmdef에 적어야 보인다.
+  -->
+  <ItemGroup Condition="'$(SrpPackageAssemblies)' != 'true'">
+    <SrpDll Include="$(SrpScriptAssemblies)/UnityEngine.UI.dll" />
+    <SrpDll Condition="'$(SrpIsEditor)' == 'true'" Include="$(SrpScriptAssemblies)/UnityEditor.UI.dll" />
+  </ItemGroup>
+
+  <!--
+    미리 정의된 어셈블리(Assembly-CSharp, Assembly-CSharp-Editor): 자동 참조되는 패키지 어셈블리를 모두 본다.
+    Library/ScriptAssemblies에서 테스트·문서 예제·코드 생성용과 프로젝트 자체 산출물을 뺀 것으로 근사한다.
+    프로젝트 자체 산출물은 Library에 남은 예전 빌드가 아니라 방금 컴파일한 프로젝트 참조를 써야 한다.
+  -->
+  <ItemGroup Condition="'$(SrpPackageAssemblies)' == 'true'">
+    <_SrpPackageExclude Include="$(SrpScriptAssemblies)/Assembly-CSharp*.dll" />
+    <_SrpPackageExclude Include="@(SrpAsmdefFile->'$(SrpScriptAssemblies)/%(Filename).dll')" />
+    <_SrpPackageExclude Include="$(SrpScriptAssemblies)/*Test*.dll;$(SrpScriptAssemblies)/*DocCode*.dll;$(SrpScriptAssemblies)/*.CodeGen.dll" />
+    <_SrpPackageExclude Condition="'$(SrpIsEditor)' != 'true'" Include="$(SrpScriptAssemblies)/*Editor*.dll;$(SrpScriptAssemblies)/PPv2URPConverters.dll" />
+    <Reference Include="$(SrpScriptAssemblies)/*.dll" Exclude="@(_SrpPackageExclude)" />
+    <SrpRequiredFile Include="$(SrpScriptAssemblies)/UnityEngine.UI.dll" />
+  </ItemGroup>
+
+  <!-- 테스트 어셈블리(asmdef의 TestAssemblies, 또는 Assembly-CSharp-Editor): 테스트 러너를 참조한다. -->
+  <ItemGroup Condition="'$(SrpTestAssemblies)' == 'true'">
+    <SrpDll Include="$(SrpScriptAssemblies)/UnityEngine.TestRunner.dll;$(SrpScriptAssemblies)/UnityEditor.TestRunner.dll" />
+  </ItemGroup>
+
+  <!-- nunit은 UNITY_INCLUDE_TESTS가 있을 때 모든 어셈블리에 자동 참조된다. 플레이어 빌드에는 없다. -->
+  <ItemGroup Condition="'$(SrpIsEditor)' == 'true' and '$(SrpNUnitDll)' != ''">
+    <SrpDll Include="$(SrpNUnitDll)" />
+  </ItemGroup>
+
+  <!-- SrpDll: 파일 하나를 정확히 가리키는 참조. 없으면 컴파일 전에 실패한다. -->
+  <ItemGroup>
+    <Reference Include="@(SrpDll->Distinct())" />
+    <SrpRequiredFile Include="@(SrpDll->Distinct())" />
+  </ItemGroup>
+
+  <Target Name="SrpCheckInputs" BeforeTargets="ResolveAssemblyReferences;CoreCompile">
+    <Error Code="SRPCC01" Condition="'$(SrpVariant)' != 'editor' and '$(SrpVariant)' != 'player'"
+           Text="SrpVariant는 editor 또는 player여야 합니다(현재 '$(SrpVariant)'). bash ./scripts/run-compile-check.sh로 실행하세요." />
+    <Error Code="SRPCC02" Condition="'$(SrpUnityData)' == '' or '$(SrpPlayerManaged)' == '' or '$(SrpLibrary)' == ''"
+           Text="Unity 설치 경로 또는 Library 경로가 비어 있습니다. bash ./scripts/run-compile-check.sh로 실행하세요." />
+    <Error Code="SRPCC02" Condition="'$(SrpIsEditor)' == 'true' and '$(SrpNUnitDll)' == ''"
+           Text="nunit.framework.dll 경로가 비어 있습니다. bash ./scripts/run-compile-check.sh로 실행하세요." />
+    <Error Code="SRPCC03" Condition="!$([System.String]::Copy(';$(SrpVariants);').Contains(';$(SrpVariant);'))"
+           Text="$(MSBuildProjectName)은 $(SrpVariant) 변형에 들어가지 않는 어셈블리입니다(SrpVariants=$(SrpVariants))." />
+
+    <Error Code="SRPCC04" Condition="'@(Compile)' == ''"
+           Text="$(MSBuildProjectName): 컴파일할 소스가 0개입니다. 소스 경로가 맞는지 확인하세요(Assets=$(SrpAssets))." />
+
+    <ItemGroup>
+      <_SrpMissingFile Include="@(SrpRequiredFile)" Condition="!Exists('%(FullPath)')" />
+    </ItemGroup>
+    <Error Code="SRPCC05" Condition="'@(_SrpMissingFile)' != ''"
+           Text="$(MSBuildProjectName): 필요한 참조 DLL이 없습니다: @(_SrpMissingFile, ', ')" />
+
+    <!-- asmdef가 바뀌면 이 프로젝트의 참조·변형도 같은 뜻으로 고쳐야 한다. 조용히 어긋나지 않게 내용을 대조한다. -->
+    <PropertyGroup Condition="'$(SrpAsmdef)' != ''">
+      <_SrpAsmdefPath>$(SrpAssets)/$(SrpAsmdef)</_SrpAsmdefPath>
+    </PropertyGroup>
+    <Error Code="SRPCC06" Condition="'$(SrpAsmdef)' != '' and !Exists('$(_SrpAsmdefPath)')"
+           Text="$(MSBuildProjectName): asmdef가 없습니다: $(_SrpAsmdefPath). 옮기거나 지웠다면 tools/compile-check의 프로젝트도 맞추세요." />
+    <PropertyGroup Condition="'$(SrpAsmdef)' != ''">
+      <_SrpAsmdefText>$([System.IO.File]::ReadAllText('$(_SrpAsmdefPath)'))</_SrpAsmdefText>
+      <_SrpAsmdefActual>$([System.Text.RegularExpressions.Regex]::Replace($(_SrpAsmdefText), '\s', ''))</_SrpAsmdefActual>
+    </PropertyGroup>
+    <Error Code="SRPCC07" Condition="'$(SrpAsmdef)' != '' and '$(_SrpAsmdefActual)' != '$(SrpAsmdefExpected)'"
+           Text="$(MSBuildProjectName): Assets/$(SrpAsmdef) 내용이 이 프로젝트가 흉내 내는 상태와 다릅니다. asmdef를 바꿨다면 tools/compile-check/$(MSBuildProjectName)/$(MSBuildProjectName).csproj의 참조·변형을 같은 뜻으로 고치고 SrpAsmdefExpected를 다음 값으로 바꾸세요: $(_SrpAsmdefActual)" />
+  </Target>
+
+  <!-- 컴파일러에 실제로 넘어가는 소스 목록과 참조 수를 남긴다. 실행 스크립트가 읽어 파일 수를 출력하고 Assets와 대조한다. -->
+  <Target Name="SrpWriteReport" BeforeTargets="CoreCompile" DependsOnTargets="SrpCheckInputs">
+    <PropertyGroup>
+      <_SrpReferenceCount>@(ReferencePathWithRefAssemblies->Count())</_SrpReferenceCount>
+    </PropertyGroup>
+    <ItemGroup>
+      <_SrpReportLine Include="variant=$(SrpVariant)" />
+      <_SrpReportLine Include="assembly=$(AssemblyName)" />
+      <_SrpReportLine Include="defines=$(DefineConstants.Replace(';', ' '))" />
+      <_SrpReportLine Include="references=$(_SrpReferenceCount)" />
+      <_SrpReportLine Include="source=$([MSBuild]::MakeRelative('$(SrpSourceRootFull)', '%(Compile.FullPath)'))" />
+    </ItemGroup>
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(SrpReportFile)'))" />
+    <WriteLinesToFile File="$(SrpReportFile)" Lines="@(_SrpReportLine)" Overwrite="true" />
+  </Target>
+
+  <!-- 컴파일이 성공했을 때만 산출물 경로를 덧붙인다. 실행 스크립트는 이 줄과 DLL이 있어야 통과로 본다. -->
+  <Target Name="SrpWriteReportOutput" AfterTargets="CoreCompile">
+    <PropertyGroup>
+      <_SrpOutputPath>@(IntermediateAssembly->'%(FullPath)')</_SrpOutputPath>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(SrpReportFile)" Lines="output=$(_SrpOutputPath)" Overwrite="false" />
+  </Target>
+</Project>
