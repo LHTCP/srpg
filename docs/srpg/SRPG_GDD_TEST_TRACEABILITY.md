@@ -1,5 +1,22 @@
 # SRPG GDD-테스트 추적 매핑표 (v2)
 
+## 2026-11-15 update - 8차 기획 결정 추적
+
+| Item | Tests | Status | Notes |
+| --- | --- | --- | --- |
+| 승리 조건 목록과 패배 조건 목록, 판정 순서 (기준서 §12, 계획 문서 Q16) | `SrpM1Phase8Tests.Victory_DefeatListRanksBeforeVictoryListAndSurvivesJson`, `SrpM1Phase7Tests.Victory_MapCanAddRegisteredCondition`, `Victory_AddedConditionRanksAfterBuiltInsAndCanDefeat`, `Victory_UnknownConditionIsSkippedButPreserved` | 완전 | 전멸 > 패배 조건 > 승리 조건. 저장 형식 왕복 포함 |
+| N라운드 버티기와 제한 라운드 (`survive_rounds`) | `SrpM1Phase8Tests.Victory_SurviveRoundsDecidesWhenRoundEnds` | 완전 | 라운드가 끝나는 순간 성립(`SrpBattleFlow.EndRound`). 컨트롤러의 라운드 종료 판정은 PlayMode 미커버 |
+| 칸 도달·탈출 (`reach_tile`) | `SrpM1Phase8Tests.Victory_ReachTileNeedsMatchingUnitOnTile` | 완전 | 대상 유닛 지정(모든 유닛/지휘관/템플릿) 포함 |
+| 유닛 보호 (`unit_lost`) | `SrpM1Phase8Tests.Victory_UnitLostInDefeatListDefeatsOwner` | 완전 | 대상이 여럿이면 모두 잃어야 성립 |
+| 거점 N라운드 유지 (`hold_point`) | `SrpM1Phase8Tests.Victory_HoldPointCountsConsecutiveRoundEnds` | 완전 | 연속 유지, 복제(되감기) 시 진행도 유지 포함 |
+| 추가 조건의 적 AI | `SrpM1Phase8Tests.EnemyAi_MovesOntoReachTile`, `EnemyAi_AvoidsTileThatDefeatsItsOwner`, `EnemyAi_TreatsProtectedUnitLikeCommander`, `EnemyAi_EntersAndKeepsHoldZone`, `EnemyAi_TimePressureChangesHoldAndAdvance` | 부분 | 내장 네 조건만. 가중치는 판단용 임시값. 사람 상대 체감은 Unity 확인 필요 |
+| 추가 조건 검증 랩 (`M1ConditionLab`) | `SrpM1Phase8Tests.ConditionLab_DeclaresAllFourConditions`, `ConditionLab_SimulationEndsByListedConditions`, `SrpM1ContentTests.Presets_AreInternallyConsistent` | 부분 | AI끼리는 전령 도달로 끝나지 않는다(0%). 화면 표시는 미확인 |
+| 맵 메이커의 추가 조건 편집 규칙 | `SrpM1Phase8Tests.MakerCondition_BuildKeepsOnlyUsedFieldsAndRejectsInvalid`, `MakerCondition_AddedConditionsWorkInBattleAfterSave` | 부분 | 순수 로직(`SrpMapConditionEdit`)과 저장 → 전투 판정까지 고정. 메이커 화면은 미확인 |
+| 권총/소총 구분 (밸런스 지시 4, 계획 문서 Q18) | `SrpM1Phase8Tests.Firearm_PistolDealsLessThanRifleAndTypeCanBeSetInData` | 완전 | 권총 HP = 공격력 + 4(브릿지). 유닛 메이커 편집 항목은 없다 |
+| 회피의 방향·속도 가중치 (`TBD-003`, 계획 문서 Q18) | `SrpM1Phase8Tests.Dodge_ChanceDependsOnDirectionAndSpeed`, `Dodge_ResolutionUsesPerTargetChance` | 부분 | 수치는 브릿지. HUD의 대상별 성공률 표시는 미확인 |
+| 로비의 적 AI 켜기/끄기 (계획 문서 Q18) | 없음 | 미커버 | 로비 버튼이 `SrpGameSettings.EnemyAiEnabled`를 바꾼다. 화면 확인 항목은 계획 문서 15절 |
+| 태세 선택 시점의 해석 (기준서 §4, 계획 문서 Q17) | `SrpM1Phase8Tests.CanChangeStance_OnlyBeforeFirstAction` | 부분 | 코드 변경 없음(기준서 문구만 추가) |
+
 ## 2026-11-15 update - 8차 추적
 
 | Item | Tests | Status | Notes |
