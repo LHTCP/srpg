@@ -50,6 +50,8 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
     {
         public SrpBattleState state;
         public int remainingMove;
+        /// <summary>이 행동을 한 진영. 핫시트 진영별 되감기 횟수에 쓴다.</summary>
+        public int owner;
     }
 
     int _undoResumeRemainingMove;
@@ -119,8 +121,8 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         _state = SrpBattleState.FromMap(initialMap);
         SeedBattleRandom();
         _undo.Clear();
-        _rewindBudget.Reset(SrpGameSettings.RewindLimit);
         _enemyAiEnabled = SrpGameSettings.EnemyAiEnabled;
+        ResetRewindBudget();
 
         BuildGrid();
         if (frameCameraOnStart) FrameBoardCamera();
@@ -893,7 +895,8 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
     {
         if (!CanUndo()) return;
         // 사용 횟수는 스냅숏 밖에 있으므로 아래 복원으로 되돌아가지 않는다.
-        _rewindBudget.TryConsume();
+        // 공유 모드(기본)에서는 진영과 무관하게 공유 횟수를 쓴다.
+        _rewindBudget.TryConsumeFor(_undo.Peek().owner);
         var snapshot = _undo.Pop();
         _state = snapshot.state;
         _undoResumeRemainingMove = snapshot.remainingMove;
@@ -914,19 +917,47 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         _hoverPreviewSkillRuntime = null;
         ResetTileColors();
         RefreshUnitViews();
-        LogLine(_rewindBudget.IsUnlimited
-            ? "— 되감기 —"
-            : $"— 되감기 — (남은 횟수 {_rewindBudget.Remaining}/{_rewindBudget.Limit})");
+        if (_rewindBudget.IsUnlimited)
+            LogLine("— 되감기 —");
+        else if (_rewindBudget.PerOwner)
+            LogLine($"— 되감기 — (P{snapshot.owner} 남은 횟수 {_rewindBudget.RemainingFor(snapshot.owner)}/{_rewindBudget.Limit})");
+        else
+            LogLine($"— 되감기 — (남은 횟수 {_rewindBudget.Remaining}/{_rewindBudget.Limit})");
         _postUndoHint = true;
         _gameOver = false;
         _victoryResult = SrpVictoryResult.Undecided();
         UpdateHud();
     }
 
-    /// <summary>지금 되감기를 할 수 있는가: 되돌릴 행동이 있고, 적 AI 차례가 아니고, 남은 횟수가 있다.</summary>
+    /// <summary>판 시작 때 되감기 횟수를 채운다. 진영별 모드는 핫시트(적 AI 끔)에서만 켠다.</summary>
+    void ResetRewindBudget()
+    {
+        _rewindBudget.Reset(SrpGameSettings.RewindLimit,
+            SrpGameSettings.RewindPerSideInHotseat && !_enemyAiEnabled);
+    }
+
+    /// <summary>지금 행동 중인 진영. 진영별 되감기 횟수의 표시와 판정에 쓴다.</summary>
+    int CurrentRewindOwner()
+    {
+        var current = _state != null ? GetUnit(_state.CurrentUnitId) : null;
+        return current != null ? current.owner : PlayerOwner;
+    }
+
+    /// <summary>진영별 모드에서 마지막 기록이 상대 진영의 행동이면 true. 상대 행동은 되감을 수 없다.</summary>
+    bool IsLastUndoOtherSide()
+    {
+        return _rewindBudget.PerOwner && _undo.Count > 0 && _undo.Peek().owner != CurrentRewindOwner();
+    }
+
+    /// <summary>
+    /// 지금 되감기를 할 수 있는가: 되돌릴 행동이 있고, 적 AI 차례가 아니고, 그 행동을 한 진영(공유 모드는 공유)의
+    /// 남은 횟수가 있다. 진영별 모드에서는 지금 행동 중인 진영의 행동만 되감는다.
+    /// </summary>
     bool CanUndo()
     {
-        return _undo.Count > 0 && _phase != Phase.EnemyActing && _rewindBudget.CanRewind;
+        if (_undo.Count == 0 || _phase == Phase.EnemyActing || IsLastUndoOtherSide())
+            return false;
+        return _rewindBudget.CanRewindFor(_undo.Peek().owner);
     }
 
     // ── 게임 흐름 ────────────────────────────────────────────────────────────
@@ -941,7 +972,12 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         // 적 AI 행동은 되감기 대상이 아니다.
         if (_phase == Phase.EnemyActing)
             return;
-        _undo.Push(new UndoSnapshot { state = _state.Clone(), remainingMove = _remainingMove });
+        _undo.Push(new UndoSnapshot
+        {
+            state = _state.Clone(),
+            remainingMove = _remainingMove,
+            owner = CurrentRewindOwner(),
+        });
     }
 
     bool TryResolveOverwatchAgainst(SrpUnitRuntime target)
@@ -1211,7 +1247,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         ClearUnitFeedbackObjects();
 
         _undo.Clear();
-        _rewindBudget.Reset(SrpGameSettings.RewindLimit);
+        ResetRewindBudget();
         _log.Clear();
         _selectedId = null;
         _phase = Phase.Idle;

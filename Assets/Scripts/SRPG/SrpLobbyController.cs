@@ -28,6 +28,7 @@ public class SrpLobbyController : MonoBehaviour
     TMP_Dropdown    _ddMapSelect;
     Button          _btnEnemyAi;
     Button          _btnRewindLimit;
+    Button          _btnRewindPerSide;
     static readonly SrpMapPreset[] PresetValues =
     {
         SrpMapPreset.M1OpeningPrototype,
@@ -142,7 +143,7 @@ public class SrpLobbyController : MonoBehaviour
 
         MakeSeparator(centerGo.transform);
 
-        // 전투 설정 줄. 패널 높이를 늘리지 않도록 두 버튼을 한 줄에 둔다.
+        // 전투 설정 줄. 패널 높이를 늘리지 않도록 버튼을 한 줄에 둔다.
         var battleOptionRow = MakeHorizontalRow(centerGo.transform, 44);
         // 적 AI 켜기/끄기. 끄면 양 진영을 직접 조작한다(핫시트).
         _btnEnemyAi = MakeButton(battleOptionRow.transform, "", OnToggleEnemyAi, 44, 20);
@@ -150,6 +151,9 @@ public class SrpLobbyController : MonoBehaviour
         // 되감기 횟수 한도. 끔 → 3 → 5 → 10 → 무제한 순으로 바꾼다(기본 무제한).
         _btnRewindLimit = MakeButton(battleOptionRow.transform, "", OnCycleRewindLimit, 44, 20);
         RefreshRewindLimitButton();
+        // 핫시트(적 AI 끔)의 되감기 횟수: 공유(기본) / 진영별.
+        _btnRewindPerSide = MakeButton(battleOptionRow.transform, "", OnToggleRewindPerSide, 44, 20);
+        RefreshRewindPerSideButton();
 
         // 전투 시작 버튼
         MakeButton(centerGo.transform, "전투 시작", OnStartBattle, 72, 30);
@@ -244,6 +248,24 @@ public class SrpLobbyController : MonoBehaviour
         _btnRewindLimit.GetComponent<Image>().color = SrpGameSettings.RewindLimit == 0
             ? new Color(0.45f, 0.25f, 0.22f, 0.9f)
             : new Color(0.28f, 0.38f, 0.55f, 0.9f);
+    }
+
+    void OnToggleRewindPerSide()
+    {
+        SrpGameSettings.RewindPerSideInHotseat = !SrpGameSettings.RewindPerSideInHotseat;
+        RefreshRewindPerSideButton();
+    }
+
+    void RefreshRewindPerSideButton()
+    {
+        if (_btnRewindPerSide == null)
+            return;
+        var label = _btnRewindPerSide.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null)
+            label.text = SrpGameSettings.RewindPerSideInHotseat
+                ? "핫시트: 진영별"
+                : "핫시트: 공유";
+        _btnRewindPerSide.GetComponent<Image>().color = new Color(0.28f, 0.38f, 0.55f, 0.9f);
     }
 
     void OnStartBattle()

@@ -64,6 +64,33 @@ public class SrpM1Phase9Tests
         Assert.That(budget.IsUnlimited, Is.True);
     }
 
+    [TestCase(TestName = "핫시트 되감기는 기본이 공유이고 진영별 모드에서는 진영마다 따로 센다")]
+    public void Rewind_SharedByDefaultAndPerOwnerWhenEnabled()
+    {
+        Assert.That(SrpGameSettings.RewindPerSideInHotseat, Is.False);
+
+        var shared = new SrpRewindBudget(2);
+        Assert.That(shared.TryConsumeFor(0), Is.True);
+        Assert.That(shared.TryConsumeFor(1), Is.True);
+        Assert.That(shared.CanRewindFor(0), Is.False);
+        Assert.That(shared.CanRewindFor(1), Is.False);
+        Assert.That(shared.CanRewind, Is.False);
+
+        var perOwner = new SrpRewindBudget(2, perOwner: true);
+        Assert.That(perOwner.TryConsumeFor(0), Is.True);
+        Assert.That(perOwner.TryConsumeFor(0), Is.True);
+        Assert.That(perOwner.CanRewindFor(0), Is.False);
+        Assert.That(perOwner.TryConsumeFor(0), Is.False);
+        Assert.That(perOwner.RemainingFor(1), Is.EqualTo(2));
+        Assert.That(perOwner.TryConsumeFor(1), Is.True);
+        Assert.That(perOwner.UsedFor(0), Is.EqualTo(2));
+        Assert.That(perOwner.UsedFor(1), Is.EqualTo(1));
+
+        perOwner.Reset(2, perOwner: true);
+        Assert.That(perOwner.RemainingFor(0), Is.EqualTo(2));
+        Assert.That(perOwner.RemainingFor(1), Is.EqualTo(2));
+    }
+
     [TestCase(TestName = "로비 되감기 버튼은 끔, 3, 5, 10, 무제한 순으로 돈다")]
     public void Rewind_LobbyCycleOrder()
     {

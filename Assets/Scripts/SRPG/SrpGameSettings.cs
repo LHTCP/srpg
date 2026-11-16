@@ -26,6 +26,13 @@ public static class SrpGameSettings
     public static int RewindLimit = SrpRewindBudget.Unlimited;
 
     /// <summary>
+    /// 핫시트(적 AI 끔)에서 되감기 횟수를 진영별로 따로 셀지. false(기본, 추천안)면 두 진영이 횟수 하나를 같이 쓰고
+    /// 누구의 행동이든 되감을 수 있다(기존 동작). true면 진영마다 <see cref="RewindLimit"/>회씩 받고 자기 진영 행동만 되감는다.
+    /// 적 AI가 켜져 있으면 쓰지 않는다. 기획 미정이라 설정으로 둔다. 로비의 "핫시트" 버튼으로 바꾼다.
+    /// </summary>
+    public static bool RewindPerSideInHotseat = false;
+
+    /// <summary>
     /// 전투 난수(회피 판정) 시드. null이면 전투를 시작할 때마다 시각 기반 시드를 쓴다.
     /// 테스트처럼 결과를 재현해야 할 때만 값을 넣는다.
     /// </summary>
