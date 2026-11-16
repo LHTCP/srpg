@@ -27,6 +27,7 @@ public class SrpLobbyController : MonoBehaviour
     TextMeshProUGUI _txtLoadStatus;
     TMP_Dropdown    _ddMapSelect;
     Button          _btnEnemyAi;
+    Button          _btnRewindLimit;
     static readonly SrpMapPreset[] PresetValues =
     {
         SrpMapPreset.M1OpeningPrototype,
@@ -141,9 +142,14 @@ public class SrpLobbyController : MonoBehaviour
 
         MakeSeparator(centerGo.transform);
 
+        // 전투 설정 줄. 패널 높이를 늘리지 않도록 두 버튼을 한 줄에 둔다.
+        var battleOptionRow = MakeHorizontalRow(centerGo.transform, 44);
         // 적 AI 켜기/끄기. 끄면 양 진영을 직접 조작한다(핫시트).
-        _btnEnemyAi = MakeButton(centerGo.transform, "", OnToggleEnemyAi, 44, 22);
+        _btnEnemyAi = MakeButton(battleOptionRow.transform, "", OnToggleEnemyAi, 44, 20);
         RefreshEnemyAiButton();
+        // 되감기 횟수 한도. 끔 → 3 → 5 → 10 → 무제한 순으로 바꾼다(기본 무제한).
+        _btnRewindLimit = MakeButton(battleOptionRow.transform, "", OnCycleRewindLimit, 44, 20);
+        RefreshRewindLimitButton();
 
         // 전투 시작 버튼
         MakeButton(centerGo.transform, "전투 시작", OnStartBattle, 72, 30);
@@ -215,10 +221,28 @@ public class SrpLobbyController : MonoBehaviour
         var label = _btnEnemyAi.GetComponentInChildren<TextMeshProUGUI>();
         if (label != null)
             label.text = SrpGameSettings.EnemyAiEnabled
-                ? "적 AI: 켬 (적 진영을 AI가 조작)"
-                : "적 AI: 끔 (양 진영을 직접 조작)";
+                ? "적 AI: 켬"
+                : "적 AI: 끔 (핫시트)";
         _btnEnemyAi.GetComponent<Image>().color = SrpGameSettings.EnemyAiEnabled
             ? new Color(0.18f, 0.50f, 0.22f, 0.95f)
+            : new Color(0.28f, 0.38f, 0.55f, 0.9f);
+    }
+
+    void OnCycleRewindLimit()
+    {
+        SrpGameSettings.RewindLimit = SrpRewindBudget.NextLobbyLimit(SrpGameSettings.RewindLimit);
+        RefreshRewindLimitButton();
+    }
+
+    void RefreshRewindLimitButton()
+    {
+        if (_btnRewindLimit == null)
+            return;
+        var label = _btnRewindLimit.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null)
+            label.text = $"되감기: {SrpRewindBudget.DescribeLimit(SrpGameSettings.RewindLimit)}";
+        _btnRewindLimit.GetComponent<Image>().color = SrpGameSettings.RewindLimit == 0
+            ? new Color(0.45f, 0.25f, 0.22f, 0.9f)
             : new Color(0.28f, 0.38f, 0.55f, 0.9f);
     }
 

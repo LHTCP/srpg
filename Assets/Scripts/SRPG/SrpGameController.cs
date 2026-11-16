@@ -54,6 +54,9 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
 
     int _undoResumeRemainingMove;
 
+    /// <summary>되감기 횟수 한도. 스냅숏(_state) 밖에 두어 되감기로 사용 횟수가 돌아가지 않는다. 판 시작 때 채운다.</summary>
+    readonly SrpRewindBudget _rewindBudget = new SrpRewindBudget();
+
     // ── 입력·페이즈 상태 ─────────────────────────────────────────────────────
 
     enum Phase { Idle, UnitActive, SelectingSkillTarget, EnemyActing }
@@ -116,6 +119,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         _state = SrpBattleState.FromMap(initialMap);
         SeedBattleRandom();
         _undo.Clear();
+        _rewindBudget.Reset(SrpGameSettings.RewindLimit);
         _enemyAiEnabled = SrpGameSettings.EnemyAiEnabled;
 
         BuildGrid();
@@ -887,7 +891,9 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
 
     void OnUndo()
     {
-        if (_undo.Count == 0 || _phase == Phase.EnemyActing) return;
+        if (!CanUndo()) return;
+        // 사용 횟수는 스냅숏 밖에 있으므로 아래 복원으로 되돌아가지 않는다.
+        _rewindBudget.TryConsume();
         var snapshot = _undo.Pop();
         _state = snapshot.state;
         _undoResumeRemainingMove = snapshot.remainingMove;
@@ -908,11 +914,19 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         _hoverPreviewSkillRuntime = null;
         ResetTileColors();
         RefreshUnitViews();
-        LogLine("— 되감기 —");
+        LogLine(_rewindBudget.IsUnlimited
+            ? "— 되감기 —"
+            : $"— 되감기 — (남은 횟수 {_rewindBudget.Remaining}/{_rewindBudget.Limit})");
         _postUndoHint = true;
         _gameOver = false;
         _victoryResult = SrpVictoryResult.Undecided();
         UpdateHud();
+    }
+
+    /// <summary>지금 되감기를 할 수 있는가: 되돌릴 행동이 있고, 적 AI 차례가 아니고, 남은 횟수가 있다.</summary>
+    bool CanUndo()
+    {
+        return _undo.Count > 0 && _phase != Phase.EnemyActing && _rewindBudget.CanRewind;
     }
 
     // ── 게임 흐름 ────────────────────────────────────────────────────────────
@@ -1197,6 +1211,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         ClearUnitFeedbackObjects();
 
         _undo.Clear();
+        _rewindBudget.Reset(SrpGameSettings.RewindLimit);
         _log.Clear();
         _selectedId = null;
         _phase = Phase.Idle;

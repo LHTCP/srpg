@@ -20,6 +20,12 @@ public static class SrpGameSettings
     public static bool EnemyAiEnabled = true;
 
     /// <summary>
+    /// 한 판에 쓸 수 있는 되감기 횟수. 0 = 끔, N = N회, <see cref="SrpRewindBudget.Unlimited"/>(음수) = 무제한.
+    /// 기본값은 무제한(기존 동작). 로비의 "되감기" 버튼으로 바꾼다. 맵마다 다르게 주지 않는 전역 값이다.
+    /// </summary>
+    public static int RewindLimit = SrpRewindBudget.Unlimited;
+
+    /// <summary>
     /// 전투 난수(회피 판정) 시드. null이면 전투를 시작할 때마다 시각 기반 시드를 쓴다.
     /// 테스트처럼 결과를 재현해야 할 때만 값을 넣는다.
     /// </summary>
