@@ -1,5 +1,14 @@
 # SRPG GDD-테스트 추적 매핑표 (v2)
 
+## 2026-11-16 update - 9차 되감기 횟수 설정 추적
+
+| Item | Tests | Status | Notes |
+| --- | --- | --- | --- |
+| 되감기 횟수 한도 기본값 무제한 (계획 문서 16절) | `SrpM1Phase9Tests.Rewind_DefaultIsUnlimited` | 완전 | `SrpGameSettings.RewindLimit` 기본값과 무제한 소모 |
+| 한도 0(끔)과 한도 N 소진 | `SrpM1Phase9Tests.Rewind_ZeroLimitDisablesRewind`, `Rewind_LimitedBudgetRunsOut` | 완전 | 소진 뒤 소모 시도는 상태를 바꾸지 않는다 |
+| 판 시작 초기화 | `SrpM1Phase9Tests.Rewind_ResetRefillsForNewBattle` | 부분 | 순수 로직만. 컨트롤러가 `Awake`/`ApplyMap`에서 부르는지와 되감기 복원 뒤 횟수가 돌아가지 않는지는 Unity 확인 필요 |
+| 로비 되감기 버튼 순환과 문구 | `SrpM1Phase9Tests.Rewind_LobbyCycleOrder` | 부분 | 값 순환과 문구만. 로비·HUD 화면은 미확인 |
+
 ## 2026-11-15 update - 8차 기획 결정 추적
 
 | Item | Tests | Status | Notes |
