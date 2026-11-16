@@ -91,6 +91,20 @@ public class SrpM1Phase9Tests
         Assert.That(perOwner.RemainingFor(1), Is.EqualTo(2));
     }
 
+    [TestCase(TestName = "진영별 되감기는 상대 진영의 활성화가 시작되면 그 전 기록을 버린다")]
+    public void Rewind_PerOwnerCutsHistoryWhenOpponentActivationStarts()
+    {
+        // P0 행동 → P1이 행동 없이 활성화 종료 → P0 차례: P1 활성화 시작 시점에 기록을 버려야
+        // P0이 P1의 활성화를 건너뛰어 되감지 못한다.
+        var perOwner = new SrpRewindBudget(3, perOwner: true);
+        Assert.That(perOwner.CutsHistoryAt(lastActionOwner: 0, nextActivationOwner: 1), Is.True);
+        Assert.That(perOwner.CutsHistoryAt(lastActionOwner: 0, nextActivationOwner: 0), Is.False);
+
+        // 공유 모드(기본)는 기존대로 기록을 유지한다.
+        var shared = new SrpRewindBudget(3);
+        Assert.That(shared.CutsHistoryAt(lastActionOwner: 0, nextActivationOwner: 1), Is.False);
+    }
+
     [TestCase(TestName = "로비 되감기 버튼은 끔, 3, 5, 10, 무제한 순으로 돈다")]
     public void Rewind_LobbyCycleOrder()
     {

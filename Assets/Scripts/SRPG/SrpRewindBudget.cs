@@ -94,6 +94,16 @@ public sealed class SrpRewindBudget
         return true;
     }
 
+    /// <summary>
+    /// 다음 활성화가 시작될 때 지금까지의 되감기 기록을 버려야 하는가. 진영별 모드에서 마지막 기록과 다른 진영의
+    /// 활성화가 시작되면 true다. 상대가 행동 없이 활성화를 끝내도 기록이 남지 않으므로, 기록의 진영만 봐서는
+    /// 상대의 활성화를 건너뛰어 되감을 수 있다. 공유 모드는 기존대로 기록을 유지한다.
+    /// </summary>
+    public bool CutsHistoryAt(int lastActionOwner, int nextActivationOwner)
+    {
+        return PerOwner && lastActionOwner != nextActivationOwner;
+    }
+
     int KeyFor(int owner)
     {
         return PerOwner ? owner : SharedKey;

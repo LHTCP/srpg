@@ -1210,6 +1210,9 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
 
         int nextId = SrpTurnOrder.AdvanceToNextUnit(_state);
         var next = GetUnit(nextId);
+        // 진영별 되감기: 상대 진영의 활성화가 시작되면(행동 없이 끝나거나 그로기 회복으로 넘어가도) 그 전 기록을 버린다.
+        if (next != null && _undo.Count > 0 && _rewindBudget.CutsHistoryAt(_undo.Peek().owner, next.owner))
+            _undo.Clear();
         if (next == null || next.eliminated)
         {
             AdvanceToNextActivation();
