@@ -275,7 +275,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 20343dc928307e34db6899091702b6fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  selectedColor: {r: 0.25, g: 0.6, b: 0.3, a: 0.95}
+  selectedColor: {r: 0.16, g: 0.42, b: 0.2, a: 0.95}
   unselectedColor: {r: 0.22, g: 0.33, b: 0.5, a: 0.9}
 --- !u!224 &755347851
 RectTransform:
