@@ -11,8 +11,9 @@ public class SrpLobbyController : MonoBehaviour
 {
     // ── 인스펙터 ───────────────────────────────────────────────────────────────
 
+    // 흰 글자와 명도 대비 4.5:1 이상이 되도록 어둡게 잡는다(이전 0.25/0.60/0.30은 약 3.9:1).
     [Tooltip("선택됐을 때 프리셋 버튼 강조 색상.")]
-    public Color selectedColor   = new Color(0.25f, 0.60f, 0.30f, 0.95f);
+    public Color selectedColor   = new Color(0.16f, 0.42f, 0.20f, 0.95f);
 
     [Tooltip("미선택 프리셋 버튼 기본 색상.")]
     public Color unselectedColor = new Color(0.22f, 0.33f, 0.50f, 0.90f);
@@ -27,6 +28,10 @@ public class SrpLobbyController : MonoBehaviour
     TextMeshProUGUI _txtLoadStatus;
     TMP_Dropdown    _ddMapSelect;
     Button          _btnEnemyAi;
+    // 프리셋 버튼 한 줄에 놓는 개수. 6개를 한 줄에 두면 버튼 폭이 약 84px라
+    // "프로토타입" 같은 라벨이 글자 단위로 세 줄 이상 꺾여 버튼 밖으로 넘친다.
+    const int PresetsPerRow = 3;
+
     static readonly SrpMapPreset[] PresetValues =
     {
         SrpMapPreset.M1OpeningPrototype,
@@ -98,6 +103,11 @@ public class SrpLobbyController : MonoBehaviour
 
         centerGo.AddComponent<Image>().color = new Color(0.08f, 0.10f, 0.14f, 0.92f);
 
+        // 패널 높이를 내용에 맞춘다. 고정 820px이면 아래쪽 메이커 버튼이 패널 배경 밖으로 넘친다.
+        var fitter = centerGo.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit   = ContentSizeFitter.FitMode.PreferredSize;
+        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+
         var vlg = centerGo.AddComponent<VerticalLayoutGroup>();
         vlg.padding             = new RectOffset(36, 36, 36, 36);
         vlg.spacing             = 16f;
@@ -114,14 +124,15 @@ public class SrpLobbyController : MonoBehaviour
         // 맵 선택 헤더
         MakeLabel(centerGo.transform, "맵 선택", 24, new Color(0.85f, 0.95f, 1f), 32);
 
-        // 프리셋 버튼 행
-        var presetRow = MakeHorizontalRow(centerGo.transform, 72);
-
+        // 프리셋 버튼 행 (한 줄에 PresetsPerRow개)
         _presetButtons = new Button[PresetValues.Length];
         _presetImages  = new Image[PresetValues.Length];
 
+        GameObject presetRow = null;
         for (int i = 0; i < PresetValues.Length; i++)
         {
+            if (i % PresetsPerRow == 0)
+                presetRow = MakeHorizontalRow(centerGo.transform, 64);
             int captured = i;
             var btn = MakeButtonInRow(presetRow.transform, PresetLabels[i], () => OnSelectPreset(captured), PresetValues[i]);
             _presetButtons[i] = btn;
@@ -137,7 +148,7 @@ public class SrpLobbyController : MonoBehaviour
         var jsonRow = MakeHorizontalRow(centerGo.transform, 48);
         MakeSmallButton(jsonRow.transform, "불러오기", OnLoadJson, 140f);
 
-        _txtLoadStatus = MakeLabel(centerGo.transform, "", 20, new Color(0.7f, 1f, 0.7f), 28);
+        _txtLoadStatus = MakeLabel(centerGo.transform, "", 22, new Color(0.7f, 1f, 0.7f), 28);
 
         MakeSeparator(centerGo.transform);
 
@@ -319,6 +330,7 @@ public class SrpLobbyController : MonoBehaviour
         tx.fontSize  = 22;
         tx.color     = Color.white;
         tx.alignment = TextAlignmentOptions.Center;
+        tx.margin    = new Vector4(6f, 2f, 6f, 2f);
         tx.text      = label;
         return b;
     }
@@ -396,7 +408,7 @@ public class SrpLobbyController : MonoBehaviour
         crt.offsetMin = new Vector2(8f, 0f);
         crt.offsetMax = new Vector2(-8f, 0f);
         var captionTx = captionGo.AddComponent<TextMeshProUGUI>();
-        captionTx.fontSize = 20;
+        captionTx.fontSize = 22;
         captionTx.color = Color.white;
         captionTx.alignment = TextAlignmentOptions.Left;
         dd.captionText = captionTx;
@@ -453,7 +465,7 @@ public class SrpLobbyController : MonoBehaviour
         ilrt.offsetMin = new Vector2(8f, 0f);
         ilrt.offsetMax = Vector2.zero;
         var itemLabelTx = itemLabelGo.AddComponent<TextMeshProUGUI>();
-        itemLabelTx.fontSize = 18;
+        itemLabelTx.fontSize = 20;
         itemLabelTx.color = Color.white;
         itemLabelTx.alignment = TextAlignmentOptions.Left;
         dd.itemText = itemLabelTx;
