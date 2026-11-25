@@ -119,6 +119,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
             initialMap = SrpDefaultMaps.GetPreset(startPreset);
 
         _state = SrpBattleState.FromMap(initialMap);
+        ApplyMoveRuleSetting();
         SeedBattleRandom();
         _undo.Clear();
         _enemyAiEnabled = SrpGameSettings.EnemyAiEnabled;
@@ -217,10 +218,17 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
             return;
         }
 
-        int manhattan = Mathf.Abs(unit.anchorX - x) + Mathf.Abs(unit.anchorY - y);
-        if (manhattan > _remainingMove)
+        if (!SrpBattleFlow.CanMoveNow(_state, unit, _remainingMove))
         {
-            LogLine($"이동 불가: 필요 이동력 {manhattan}, 현재 잔여 {_remainingMove}.");
+            LogLine($"이동 불가: 이번 활성화에 남은 이동이 없습니다. ({DescribeMoveBudget(unit)})");
+            return;
+        }
+
+        int manhattan = Mathf.Abs(unit.anchorX - x) + Mathf.Abs(unit.anchorY - y);
+        int reach = SrpBattleFlow.GetMoveReach(_state, unit, _remainingMove);
+        if (manhattan > reach)
+        {
+            LogLine($"이동 불가: 필요 이동력 {manhattan}, 지금 갈 수 있는 거리 {reach}.");
             return;
         }
 
@@ -476,11 +484,14 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
     // 이동/공격/스킬/재장전의 규칙 처리는 SrpBattleFlow가 한다(시뮬레이션과 공유).
     // 여기서는 되감기 기록, 화면 갱신, 활성화 종료 처리만 한다.
 
-    /// <summary>이동 1회를 실행한다. 이 이동으로 활성화가 끝났으면 true.</summary>
+    /// <summary>
+    /// 이동 1회를 실행한다. 클릭한 칸이 짧은 이동 범위면 AP 1, 긴 이동 범위면 AP 2를 쓴다(SrpBattleFlow.Move가 비용으로 정한다).
+    /// 이 이동으로 활성화가 끝났으면 true.
+    /// </summary>
     bool PerformMove(SrpUnitRuntime u, int x, int y, int moveCost)
     {
         PushUndo();
-        _remainingMove -= moveCost;
+        _remainingMove = SrpBattleFlow.RemainingMoveAfter(_state, _remainingMove, moveCost);
         var result = SrpBattleFlow.Move(_state, u, x, y, moveCost, this);
         return AfterMove(u, result);
     }
@@ -495,6 +506,13 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         }
         if (TryEndActivationIfPgBroken(u))
             return true;
+        if (result.activationEnded)
+        {
+            // 긴 이동 뒤 종료 설정(기본값)이면 남은 행동 없이 활성화를 끝낸다.
+            LogLine($"행동 종료: {u.displayName}({u.id}) 긴 이동 뒤에는 행동할 수 없습니다.");
+            FinishActivation();
+            return true;
+        }
         RefreshAfterAction(u);
         return false;
     }
@@ -747,6 +765,9 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         UpdateHud();
     }
 
+    static readonly Color ShortMoveTint = new Color(0.3f, 0.9f, 0.4f);
+    static readonly Color LongMoveTint = new Color(0.1f, 0.45f, 0.2f);
+
     void RefreshActiveHighlights(SrpUnitRuntime u)
     {
         ResetTileColors();
@@ -755,13 +776,15 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         _actionPreviewKind = SrpActionPreviewKind.None;
         _hoverPreviewSkillData = null;
         _hoverPreviewSkillRuntime = null;
-        if (_remainingMove > 0 && u.actionPoints > 0)
+        if (SrpBattleFlow.CanMoveNow(_state, u, _remainingMove))
         {
-            var costs = SrpPathfinder.GetReachableWithCosts(_state, u, _remainingMove);
+            // 짧은 이동(AP 1) 칸은 초록, 긴 이동(AP 2) 칸은 진한 초록. 기존 방식은 모두 초록이다.
+            var costs = SrpBattleFlow.GetMoveCosts(_state, u, _remainingMove);
             foreach (var kv in costs)
             {
                 _moveCostMap[kv.Key] = kv.Value;
-                SetOverlayTile(OverlayMove, kv.Key.x, kv.Key.y, new Color(0.3f, 0.9f, 0.4f));
+                var tint = SrpBattleFlow.IsLongMove(_state, u, kv.Value) ? LongMoveTint : ShortMoveTint;
+                SetOverlayTile(OverlayMove, kv.Key.x, kv.Key.y, tint);
             }
         }
         RefreshAttackTargets(u);
@@ -962,6 +985,28 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
 
     // ── 게임 흐름 ────────────────────────────────────────────────────────────
 
+    /// <summary>로비의 이동 규칙 설정을 전투 상태에 복사한다. 상태에 들어 있어 되감기 스냅숏에도 함께 담긴다.</summary>
+    void ApplyMoveRuleSetting()
+    {
+        _state.MoveRule = SrpGameSettings.MoveRule != null
+            ? SrpGameSettings.MoveRule.Clone()
+            : SrpMoveRule.CreateDefault();
+    }
+
+    /// <summary>
+    /// HUD와 로그용 남은 이동 표시. 기존 방식은 남은 이동력, 짧은 이동/긴 이동은 남은 횟수와 두 거리.
+    /// </summary>
+    string DescribeMoveBudget(SrpUnitRuntime unit)
+    {
+        if (unit == null)
+            return string.Empty;
+        var rule = SrpBattleFlow.GetMoveRule(_state);
+        if (rule.IsLegacy)
+            return $"이동력 {_remainingMove}";
+        int left = SrpBattleFlow.GetMovesLeft(_state, unit);
+        return $"이동 {left}회 (짧게 {rule.ShortRange(unit)}/AP1, 길게 {rule.LongRange(unit)}/AP2)";
+    }
+
     void SeedBattleRandom()
     {
         _state.SeedRandom(SrpGameSettings.BattleRandomSeed ?? System.Environment.TickCount);
@@ -1030,7 +1075,15 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
     void ISrpBattleFlowObserver.OnMoved(SrpUnitRuntime mover, int cost, bool disengaged)
     {
         string disengageHint = disengaged ? " (교전 이탈)" : string.Empty;
-        LogLine($"이동: {mover.displayName}({mover.id}) → ({mover.anchorX},{mover.anchorY}), 잔여 이동력 {_remainingMove}{disengageHint}");
+        if (SrpBattleFlow.GetMoveRule(_state).IsLegacy)
+        {
+            LogLine($"이동: {mover.displayName}({mover.id}) → ({mover.anchorX},{mover.anchorY}), 잔여 이동력 {_remainingMove}{disengageHint}");
+            return;
+        }
+        bool longMove = SrpBattleFlow.IsLongMove(_state, mover, cost);
+        string kind = longMove ? $"긴 이동(AP {SrpMoveRule.LongMoveApCost})" : $"짧은 이동(AP {SrpMoveRule.ShortMoveApCost})";
+        LogLine($"{kind}: {mover.displayName}({mover.id}) → ({mover.anchorX},{mover.anchorY}), 비용 {cost}, " +
+            $"남은 이동 {SrpBattleFlow.GetMovesLeft(_state, mover)}회{disengageHint}");
     }
 
     void ISrpBattleFlowObserver.OnAttackResolved(
@@ -1259,6 +1312,7 @@ public partial class SrpGameController : MonoBehaviour, ISrpBattleFlowObserver
         _enemyAiToken++;
 
         _state = SrpBattleState.FromMap(map);
+        ApplyMoveRuleSetting();
         SeedBattleRandom();
         BuildGrid();
         if (frameCameraOnStart) FrameBoardCamera();

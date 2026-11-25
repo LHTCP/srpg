@@ -12,6 +12,8 @@ public struct SrpBattleSimConfig
     public ISrpAiPolicy owner0Policy;
     public ISrpAiPolicy owner1Policy;
     public SrpSimThresholdConfig thresholds;
+    /// <summary>이동 규칙. null이면 전투 상태의 기본 규칙(짧은 이동/긴 이동)을 쓴다. 기존 방식과 비교할 때 넣는다.</summary>
+    public SrpMoveRule moveRule;
 }
 
 public struct SrpSingleBattleResult
@@ -56,6 +58,8 @@ public static class SrpBattleSimRunner
     {
         var map = SrpDefaultMaps.GetPreset(config.mapPreset);
         var baseState = SrpBattleState.FromMap(map);
+        if (config.moveRule != null)
+            baseState.MoveRule = config.moveRule.Clone();
         var metrics = new SrpSimMetrics
         {
             totalTrials = Mathf.Max(1, config.trials),
@@ -319,11 +323,9 @@ public static class SrpBattleSimRunner
 
     static List<SrpAiMoveOption> BuildMoveOptions(SrpBattleState state, SrpUnitRuntime actor, int remainingMove)
     {
+        // 상태의 이동 규칙(기존 방식 또는 짧은 이동/긴 이동)이 허락하는 칸. 짧은 이동/긴 이동이면 긴 이동 칸도 들어 있다.
         var list = new List<SrpAiMoveOption>();
-        if (remainingMove <= 0)
-            return list;
-
-        var costs = SrpPathfinder.GetReachableWithCosts(state, actor, remainingMove);
+        var costs = SrpBattleFlow.GetMoveCosts(state, actor, remainingMove);
         foreach (var kv in costs)
         {
             int baseDistance = Mathf.Abs(kv.Key.x - actor.anchorX) + Mathf.Abs(kv.Key.y - actor.anchorY);

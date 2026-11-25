@@ -42,11 +42,15 @@ public struct SrpReactionResult
 public struct SrpMoveResult
 {
     public int cost;
+    /// <summary>이 이동에 쓴 AP. 기존 방식과 짧은 이동은 1, 긴 이동은 2.</summary>
+    public int apCost;
+    /// <summary>짧은 이동/긴 이동 규칙의 긴 이동이었는가.</summary>
+    public bool longMove;
     public bool disengaged;
     public SrpReactionResult opportunity;
     public SrpReactionResult overwatch;
     public bool moverDied;
-    /// <summary>이 행동으로 활성화가 강제로 끝났는가(사망, PG 붕괴).</summary>
+    /// <summary>이 행동으로 활성화가 강제로 끝났는가(사망, PG 붕괴, 긴 이동 뒤 종료 설정).</summary>
     public bool activationEnded;
 }
 
@@ -132,7 +136,8 @@ public static class SrpBattleFlow
 
     /// <summary>
     /// 새 활성화 시작: 턴 시작 패시브(라운드당 1회)와 활성화 플래그 초기화. 이번 활성화의 이동력을 돌려준다.
-    /// 그로기 회복으로 활성화를 잃는 경우는 SrpTurnOrder.TryConsumeActivationForGroggyRecovery가 먼저 처리한다.
+    /// 이동력은 기존 방식(Legacy)의 이동력 풀이다. 짧은 이동/긴 이동 규칙에서는 남은 이동 횟수(유닛 상태)로 판단하고
+    /// 이 값은 줄지 않는다. 그로기 회복으로 활성화를 잃는 경우는 SrpTurnOrder.TryConsumeActivationForGroggyRecovery가 먼저 처리한다.
     /// </summary>
     public static int BeginActivation(SrpBattleState state, SrpUnitRuntime unit, System.Action<string> log)
     {
@@ -142,15 +147,114 @@ public static class SrpBattleFlow
             unit.passiveAppliedThisTurn = true;
         }
         unit.hasMovedThisActivation = false;
+        unit.movesThisActivation = 0;
         unit.hasAttackedThisActivation = false;
         unit.hasUsedSkillThisActivation = false;
         unit.hasReloadedThisActivation = false;
         return Mathf.Max(0, unit.moveRange);
     }
 
+    // ── 이동 규칙(10차) ──────────────────────────────────────────────────────
+    // 기존 방식(Legacy): 남은 이동력(remainingMove) 안의 칸, 이동마다 AP 1, 횟수 제한 없음.
+    // 짧은 이동/긴 이동(ShortLong): 비용 moveRange 이하 칸은 짧은 이동(AP 1), moveRange × 배수 이하 칸은 긴 이동(AP 2).
+    // 활성화당 이동 횟수 제한이 있고, 긴 이동은 AP가 2 이상일 때만 고를 수 있다. remainingMove는 쓰지 않는다.
+    // 공격(AP 1) 뒤에 남은 AP 1로 짧은 이동은 할 수 있고 긴 이동은 못 한다(공격 후 행동 규칙 Q3와 같은 원리).
+
+    /// <summary>상태의 이동 규칙. 지정되지 않았으면 기본 규칙.</summary>
+    public static SrpMoveRule GetMoveRule(SrpBattleState state)
+    {
+        return state != null && state.MoveRule != null ? state.MoveRule : DefaultMoveRule;
+    }
+
+    static readonly SrpMoveRule DefaultMoveRule = SrpMoveRule.CreateDefault();
+
+    /// <summary>지금 이동할 수 있는가(AP, 남은 이동력 또는 남은 이동 횟수).</summary>
+    public static bool CanMoveNow(SrpBattleState state, SrpUnitRuntime unit, int remainingMove)
+    {
+        if (unit == null || unit.eliminated || unit.actionPoints <= 0)
+            return false;
+        var rule = GetMoveRule(state);
+        if (rule.IsLegacy)
+            return remainingMove > 0;
+        return unit.movesThisActivation < rule.MovesPerActivation
+            && unit.actionPoints >= SrpMoveRule.ShortMoveApCost
+            && rule.ShortRange(unit) > 0;
+    }
+
+    /// <summary>이번 활성화에 남은 이동 횟수. 기존 방식은 횟수 제한이 없어 -1.</summary>
+    public static int GetMovesLeft(SrpBattleState state, SrpUnitRuntime unit)
+    {
+        var rule = GetMoveRule(state);
+        if (rule.IsLegacy || unit == null)
+            return -1;
+        return Mathf.Max(0, rule.MovesPerActivation - unit.movesThisActivation);
+    }
+
     /// <summary>
-    /// 이동 1회(AP 1). 교전에서 벗어나면 기회공격을, 그 뒤 살아 있으면 경계사격을 받는다.
-    /// 목적지와 비용 검증은 호출자가 한다.
+    /// 지금 이동 한 번으로 쓸 수 있는 최대 이동 비용. 이동할 수 없으면 0.
+    /// 기존 방식은 남은 이동력, 짧은 이동/긴 이동은 AP가 2 이상이면 긴 이동 거리, 아니면 짧은 이동 거리.
+    /// </summary>
+    public static int GetMoveReach(SrpBattleState state, SrpUnitRuntime unit, int remainingMove)
+    {
+        if (!CanMoveNow(state, unit, remainingMove))
+            return 0;
+        var rule = GetMoveRule(state);
+        if (rule.IsLegacy)
+            return remainingMove;
+        return unit.actionPoints >= SrpMoveRule.LongMoveApCost ? rule.LongRange(unit) : rule.ShortRange(unit);
+    }
+
+    /// <summary>
+    /// reach 이하 이동 비용 중 짧은 이동(AP 1)으로 가는 부분의 상한. 기존 방식은 모든 이동이 AP 1이라 reach 그대로다.
+    /// </summary>
+    public static int GetShortMoveReach(SrpBattleState state, SrpUnitRuntime unit, int reach)
+    {
+        var rule = GetMoveRule(state);
+        if (rule.IsLegacy)
+            return reach;
+        return Mathf.Min(reach, rule.ShortRange(unit));
+    }
+
+    /// <summary>지금 이동으로 갈 수 있는 칸 → 이동 비용. 짧은 이동 칸과 긴 이동 칸이 함께 들어 있다.</summary>
+    public static Dictionary<Vector2Int, int> GetMoveCosts(SrpBattleState state, SrpUnitRuntime unit, int remainingMove)
+    {
+        int reach = GetMoveReach(state, unit, remainingMove);
+        if (reach <= 0)
+            return new Dictionary<Vector2Int, int>();
+        return SrpPathfinder.GetReachableWithCosts(state, unit, reach);
+    }
+
+    /// <summary>이동 비용 cost인 칸으로 가는 이동이 긴 이동인가. 기존 방식에는 긴 이동이 없다.</summary>
+    public static bool IsLongMove(SrpBattleState state, SrpUnitRuntime unit, int cost)
+    {
+        var rule = GetMoveRule(state);
+        return !rule.IsLegacy && cost > rule.ShortRange(unit);
+    }
+
+    /// <summary>이동 비용 cost인 칸으로 가는 이동의 AP 소모. 기존 방식과 짧은 이동은 1, 긴 이동은 2.</summary>
+    public static int GetMoveApCost(SrpBattleState state, SrpUnitRuntime unit, int cost)
+    {
+        return IsLongMove(state, unit, cost) ? SrpMoveRule.LongMoveApCost : SrpMoveRule.ShortMoveApCost;
+    }
+
+    /// <summary>
+    /// 다음 차례에 이동 한 번으로 설 수 있는 최대 거리(AP를 다 받았다고 본다). 공격까지 하는 위협은 이 값이 아니라
+    /// 짧은 이동 거리(moveRange)로 본다. AI가 상대의 도달 조건 위협을 어림할 때 쓴다.
+    /// </summary>
+    public static int GetMaxMoveDistance(SrpBattleState state, SrpUnitRuntime unit)
+    {
+        if (unit == null)
+            return 0;
+        var rule = GetMoveRule(state);
+        if (rule.IsLegacy || unit.maxActionPoints < SrpMoveRule.LongMoveApCost)
+            return Mathf.Max(0, unit.moveRange);
+        return rule.LongRange(unit);
+    }
+
+    /// <summary>
+    /// 이동 1회. AP는 기존 방식과 짧은 이동이 1, 긴 이동이 2(이동 비용으로 정해진다). 교전에서 벗어나면 기회공격을,
+    /// 그 뒤 살아 있으면 경계사격을 받는다. 긴 이동 뒤 종료 설정이면 활성화가 끝난다.
+    /// 목적지와 비용 검증은 호출자가 한다(GetMoveCosts의 칸과 비용을 넘긴다).
     /// </summary>
     public static SrpMoveResult Move(
         SrpBattleState state,
@@ -160,7 +264,12 @@ public static class SrpBattleFlow
         int cost,
         ISrpBattleFlowObserver observer)
     {
-        var result = new SrpMoveResult { cost = cost };
+        var result = new SrpMoveResult
+        {
+            cost = cost,
+            apCost = GetMoveApCost(state, mover, cost),
+            longMove = IsLongMove(state, mover, cost),
+        };
         bool wasEngaged = state.IsUnitEngaged(mover.id);
         var previousEngagers = state.GetEngagedEnemyIds(mover.id);
 
@@ -169,8 +278,9 @@ public static class SrpBattleFlow
         mover.ClearCover();
         state.RebuildEngagements();
         result.disengaged = wasEngaged && !state.IsUnitEngaged(mover.id);
-        mover.actionPoints = Mathf.Max(0, mover.actionPoints - 1);
+        mover.actionPoints = Mathf.Max(0, mover.actionPoints - result.apCost);
         mover.hasMovedThisActivation = true;
+        mover.movesThisActivation++;
         observer?.OnMoved(mover, cost, result.disengaged);
 
         if (result.disengaged)
@@ -179,8 +289,17 @@ public static class SrpBattleFlow
             result.overwatch = ResolveOverwatchAgainst(state, mover, observer);
 
         result.moverDied = result.opportunity.targetDied || result.overwatch.targetDied;
-        result.activationEnded = result.moverDied || mover.eliminated || mover.IsPgBroken;
+        result.activationEnded = result.moverDied || mover.eliminated || mover.IsPgBroken
+            || (result.longMove && GetMoveRule(state).endActivationAfterLongMove);
         return result;
+    }
+
+    /// <summary>이동 비용 cost를 쓴 뒤의 남은 이동력. 기존 방식만 줄어들고, 짧은 이동/긴 이동은 횟수로 제한하므로 그대로다.</summary>
+    public static int RemainingMoveAfter(SrpBattleState state, int remainingMove, int cost)
+    {
+        if (!GetMoveRule(state).IsLegacy)
+            return remainingMove;
+        return Mathf.Max(0, remainingMove - cost);
     }
 
     /// <summary>
@@ -391,10 +510,11 @@ public static class SrpBattleFlow
         {
             case SrpEnemyAiActionType.Move:
             {
-                var costs = SrpPathfinder.GetReachableWithCosts(state, unit, remainingMove);
+                // 도착 칸이 짧은 이동 범위인지 긴 이동 범위인지에 따라 AP를 쓴다(Move가 비용으로 정한다).
+                var costs = GetMoveCosts(state, unit, remainingMove);
                 if (!costs.TryGetValue(new Vector2Int(action.x, action.y), out int moveCost))
                     return step;
-                remainingMove = Mathf.Max(0, remainingMove - moveCost);
+                remainingMove = RemainingMoveAfter(state, remainingMove, moveCost);
                 step.move = Move(state, unit, action.x, action.y, moveCost, observer);
                 step.executed = true;
                 step.activationEnded = step.move.activationEnded;

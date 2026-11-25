@@ -203,6 +203,8 @@ public class SrpUnitRuntime
     public bool isCommander;
 
     public bool hasMovedThisActivation;
+    /// <summary>이번 활성화에 한 이동 횟수. 짧은 이동/긴 이동 규칙의 활성화당 이동 횟수 제한에 쓴다.</summary>
+    public int movesThisActivation;
     public bool hasAttackedThisActivation;
     public bool hasUsedSkillThisActivation;
     public bool hasReloadedThisActivation;
@@ -259,6 +261,7 @@ public class SrpUnitRuntime
             eliminated = eliminated,
             isCommander = isCommander,
             hasMovedThisActivation = hasMovedThisActivation,
+            movesThisActivation = movesThisActivation,
             hasAttackedThisActivation = hasAttackedThisActivation,
             hasUsedSkillThisActivation = hasUsedSkillThisActivation,
             hasReloadedThisActivation = hasReloadedThisActivation,

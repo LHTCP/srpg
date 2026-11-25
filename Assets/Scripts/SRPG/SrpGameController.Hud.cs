@@ -33,7 +33,7 @@ public partial class SrpGameController
     const float TurnOrderStripHeight = 82f;
     const float TurnOrderCurrentTokenSize = 66f;
     const float TurnOrderNextTokenSize = 48f;
-    const string OverlayLegendText = "범례: 초록=이동 중심점 | 주황=ZOC/주의 ring | 빨강=공격/위험 marker | 보라=스킬 marker | 청록=패링 가능 스킬 ring | 파랑=경계태세 marker | 연두=엄폐/방향엄폐 테두리 | 노랑=상호작용 목표 marker";
+    const string OverlayLegendText = "범례: 초록=이동 중심점(진한 초록=긴 이동 AP 2) | 주황=ZOC/주의 ring | 빨강=공격/위험 marker | 보라=스킬 marker | 청록=패링 가능 스킬 ring | 파랑=경계태세 marker | 연두=엄폐/방향엄폐 테두리 | 노랑=상호작용 목표 marker";
     readonly List<string> _log = new List<string>();
 
     enum SecondaryActionDrawerTab
@@ -1325,7 +1325,7 @@ public partial class SrpGameController
         _txtContextTitle.text = $"{active.displayName} ({active.id})";
         var parts = new List<string>
         {
-            $"AP {active.actionPoints}/{active.maxActionPoints} | 이동 {_remainingMove}",
+            $"AP {active.actionPoints}/{active.maxActionPoints} | {DescribeMoveBudget(active)}",
             $"사거리 {active.attackRange} | 공격 대상 {_attackIds.Count}명",
             $"태세 {active.stance} | 방향 {active.facing}",
         };
@@ -1903,7 +1903,12 @@ public partial class SrpGameController
                 return $"행동 단계: AP 0, 이동/공격/스킬 불가. 행동 종료를 선택하세요\n{OverlayLegendText}";
         }
 
-        string moveInfo = _remainingMove > 0 ? $"이동력 {_remainingMove}" : "이동력 없음";
+        var moveUnit = _selectedId.HasValue ? GetUnit(_selectedId.Value) : null;
+        string moveInfo = SrpBattleFlow.GetMoveRule(_state).IsLegacy
+            ? (_remainingMove > 0 ? $"이동력 {_remainingMove}" : "이동력 없음")
+            : (moveUnit != null && SrpBattleFlow.CanMoveNow(_state, moveUnit, _remainingMove)
+                ? DescribeMoveBudget(moveUnit)
+                : "이동 없음");
         string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능 (활성화당 1회, AP가 남으면 계속 행동)";
         string dangerInfo = IsDangerAreaVisible ? "위험영역 ON" : "위험영역 OFF";
         int rewindOwner = CurrentRewindOwner();
@@ -2020,7 +2025,13 @@ public partial class SrpGameController
                 string cover = _currentMovePreview != null && _currentMovePreview.hasCover
                     ? $"엄폐 가능 ({_currentMovePreview.coverX},{_currentMovePreview.coverY})"
                     : "엄폐 가능 지점 없음";
-                return ("이동 Preview", $"위치 ({_hoverTileX},{_hoverTileY})\n이동 비용 {moveCost} | AP-1\n{cover}\n{risk}");
+                int moveAp = SrpBattleFlow.GetMoveApCost(_state, active, moveCost);
+                string moveKind = SrpBattleFlow.GetMoveRule(_state).IsLegacy
+                    ? string.Empty
+                    : SrpBattleFlow.IsLongMove(_state, active, moveCost)
+                        ? (SrpBattleFlow.GetMoveRule(_state).endActivationAfterLongMove ? " | 긴 이동, 뒤에 행동 종료" : " | 긴 이동")
+                        : " | 짧은 이동";
+                return ("이동 Preview", $"위치 ({_hoverTileX},{_hoverTileY})\n이동 비용 {moveCost} | AP-{moveAp}{moveKind}\n{cover}\n{risk}");
             }
         }
 
