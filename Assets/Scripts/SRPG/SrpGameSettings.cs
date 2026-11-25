@@ -33,6 +33,13 @@ public static class SrpGameSettings
     public static bool RewindPerSideInHotseat = false;
 
     /// <summary>
+    /// 이동 규칙(10차). 기본은 짧은 이동(AP 1, moveRange)/긴 이동(AP 2, moveRange × 2, 뒤에 활성화 종료), 활성화당 1회다.
+    /// 기획 미정이라 설정으로 둔다. 로비의 "이동" 버튼은 방식(기존/짧게·길게)만 바꾸고, 세부 값은 여기서 바꾼다.
+    /// 전투를 시작할 때 복사해 전투 상태에 넣는다.
+    /// </summary>
+    public static SrpMoveRule MoveRule = SrpMoveRule.CreateDefault();
+
+    /// <summary>
     /// 전투 난수(회피 판정) 시드. null이면 전투를 시작할 때마다 시각 기반 시드를 쓴다.
     /// 테스트처럼 결과를 재현해야 할 때만 값을 넣는다.
     /// </summary>

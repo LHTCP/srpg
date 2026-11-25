@@ -173,7 +173,9 @@ public class SrpM1Phase8Tests
         Assert.That(move.type, Is.EqualTo(SrpEnemyAiActionType.Move));
 
         // AP가 2면 먼저 움직이고, 도착한 자리에서 다음 행동 전에 돌아선다.
+        // 이동이 AP 1인 기존 방식(Legacy)의 판단이다. 짧은 이동/긴 이동의 긴 이동은 아래에서 따로 본다(10차).
         var state2 = CreateState(5, 8);
+        state2.MoveRule = SrpMoveRule.CreateLegacy();
         var actor2 = AddUnit(state2, id: 1, owner: 1, x: 0, y: 0, attackPower: 6, moveRange: 2);
         actor2.facing = SrpFacing.East;
         AddUnit(state2, id: 2, owner: 0, x: 0, y: 6);
@@ -184,6 +186,22 @@ public class SrpM1Phase8Tests
         var after = SrpEnemyAi.DecideStep(state2, actor2, remaining2, false);
         Assert.That(after.type, Is.EqualTo(SrpEnemyAiActionType.SetFacing));
         Assert.That(after.facing, Is.EqualTo(SrpFacing.North));
+
+        // 짧은 이동/긴 이동(기본): AP 2로 긴 이동을 하면 활성화가 끝나므로 마지막 AP 이동처럼 미리 돌아선다.
+        var state3 = CreateState(5, 8);
+        var actor3 = AddUnit(state3, id: 1, owner: 1, x: 0, y: 0, attackPower: 6, moveRange: 2);
+        actor3.facing = SrpFacing.East;
+        AddUnit(state3, id: 2, owner: 0, x: 0, y: 6);
+        int remaining3 = SrpBattleFlow.BeginActivation(state3, actor3, null);
+        var first3 = SrpEnemyAi.DecideStep(state3, actor3, remaining3, false);
+        Assert.That(first3.type, Is.EqualTo(SrpEnemyAiActionType.SetFacing), "긴 이동 전에 방향을 정하지 않았습니다.");
+        Assert.That(first3.facing, Is.EqualTo(SrpFacing.North));
+        SrpBattleFlow.ExecuteAiAction(state3, actor3, first3, ref remaining3, null);
+        var move3 = SrpEnemyAi.DecideStep(state3, actor3, remaining3, false);
+        Assert.That(move3.type, Is.EqualTo(SrpEnemyAiActionType.Move));
+        var moved3 = SrpBattleFlow.ExecuteAiAction(state3, actor3, move3, ref remaining3, null);
+        Assert.That(moved3.move.longMove, Is.True);
+        Assert.That(moved3.activationEnded, Is.True);
     }
 
     [TestCase(TestName = "적 AI는 사격 전에는 따로 돌아서지 않는다(사격이 쏘는 쪽으로 돌려 준다)")]
@@ -809,6 +827,12 @@ public class SrpM1Phase8Tests
         // 적(0,2)은 이번 차례에 공격할 수 없는 거리에 있다(적 옆 칸까지 비용 4).
         var walker = AddUnit(far, id: 1, owner: 1, x: 4, y: 2, attackPower: 8, moveRange: 3);
         AddUnit(far, id: 2, owner: 0, x: 0, y: 2);
+        // 짧은 이동/긴 이동(기본)에서는 긴 이동 거리(6) 안이라 한 번에 선다(서기만 하면 되므로 긴 이동도 쓴다).
+        var longWin = SrpEnemyAi.Decide(far, walker, 3, false);
+        Assert.That(longWin.type, Is.EqualTo(SrpEnemyAiActionType.Move));
+        Assert.That((longWin.x, longWin.y), Is.EqualTo((8, 2)));
+        // 이동력 3이 한 번에 갈 수 있는 거리인 기존 방식(Legacy)에서는 도달 칸 쪽으로 다가간다.
+        far.MoveRule = SrpMoveRule.CreateLegacy();
         var approach = SrpEnemyAi.Decide(far, walker, 3, false);
         Assert.That(approach.type, Is.EqualTo(SrpEnemyAiActionType.Move));
         Assert.That((approach.x, approach.y), Is.EqualTo((7, 2)));
@@ -824,7 +848,9 @@ public class SrpM1Phase8Tests
     {
         // 벽이 x = 1의 y = 0~3을 막고 있어 도달 칸 (4,2)로 가려면 y = 4로 돌아가야 한다.
         // 첫 걸음은 어느 쪽이든 직선 거리가 늘어나므로, 경로를 따라가지 않으면 제자리에 멈춘다.
+        // 이동력 풀을 1로 넘겨 한 칸씩 걷게 하는 테스트라 기존 방식(Legacy)으로 고정한다(10차).
         var state = CreateRunnerState(out var runner);
+        state.MoveRule = SrpMoveRule.CreateLegacy();
         var detour = SrpEnemyAi.Decide(state, runner, 1, false);
         Assert.That(detour.type, Is.EqualTo(SrpEnemyAiActionType.Move), "돌아가는 길이 있는데 제자리에 멈췄습니다.");
         Assert.That((detour.x, detour.y), Is.EqualTo((0, 3)));
@@ -845,6 +871,7 @@ public class SrpM1Phase8Tests
 
         // 돌아가는 길의 첫 칸 (0,3)이 한 차례에 쓰러질 수 있는 칸이면 나서지 않는다.
         var danger = CreateRunnerState(out var careful);
+        danger.MoveRule = SrpMoveRule.CreateLegacy();
         AddUnit(danger, id: 4, owner: 0, x: 0, y: 7, attackPower: 8, attackRange: 3, moveRange: 1,
             weaponClass: SrpWeaponClass.Firearm, maxAmmo: 1, ammo: 1);
         AddUnit(danger, id: 5, owner: 0, x: 1, y: 7, attackPower: 8, attackRange: 3, moveRange: 1,

@@ -215,8 +215,12 @@ public static class SrpEnemyAi
         // 승리 목표에 닿아 있으면 다른 무엇보다 먼저 확보한다.
         if (CanSecureObjectiveNow(s))
             return SrpEnemyAiAction.Interact();
+        // 이번 이동 한 번으로 쓸 수 있는 최대 이동 비용. 기존 방식은 남은 이동력, 짧은 이동/긴 이동은 AP에 따라
+        // 긴 이동 거리 또는 짧은 이동 거리다. 어느 쪽 이동인지는 고른 칸의 비용으로 정해진다(SrpBattleFlow.Move).
+        int moveReach = SrpBattleFlow.GetMoveReach(state, actor, remainingMove);
+
         // 이번 이동으로 도달 조건의 칸에 설 수 있으면 바로 간다(서는 순간 승리한다).
-        if (TryPickWinningMove(s, remainingMove, out int winX, out int winY))
+        if (TryPickWinningMove(s, moveReach, out int winX, out int winY))
             return SrpEnemyAiAction.MoveTo(winX, winY);
 
         bool isShooter = actor.weaponClass == SrpWeaponClass.Firearm;
@@ -269,8 +273,9 @@ public static class SrpEnemyAi
         int moveX = actor.anchorX;
         int moveY = actor.anchorY;
         bool moveEnablesAction = false;
-        bool canMove = !actor.hasMovedThisActivation && remainingMove > 0
-            && TryPickMove(s, remainingMove, out moveX, out moveY, out moveEnablesAction);
+        // AI는 활성화당 한 번만 움직인다(이동 횟수 설정이 2여도 두 번째 이동은 쓰지 않는다).
+        bool canMove = !actor.hasMovedThisActivation && moveReach > 0
+            && TryPickMove(s, moveReach, out moveX, out moveY, out moveEnablesAction);
 
         // 이동해서 바로 공격하거나, 목표를 확보하거나, 다친 아군을 회복시킬 수 있으면 스킬보다 이동이 먼저다.
         if (canMove && moveEnablesAction)
@@ -428,7 +433,9 @@ public static class SrpEnemyAi
                                 continue;
                             if (!SrpVictoryConditionTypes.MatchesUnit(unit, data.targetId))
                                 continue;
-                            if (Mathf.Abs(unit.anchorX - data.x) + Mathf.Abs(unit.anchorY - data.y) <= unit.moveRange)
+                            // 서기만 하면 되므로 긴 이동 거리까지 본다(기존 방식은 moveRange).
+                            if (Mathf.Abs(unit.anchorX - data.x) + Mathf.Abs(unit.anchorY - data.y)
+                                <= SrpBattleFlow.GetMaxMoveDistance(state, unit))
                                 s.objectiveThreats.Add(unit.id);
                         }
                         break;
@@ -623,8 +630,31 @@ public static class SrpEnemyAi
     }
 
     /// <summary>
+    /// 이 이동으로 활성화가 끝나는가: 이동 뒤 AP가 0이 되거나, 긴 이동 뒤 종료 설정에 걸린다.
+    /// 기존 방식은 이동이 늘 AP 1이라 AP가 1 이하일 때다(예전 판단과 같다).
+    /// </summary>
+    static bool MoveEndsActivation(Situation s, SrpEnemyAiAction action)
+    {
+        var state = s.state;
+        var actor = s.actor;
+        var rule = SrpBattleFlow.GetMoveRule(state);
+        if (rule.IsLegacy)
+            return actor.actionPoints < 2;
+
+        int apCost = SrpMoveRule.ShortMoveApCost;
+        bool longMove = false;
+        var costs = SrpPathfinder.GetReachableWithCosts(state, actor, rule.LongRange(actor));
+        if (costs.TryGetValue(new Vector2Int(action.x, action.y), out int cost))
+        {
+            longMove = SrpBattleFlow.IsLongMove(state, actor, cost);
+            apCost = SrpBattleFlow.GetMoveApCost(state, actor, cost);
+        }
+        return actor.actionPoints - apCost < 1 || (longMove && rule.endActivationAfterLongMove);
+    }
+
+    /// <summary>
     /// 고른 행동을 하기 전에 돌아설 방향이 있는가. 방향은 AP를 쓰지 않지만 AP가 0이 되면 활성화가 끝나므로,
-    /// 그 자리에서 하는 행동 앞에서, 그리고 마지막 AP로 이동할 때는 도착 칸 기준으로 미리 정한다.
+    /// 그 자리에서 하는 행동 앞에서, 그리고 활성화를 끝내는 이동(마지막 AP, 긴 이동) 전에는 도착 칸 기준으로 미리 정한다.
     /// </summary>
     static bool TryPickFacing(Situation s, SrpEnemyAiAction action, out SrpFacing facing)
     {
@@ -635,8 +665,8 @@ public static class SrpEnemyAi
         switch (action.type)
         {
             case SrpEnemyAiActionType.Move:
-                // 이동 뒤에 AP가 남으면 도착한 자리에서 다시 판단한다.
-                if (actor.actionPoints >= 2)
+                // 이동 뒤에도 활성화가 이어지면 도착한 자리에서 다시 판단한다.
+                if (!MoveEndsActivation(s, action))
                     return false;
                 x = action.x;
                 y = action.y;
@@ -1324,8 +1354,14 @@ public static class SrpEnemyAi
         if (costs.Count == 0)
             return false;
 
-        // 이동에 AP 1을 쓰고도 행동할 AP가 남을 때만 "그 칸에서 공격/목표 확보/회복 가능"을 가산한다.
-        bool canActAfterMove = actor.actionPoints >= 2;
+        // 이동에 AP를 쓰고도 행동할 AP가 남을 때만 "그 칸에서 공격/목표 확보/회복 가능"을 가산한다.
+        // 짧은 이동/긴 이동 규칙에서는 짧은 이동 칸(AP 1)만 해당하고, 긴 이동 칸(AP 2)은 접근 점수로만 본다.
+        // 그래서 이동 뒤 공격할 수 있으면 짧은 이동을, 아니면 긴 이동으로 접근하는 쪽을 고르게 된다.
+        // 기존 방식은 모든 칸이 짧은 이동 범위라 예전과 같다.
+        int shortReach = SrpBattleFlow.GetShortMoveReach(state, actor, remainingMove);
+        bool canActAfterMove = actor.actionPoints - SrpMoveRule.ShortMoveApCost >= 1;
+        bool canActAfterLongMove = actor.actionPoints - SrpMoveRule.LongMoveApCost >= 1
+            && !SrpBattleFlow.GetMoveRule(state).endActivationAfterLongMove;
         if (canActAfterMove)
             CollectSupportSkills(s);
         else
@@ -1339,7 +1375,8 @@ public static class SrpEnemyAi
 
         foreach (var kv in costs)
         {
-            int score = ScoreTile(s, kv.Key.x, kv.Key.y, kv.Value, canActAfterMove, out bool tileEnablesAction, out bool tileSecures);
+            bool canActFromTile = kv.Value <= shortReach ? canActAfterMove : canActAfterLongMove;
+            int score = ScoreTile(s, kv.Key.x, kv.Key.y, kv.Value, canActFromTile, out bool tileEnablesAction, out bool tileSecures);
             // 서면 자기 진영이 패배하는 칸은 고르지 않는다.
             if (s.forbiddenTiles.Contains(kv.Key))
                 continue;

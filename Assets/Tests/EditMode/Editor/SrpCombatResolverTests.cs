@@ -419,7 +419,7 @@ public class SrpCombatResolverTests
     [TestCase(TestName = "적 AI 근접 유닛은 공격할 수 있는 칸으로 접근하고 판단 중 상태를 바꾸지 않는다")]
     public void EnemyAi_MeleeMovesIntoAttackRangeWithoutMutatingState()
     {
-        var state = CreateState();
+        var state = CreateLegacyMoveState();
         var actor = Unit(id: 1, owner: 1, x: 0, y: 0, hp: 30, attackPower: 8, maxAmmo: 1, ammo: 0);
         actor.actionPoints = 2;
         var target = Unit(id: 2, owner: 0, x: 4, y: 0, hp: 30, pg: 10, maxPg: 10);
@@ -463,7 +463,7 @@ public class SrpCombatResolverTests
         //   . # A # .
         //   . . . . .
         //   . . . . .
-        var state = CreateState();
+        var state = CreateLegacyMoveState();
         Block(state, 1, 3, 2, 3, 3, 3, 1, 2, 3, 2);
         var actor = Unit(id: 1, owner: 1, x: 2, y: 2, hp: 30, attackPower: 8);
         var target = Unit(id: 2, owner: 0, x: 2, y: 4, hp: 30, pg: 10, maxPg: 10);
@@ -536,7 +536,7 @@ public class SrpCombatResolverTests
     [TestCase(TestName = "적 AI의 장애물 없는 접근 이동은 우회 판단을 넣은 뒤에도 그대로다")]
     public void EnemyAi_OpenFieldMoveChoiceIsUnchanged()
     {
-        var state = CreateState();
+        var state = CreateLegacyMoveState();
         var actor = Unit(id: 1, owner: 1, x: 0, y: 0, hp: 30, attackPower: 8);
         actor.actionPoints = 2;
         var target = Unit(id: 2, owner: 0, x: 4, y: 0, hp: 30, pg: 10, maxPg: 10);
@@ -849,6 +849,17 @@ public class SrpCombatResolverTests
         {
             return SrpAiCommand.EndTurn();
         }
+    }
+
+    /// <summary>
+    /// 이동 규칙을 기존 방식(Legacy)으로 고정한 상태. 이 파일의 AI 이동 테스트는 유닛의 moveRange 대신
+    /// 판단 함수에 이동력 풀(remainingMove)을 직접 넘기므로 기존 방식에서만 뜻이 있다(10차).
+    /// </summary>
+    static SrpBattleState CreateLegacyMoveState()
+    {
+        var state = CreateState();
+        state.MoveRule = SrpMoveRule.CreateLegacy();
+        return state;
     }
 
     static SrpBattleState CreateState()

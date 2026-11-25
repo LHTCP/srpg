@@ -30,6 +30,12 @@ public class SrpBattleState
     /// <summary>라운드마다 쌓는 승리/패배 조건의 진행도(예: 거점을 연속으로 유지한 라운드 수). 키는 SrpVictory가 정한다.</summary>
     public Dictionary<string, int> VictoryProgress { get; private set; } = new Dictionary<string, int>();
 
+    /// <summary>
+    /// 이동 규칙(10차). 기본은 짧은 이동/긴 이동이다. 런타임은 로비 설정(SrpGameSettings.MoveRule)을 넣고,
+    /// 테스트와 시뮬레이션은 필요하면 Legacy로 바꾼다. null이면 기본 규칙으로 본다.
+    /// </summary>
+    public SrpMoveRule MoveRule { get; set; } = SrpMoveRule.CreateDefault();
+
     const uint DefaultRandomState = 0x9E3779B9u;
 
     /// <summary>
@@ -98,6 +104,7 @@ public class SrpBattleState
             VictoryRule = VictoryRule != null ? VictoryRule.Clone() : new SrpVictoryRuleData(),
             CompletedRounds = CompletedRounds,
             VictoryProgress = new Dictionary<string, int>(VictoryProgress),
+            MoveRule = MoveRule != null ? MoveRule.Clone() : SrpMoveRule.CreateDefault(),
         };
         foreach (var u in Units)
             s.Units.Add(u.Clone());

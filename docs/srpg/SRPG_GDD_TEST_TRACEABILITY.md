@@ -1,5 +1,21 @@
 # SRPG GDD-테스트 추적 매핑표 (v2)
 
+## 2026-11-25 update - 10차 이동 규칙 설정 추적
+
+| Item | Tests | Status | Notes |
+| --- | --- | --- | --- |
+| 이동 규칙 기본값(짧은 이동/긴 이동, 1회, 2배, 긴 이동 뒤 종료) (계획 문서 17절) | `SrpM1Phase10Tests.MoveRule_DefaultsAreRecommendedValues` | 완전 | `SrpGameSettings.MoveRule`, 전투 상태 기본값과 복제, 설정값 범위 |
+| 짧은/긴 두 범위 계산 | `SrpM1Phase10Tests.ShortLong_ReachableTilesSplitIntoShortAndLong` | 완전 | 도착 칸의 경로 비용으로 짧은 이동(AP 1)/긴 이동(AP 2)을 가른다 |
+| AP 소모와 활성화당 이동 횟수 | `SrpM1Phase10Tests.ShortLong_ShortMoveSpendsOneApAndUsesTheOnlyMove`, `ShortLong_TwoMovesPerActivation` | 완전 | 횟수 2 설정, 새 활성화에서 횟수 초기화 포함 |
+| 긴 이동 뒤 종료(설정) | `SrpM1Phase10Tests.ShortLong_LongMoveSpendsTwoApAndEndsActivation`, `ShortLong_LongMoveWithoutForcedEnd` | 부분 | 규칙 결과만. 컨트롤러가 활성화를 끝내는지는 Unity 확인 필요 |
+| 공격 뒤 짧은 이동만(Q3와의 관계) | `SrpM1Phase10Tests.ShortLong_AfterAttackOnlyShortMoveIsOffered` | 완전 | |
+| AI 행동 실행의 범위 판정 | `SrpM1Phase10Tests.ShortLong_ExecuteAiActionUsesTileRange` | 완전 | |
+| 되감기 스냅숏의 이동 횟수 복원 | `SrpM1Phase10Tests.ShortLong_SnapshotRestoresMoveCount` | 부분 | 상태 복제만. 컨트롤러의 되감기 흐름은 Unity 확인 필요 |
+| 기존 방식(Legacy) 회귀 | `SrpM1Phase10Tests.Legacy_SplitMovesKeepOldBehaviour`, Legacy로 고정한 기존 AI 테스트 6건 | 완전 | 시뮬레이션 수치도 9차와 같다(계획 문서 17.2절) |
+| AI 짧은/긴 이동 선택 | `SrpM1Phase10Tests.Ai_ShortMoveThenAttackWhenTargetIsClose`, `Ai_LongMoveToApproachWhenTargetIsFar`, `SrpM1Phase8Tests.EnemyAi_FacesFromDestinationWhenMoveSpendsLastAp`, `EnemyAi_MovesOntoReachTile` | 완전 | 긴 이동 전 방향, 긴 이동으로 도달 칸 |
+| 시뮬레이션 이동 후보와 규칙 지정 | `SrpM1Phase10Tests.Simulation_MoveOptionsFollowMoveRule` | 완전 | `SrpBattleSimConfig.moveRule` |
+| 이동 칸 두 색, HUD 글자, 로비 이동 버튼 | 없음 | 미확인 | 화면 코드라 Unity 확인 필요 |
+
 ## 2026-11-16 update - 9차 되감기 횟수 설정 추적
 
 | Item | Tests | Status | Notes |

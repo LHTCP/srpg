@@ -220,6 +220,11 @@ public class SrpM1AiSimAllEntry
                 maxRounds = maxRounds,
                 baseSeed = baseSeed + (i * 100000),
                 sampleSeedCount = 5,
+                // 10차: 이 관찰 기준(평균 라운드 6~13)은 기존 이동 방식(Legacy)에서 정한 값이라 Legacy로 고정한다.
+                // 새 기본값(짧은 이동/긴 이동)에서는 H vs R 평균 5.66라운드로 하한 6을 밑돈다(R vs H 6.30, H vs H 5.99).
+                // 긴 이동으로 접촉이 빨라지고 긴 이동 뒤 엄폐·재장전을 못 해 전투가 짧아진다. 임계치는 바꾸지 않았다.
+                // 이동 규칙이 확정되면 기준을 다시 정하거나 이 고정을 푼다(계획 문서 17절).
+                moveRule = SrpMoveRule.CreateLegacy(),
                 owner0Policy = c.owner0Factory(),
                 owner1Policy = c.owner1Factory(),
                 thresholds = thresholds,

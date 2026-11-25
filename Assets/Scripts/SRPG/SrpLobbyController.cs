@@ -29,6 +29,7 @@ public class SrpLobbyController : MonoBehaviour
     Button          _btnEnemyAi;
     Button          _btnRewindLimit;
     Button          _btnRewindPerSide;
+    Button          _btnMoveMode;
     static readonly SrpMapPreset[] PresetValues =
     {
         SrpMapPreset.M1OpeningPrototype,
@@ -154,6 +155,9 @@ public class SrpLobbyController : MonoBehaviour
         // 핫시트(적 AI 끔)의 되감기 횟수: 공유(기본) / 진영별.
         _btnRewindPerSide = MakeButton(battleOptionRow.transform, "", OnToggleRewindPerSide, 44, 20);
         RefreshRewindPerSideButton();
+        // 이동 방식: 짧게/길게(기본) / 기존. 세부 값(횟수, 배수, 긴 이동 뒤 종료)은 SrpGameSettings.MoveRule에서 바꾼다.
+        _btnMoveMode = MakeButton(battleOptionRow.transform, "", OnToggleMoveMode, 44, 20);
+        RefreshMoveModeButton();
 
         // 전투 시작 버튼
         MakeButton(centerGo.transform, "전투 시작", OnStartBattle, 72, 30);
@@ -266,6 +270,27 @@ public class SrpLobbyController : MonoBehaviour
                 ? "핫시트: 진영별"
                 : "핫시트: 공유";
         _btnRewindPerSide.GetComponent<Image>().color = new Color(0.28f, 0.38f, 0.55f, 0.9f);
+    }
+
+    void OnToggleMoveMode()
+    {
+        if (SrpGameSettings.MoveRule == null)
+            SrpGameSettings.MoveRule = SrpMoveRule.CreateDefault();
+        SrpGameSettings.MoveRule.mode = SrpGameSettings.MoveRule.IsLegacy
+            ? SrpMoveMode.ShortLong
+            : SrpMoveMode.Legacy;
+        RefreshMoveModeButton();
+    }
+
+    void RefreshMoveModeButton()
+    {
+        if (_btnMoveMode == null)
+            return;
+        bool legacy = SrpGameSettings.MoveRule != null && SrpGameSettings.MoveRule.IsLegacy;
+        var label = _btnMoveMode.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null)
+            label.text = legacy ? "이동: 기존" : "이동: 짧게/길게";
+        _btnMoveMode.GetComponent<Image>().color = new Color(0.28f, 0.38f, 0.55f, 0.9f);
     }
 
     void OnStartBattle()
