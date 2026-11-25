@@ -1258,7 +1258,14 @@ public partial class SrpGameController
             _btnEndTurn.interactable = !_gameOver
                 && (_phase == Phase.UnitActive || (_phase == Phase.SelectingSkillTarget && _selectedId.HasValue));
         if (_btnUndo != null)
-            _btnUndo.interactable = _undo.Count > 0;
+        {
+            // 무제한(기본값)은 기존과 같다. 한도가 있으면 버튼에 남은 횟수를 붙이고, 0이면 막는다.
+            _btnUndo.interactable = CanUndo();
+            // 진영별 모드(핫시트)에서는 지금 행동 중인 진영의 남은 횟수를 보여 준다.
+            SetButtonLabel(_btnUndo, _rewindBudget.IsUnlimited
+                ? "되감기"
+                : $"되감기 {_rewindBudget.RemainingFor(CurrentRewindOwner())}");
+        }
         if (_btnUseSkill != null)
             _btnUseSkill.interactable = unitActive;
         if (_btnBasicAttack != null)
@@ -1899,7 +1906,20 @@ public partial class SrpGameController
         string moveInfo = _remainingMove > 0 ? $"이동력 {_remainingMove}" : "이동력 없음";
         string atkInfo = _hasAttackedThisTurn ? "공격 완료" : "공격 가능 (활성화당 1회, AP가 남으면 계속 행동)";
         string dangerInfo = IsDangerAreaVisible ? "위험영역 ON" : "위험영역 OFF";
-        string undoInfo = _undo.Count > 0 ? "되감기 가능" : "되감기 없음(행동 확정 후 생성)";
+        int rewindOwner = CurrentRewindOwner();
+        string undoInfo;
+        if (!_rewindBudget.IsUnlimited && !_rewindBudget.CanRewindFor(rewindOwner))
+            undoInfo = _rewindBudget.Limit == 0 ? "되감기 꺼짐" : "되감기 횟수 소진";
+        else if (IsLastUndoOtherSide())
+            undoInfo = "되감기 불가(마지막 행동이 상대 진영)";
+        else
+        {
+            undoInfo = _undo.Count > 0 ? "되감기 가능" : "되감기 없음(행동 확정 후 생성)";
+            if (!_rewindBudget.IsUnlimited)
+                undoInfo += _rewindBudget.PerOwner
+                    ? $" P{rewindOwner} 남은 {_rewindBudget.RemainingFor(rewindOwner)}회"
+                    : $" 남은 {_rewindBudget.Remaining}회";
+        }
         return $"행동 단계: {moveInfo} | {atkInfo} | {dangerInfo} | {undoInfo}\n{OverlayLegendText}";
     }
 
